@@ -80,7 +80,7 @@ public class AdminStatsHandler extends HttpServlet {
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             // 获取总音乐数
-            String musicQuery = "SELECT COUNT(*) FROM music"; // 假设有一个music表
+            String musicQuery = "SELECT COUNT(*) FROM music"; // 正确的音乐表
             try (PreparedStatement stmt = conn.prepareStatement(musicQuery);
                  ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -91,7 +91,7 @@ public class AdminStatsHandler extends HttpServlet {
             }
             
             // 获取总用户数
-            String userQuery = "SELECT COUNT(*) FROM users"; // 假设有一个users表
+            String userQuery = "SELECT COUNT(*) FROM users"; // 正确的用户表
             try (PreparedStatement stmt = conn.prepareStatement(userQuery);
                  ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -101,8 +101,8 @@ public class AdminStatsHandler extends HttpServlet {
                 }
             }
             
-            // 获取今日访问量（假设有个访问记录表）
-            String visitQuery = "SELECT COUNT(*) FROM access_logs WHERE DATE(created_at) = CURDATE()"; // 假设有一个access_logs表
+            // 获取今日访问量
+            String visitQuery = "SELECT COUNT(*) FROM access_logs WHERE DATE(created_at) = CURDATE()"; // 正确的访问日志表
             try (PreparedStatement stmt = conn.prepareStatement(visitQuery);
                  ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -113,7 +113,7 @@ public class AdminStatsHandler extends HttpServlet {
             }
             
             // 获取总搜索次数
-            String searchQuery = "SELECT COUNT(*) FROM search_logs"; // 假设有一个search_logs表
+            String searchQuery = "SELECT COUNT(*) FROM search_logs"; // 正确的搜索日志表
             try (PreparedStatement stmt = conn.prepareStatement(searchQuery);
                  ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -124,6 +124,7 @@ public class AdminStatsHandler extends HttpServlet {
             }
         } catch (Exception e) {
             System.err.println("查询统计数据时出错: " + e.getMessage());
+            e.printStackTrace();
             // 出错时返回默认值
             stats.put("totalMusic", 0);
             stats.put("totalUsers", 0);
