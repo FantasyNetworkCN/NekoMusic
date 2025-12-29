@@ -52,6 +52,7 @@ frontend/.nuxtignore
 *.iml
 *.ipr
 out/
+.idea
 
 ### Eclipse ###
 .apt_generated

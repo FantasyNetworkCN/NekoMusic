@@ -1,7 +1,10 @@
 <template>
   <header class="search-header">
     <div class="header-content">
-      <h1 class="logo">NekoMusic</h1>
+      <div class="logo-container">
+        <h1 class="logo">NekoMusic</h1>
+        <div class="logo-decoration">🐱</div>
+      </div>
       <div class="search-container">
         <input
           v-model="searchQuery"
@@ -14,6 +17,11 @@
           <span>🔍</span>
         </button>
       </div>
+    </div>
+    <div class="header-decoration">
+      <div class="decoration-dot"></div>
+      <div class="decoration-dot"></div>
+      <div class="decoration-dot"></div>
     </div>
   </header>
 </template>
@@ -56,13 +64,14 @@ const performSearch = async () => {
 
 <style scoped>
 .search-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, #ff9ec0 0%, #ffccf9 100%);
+  color: #5c4b7b;
   padding: 1rem 0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(255, 158, 192, 0.4);
   position: sticky;
   top: 0;
   z-index: 100;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.5);
 }
 
 .header-content {
@@ -76,11 +85,27 @@ const performSearch = async () => {
   gap: 20px;
 }
 
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .logo {
   margin: 0;
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: bold;
   flex-shrink: 0;
+  background: linear-gradient(45deg, #6a5acd, #ff69b4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.3);
+}
+
+.logo-decoration {
+  font-size: 1.8rem;
+  animation: bounce 2s infinite;
 }
 
 .search-container {
@@ -88,32 +113,85 @@ const performSearch = async () => {
   flex-grow: 1;
   max-width: 600px;
   min-width: 250px;
+  position: relative;
 }
 
 .search-input {
   flex: 1;
-  padding: 12px 16px;
+  padding: 14px 20px;
   border: none;
-  border-radius: 24px 0 0 24px;
+  border-radius: 30px;
   font-size: 1rem;
   outline: none;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid #ffccf9;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  border-color: #6a5acd;
+  box-shadow: 0 4px 20px rgba(106, 90, 205, 0.3);
 }
 
 .search-button {
-  padding: 12px 20px;
-  background: #5c6bc0;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 9px 20px;
+  background: linear-gradient(135deg, #6a5acd, #9370db);
   color: white;
   border: none;
-  border-radius: 0 24px 24px 0;
+  border-radius: 24px;
   cursor: pointer;
   font-size: 1.2rem;
-  transition: background-color 0.3s;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.4);
+  min-width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .search-button:hover {
-  background: #3f51b5;
+  background: linear-gradient(135deg, #5c4b7b, #7a5bc0);
+  transform: translateY(-50%) scale(1.05);
+  box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
+}
+
+.header-decoration {
+  position: absolute;
+  top: 0;
+  right: 10%;
+  display: flex;
+  gap: 10px;
+}
+
+.decoration-dot {
+  width: 12px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.decoration-dot:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.decoration-dot:nth-child(3) {
+  animation-delay: 1s;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
 }
 
 @media (max-width: 768px) {
@@ -122,13 +200,18 @@ const performSearch = async () => {
     text-align: center;
   }
   
-  .logo {
+  .logo-container {
     width: 100%;
+    justify-content: center;
   }
   
   .search-container {
     width: 100%;
     max-width: 100%;
+  }
+  
+  .header-decoration {
+    display: none;
   }
 }
 </style>
