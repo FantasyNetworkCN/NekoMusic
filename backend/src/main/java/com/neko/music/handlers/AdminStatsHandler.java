@@ -122,6 +122,51 @@ public class AdminStatsHandler extends HttpServlet {
                     stats.put("totalSearches", 0);
                 }
             }
+            
+            // 获取最近7天的用户注册趋势数据
+            String userTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM users WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
+            try (PreparedStatement stmt = conn.prepareStatement(userTrendQuery);
+                 ResultSet rs = stmt.executeQuery()) {
+                // 创建一个包含最近7天数据的列表
+                Map<String, Integer> userTrendMap = new HashMap<>();
+                while (rs.next()) {
+                    userTrendMap.put(rs.getString("date"), rs.getInt("count"));
+                }
+                stats.put("userTrendData", userTrendMap);
+            }
+            
+            // 获取最近7天的音乐添加趋势数据
+            String musicTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM music WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
+            try (PreparedStatement stmt = conn.prepareStatement(musicTrendQuery);
+                 ResultSet rs = stmt.executeQuery()) {
+                Map<String, Integer> musicTrendMap = new HashMap<>();
+                while (rs.next()) {
+                    musicTrendMap.put(rs.getString("date"), rs.getInt("count"));
+                }
+                stats.put("musicTrendData", musicTrendMap);
+            }
+            
+            // 获取最近7天的访问量趋势数据
+            String visitTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM access_logs WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
+            try (PreparedStatement stmt = conn.prepareStatement(visitTrendQuery);
+                 ResultSet rs = stmt.executeQuery()) {
+                Map<String, Integer> visitTrendMap = new HashMap<>();
+                while (rs.next()) {
+                    visitTrendMap.put(rs.getString("date"), rs.getInt("count"));
+                }
+                stats.put("visitTrendData", visitTrendMap);
+            }
+            
+            // 获取最近7天的搜索量趋势数据
+            String searchTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM search_logs WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
+            try (PreparedStatement stmt = conn.prepareStatement(searchTrendQuery);
+                 ResultSet rs = stmt.executeQuery()) {
+                Map<String, Integer> searchTrendMap = new HashMap<>();
+                while (rs.next()) {
+                    searchTrendMap.put(rs.getString("date"), rs.getInt("count"));
+                }
+                stats.put("searchTrendData", searchTrendMap);
+            }
         } catch (Exception e) {
             System.err.println("查询统计数据时出错: " + e.getMessage());
             e.printStackTrace();
@@ -130,6 +175,10 @@ public class AdminStatsHandler extends HttpServlet {
             stats.put("totalUsers", 0);
             stats.put("todayVisits", 0);
             stats.put("totalSearches", 0);
+            stats.put("userTrendData", new HashMap<>());
+            stats.put("musicTrendData", new HashMap<>());
+            stats.put("visitTrendData", new HashMap<>());
+            stats.put("searchTrendData", new HashMap<>());
         }
         
         return stats;

@@ -40,9 +40,8 @@
               
               <div class="chart-section">
                 <h3>数据趋势图</h3>
-                <div class="chart-placeholder">
-                  <p>图表显示区域</p>
-                  <p>这里会显示平台数据的趋势图表</p>
+                <div class="chart-container">
+                  <canvas ref="trendChartCanvas"></canvas>
                 </div>
               </div>
             </div>
@@ -53,10 +52,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onActivated } from 'vue'
+import { ref, onMounted, onActivated, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import AdminSidebar from '@/components/AdminSidebar.vue'
+import {
+  Chart as ChartJS,
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+
+// 注册 Chart.js 组件
+ChartJS.register(
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
 
 const router = useRouter()
 const stats = ref({
@@ -67,6 +91,8 @@ const stats = ref({
 // 管理员信息
 const adminInfo = ref({})
 const activeTab = ref('stats')
+const trendChartCanvas = ref(null)
+let trendChart = null
 
 // 初始化管理员信息
 onMounted(() => {
@@ -93,6 +119,13 @@ onActivated(() => {
   }
 })
 
+// 在组件卸载时销毁图表
+onUnmounted(() => {
+  if (trendChart) {
+    trendChart.destroy()
+  }
+})
+
 const fetchStats = async () => {
   try {
     const storedAdminInfo = localStorage.getItem('adminToken')
@@ -114,6 +147,11 @@ const fetchStats = async () => {
         totalMusic: data.data.totalMusic || 0,
         totalUsers: data.data.totalUsers || 0
       }
+      
+      // 获取详细统计数据用于图表
+      if (data.data) {
+        renderTrendChart(data.data)
+      }
     } else {
       console.error('获取统计数据失败:', data.message)
       // 使用默认值
@@ -121,6 +159,7 @@ const fetchStats = async () => {
         totalMusic: 0,
         totalUsers: 0
       }
+      renderTrendChart({})
     }
   } catch (error) {
     console.error('获取统计数据时发生错误:', error)
@@ -129,7 +168,88 @@ const fetchStats = async () => {
       totalMusic: 0,
       totalUsers: 0
     }
+    renderTrendChart({})
   }
+}
+
+// 渲染趋势图表
+const renderTrendChart = (data) => {
+  // 销毁之前的图表实例（如果存在）
+  if (trendChart) {
+    trendChart.destroy()
+  }
+  
+  // 确保canvas元素存在
+  if (!trendChartCanvas.value) {
+    console.error('Canvas element not found')
+    return
+  }
+  
+  // 获取canvas元素
+  const ctx = trendChartCanvas.value.getContext('2d')
+  
+  // 准备趋势数据
+  const today = new Date()
+  const dates = []
+  const userCounts = []
+  const musicCounts = []
+  const visitCounts = []
+  
+  // 生成最近7天的日期标签
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date()
+    date.setDate(today.getDate() - i)
+    const formattedDate = date.toISOString().split('T')[0] // 格式化为 YYYY-MM-DD
+    dates.push(formattedDate)
+  }
+  
+  // 根据后端提供的数据填充数组
+  dates.forEach(date => {
+    // 用户注册数
+    userCounts.push(data.userTrendData && data.userTrendData[date] ? data.userTrendData[date] : 0)
+    
+    // 音乐添加数
+    musicCounts.push(data.musicTrendData && data.musicTrendData[date] ? data.musicTrendData[date] : 0)
+    
+    // 访问量
+    visitCounts.push(data.visitTrendData && data.visitTrendData[date] ? data.visitTrendData[date] : 0)
+  })
+  
+  // 创建趋势图
+  trendChart = new ChartJS(ctx, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [
+        {
+          label: '用户注册数',
+          data: userCounts,
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          tension: 0.1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false, // 允许图表调整大小
+      plugins: {
+        title: {
+          display: true,
+          text: '平台数据趋势'
+        },
+        legend: {
+          display: true,
+          position: 'top',
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  })
 }
 
 const goTo = (path) => {
@@ -293,6 +413,12 @@ const logout = () => {
   color: #6a5acd;
   margin: 0 0 20px 0;
   font-size: 1.3rem;
+}
+
+.chart-container {
+  position: relative;
+  height: 400px;
+  width: 100%;
 }
 
 .chart-placeholder {
