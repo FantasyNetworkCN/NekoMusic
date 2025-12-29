@@ -131,7 +131,8 @@ const fetchStats = async () => {
     const storedAdminInfo = localStorage.getItem('adminToken')
     const adminData = JSON.parse(storedAdminInfo || '{}')
     
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/stats`, {
+    // 获取总体统计数据
+    const statsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/admin/stats`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -139,26 +140,39 @@ const fetchStats = async () => {
       }
     })
     
-    const data = await response.json()
+    const statsData = await statsResponse.json()
     
-    if (response.ok && data.success) {
+    if (statsResponse.ok && statsData.success) {
       // 只更新后端返回的实际数据（totalMusic 和 totalUsers）
       stats.value = {
-        totalMusic: data.data.totalMusic || 0,
-        totalUsers: data.data.totalUsers || 0
-      }
-      
-      // 获取详细统计数据用于图表
-      if (data.data) {
-        renderTrendChart(data.data)
+        totalMusic: statsData.data.totalMusic || 0,
+        totalUsers: statsData.data.totalUsers || 0
       }
     } else {
-      console.error('获取统计数据失败:', data.message)
+      console.error('获取统计数据失败:', statsData.message)
       // 使用默认值
       stats.value = {
         totalMusic: 0,
         totalUsers: 0
       }
+    }
+    
+    // 获取图表数据
+    const chartResponse = await fetch(`${API_CONFIG.BASE_URL}/api/admin/chart-data`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': adminData.username || '' // 发送管理员用户名进行验证
+      }
+    })
+    
+    const chartData = await chartResponse.json()
+    
+    if (chartResponse.ok && chartData.success) {
+      // 渲染趋势图表
+      renderTrendChart(chartData.data)
+    } else {
+      console.error('获取图表数据失败:', chartData.message)
       renderTrendChart({})
     }
   } catch (error) {
@@ -215,6 +229,10 @@ const renderTrendChart = (data) => {
     visitCounts.push(data.visitTrendData && data.visitTrendData[date] ? data.visitTrendData[date] : 0)
   })
   
+  // 计算y轴的最大值，至少为50
+  const allDataValues = [...userCounts, ...musicCounts, ...visitCounts]
+  const maxValue = Math.max(50, ...allDataValues)
+  
   // 创建趋势图
   trendChart = new ChartJS(ctx, {
     type: 'line',
@@ -245,7 +263,23 @@ const renderTrendChart = (data) => {
       },
       scales: {
         y: {
-          beginAtZero: true
+          beginAtZero: true,
+          max: maxValue,
+          ticks: {
+            // 确保y轴只显示整数
+            callback: function(value) {
+              if (Number.isInteger(value)) {
+                return value
+              }
+            },
+            // 确保只显示整数刻度
+            precision: 0
+          }
+        },
+        x: {
+          grid: {
+            display: false // 隐藏x轴网格线以提高可读性
+          }
         }
       }
     }
