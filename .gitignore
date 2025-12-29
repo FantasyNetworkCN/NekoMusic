@@ -1,8 +1,47 @@
+### Java ###
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+.DS_Store
+
+### Maven ###
 target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-.kotlin
+
+### Backend specific ###
+backend/target/
+backend/lib/
+!.mvn/wrapper/maven-wrapper.jar
+
+### Frontend specific ###
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.angular/
+frontend/.nuxt/
+frontend/.next/
+frontend/.vercel/
+frontend/.svelte-kit/
+frontend/.saber/
+frontend/.cache/
+frontend/nuxt.d.ts
+frontend/.output/
+frontend/.nitro/
+frontend/.nuxtignore
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
@@ -12,6 +51,7 @@ target/
 *.iws
 *.iml
 *.ipr
+out/
 
 ### Eclipse ###
 .apt_generated
@@ -37,3 +77,38 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Database ###
+*.db
+*.db-journal
+
+### Environment specific ###
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.local
+
+### Temporary files ###
+*.tmp
+*.bak
+*.swp
+*~
+Thumbs.db
+
+### Log files ###
+*.log
+logs/
+*.out
+
+### OS generated files ###
+ehthumbs.db
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.DS_Store
+.ktlin
