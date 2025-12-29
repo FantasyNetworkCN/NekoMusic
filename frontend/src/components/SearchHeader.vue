@@ -2,7 +2,7 @@
   <header class="search-header">
     <div class="header-content">
       <div class="logo-container">
-        <h1 class="logo">Neko云音乐</h1>
+        <h1 class="logo" @click="goHome">Neko云音乐</h1>
       </div>
       <div class="search-container-wrapper">
         <div class="search-container">
@@ -48,13 +48,23 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 
+const router = useRouter()
 const searchQuery = ref('')
 const searchResults = ref(null)
 const showResults = ref(false)
 const isLoading = ref(false)
 let debounceTimer = null
+
+// 跳转到首页
+const goHome = () => {
+  router.push('/')
+  searchQuery.value = ''
+  searchResults.value = null
+  showResults.value = false
+}
 
 // 防抖搜索函数
 const debouncedSearch = (query) => {
@@ -110,6 +120,9 @@ const performSearch = async () => {
         searchResults.value = data.results
         showResults.value = true
         console.log('搜索成功:', data.results)
+        
+        // 跳转到搜索结果页面
+        router.push(`/search/${encodeURIComponent(searchQuery.value)}`)
       } else {
         // 当后端返回null时，不显示结果框
         searchResults.value = data.results // 这里将是null
@@ -142,6 +155,9 @@ const selectResult = (result) => {
   searchQuery.value = `${result.title} - ${result.artist}`
   searchResults.value = null
   showResults.value = false
+  
+  // 跳转到搜索结果页面
+  router.push(`/search/${encodeURIComponent(searchQuery.value)}`)
   
   // 确保输入框保持焦点
   setTimeout(() => {
@@ -219,6 +235,13 @@ onUnmounted(() => {
   text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.3);
   position: relative;
   z-index: 2;
+  cursor: pointer;
+  transition: transform 0.2s ease, text-shadow 0.2s ease;
+}
+
+.logo:hover {
+  transform: scale(1.05);
+  text-shadow: 2px 2px 8px rgba(106, 90, 205, 0.5);
 }
 
 .search-container-wrapper {
