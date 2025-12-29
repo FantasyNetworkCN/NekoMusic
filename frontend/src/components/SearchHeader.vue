@@ -124,9 +124,16 @@ const performSearch = async () => {
   } catch (error) {
     console.error('搜索请求失败:', error)
     searchResults.value = null
-    showResults.value = true
+    showResults.value = false
   } finally {
     isLoading.value = false
+    // 确保输入框保持焦点
+    setTimeout(() => {
+      const inputElement = document.querySelector('.search-input')
+      if (inputElement && document.activeElement !== inputElement) {
+        inputElement.focus()
+      }
+    }, 0)
   }
 }
 
@@ -135,6 +142,14 @@ const selectResult = (result) => {
   searchQuery.value = `${result.title} - ${result.artist}`
   searchResults.value = null
   showResults.value = false
+  
+  // 确保输入框保持焦点
+  setTimeout(() => {
+    const inputElement = document.querySelector('.search-input')
+    if (inputElement) {
+      inputElement.focus()
+    }
+  }, 0)
 }
 
 // 点击外部区域隐藏搜索结果
@@ -315,7 +330,7 @@ onUnmounted(() => {
 
 .result-item:hover {
   background-color: rgba(255, 255, 255, 0.5);
-  transform: translateX(5px);
+  box-shadow: inset 0 0 10px rgba(106, 90, 205, 0.3);
 }
 
 .result-item:last-child {

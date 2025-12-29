@@ -18,8 +18,7 @@ import Footer from './components/Footer.vue'
         </div>
       </div>
     </main>
-    <CatGirl />
-    <Footer />
+    <Footer/>
   </div>
 </template>
 
