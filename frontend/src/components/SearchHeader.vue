@@ -2,45 +2,46 @@
   <header class="search-header">
     <div class="header-content">
       <div class="logo-container">
-        <h1 class="logo">NekoMusic</h1>
-        <div class="logo-decoration">favicon.ico</div>
+        <h1 class="logo">Neko云音乐</h1>
       </div>
-      <div class="search-container">
-        <input
-          v-model="searchQuery"
-          @input="handleInput"
-          @keyup.enter="performSearch"
-          type="text"
-          placeholder="搜索音乐、艺术家或专辑..."
-          class="search-input"
-          :disabled="isLoading"
-        />
-        <button @click="performSearch" class="search-button" :disabled="isLoading">
-          <span v-if="isLoading">⏳</span>
-          <span v-else>搜索</span>
-        </button>
+      <div class="search-container-wrapper">
+        <div class="search-container">
+          <input
+            v-model="searchQuery"
+            @input="handleInput"
+            @keyup.enter="performSearch"
+            type="text"
+            placeholder="搜索音乐、艺术家或专辑..."
+            class="search-input"
+            :disabled="isLoading"
+          />
+          <button @click="performSearch" class="search-button" :disabled="isLoading">
+            <span v-if="isLoading">⏳</span>
+            <span v-else>搜索</span>
+          </button>
+        </div>
+        
+        <!-- 搜索结果下拉框 -->
+        <div v-if="showResults && searchResults && searchResults.length > 0" class="search-results">
+          <div 
+            v-for="result in searchResults" 
+            :key="result.id" 
+            class="result-item"
+            @click="selectResult(result)"
+          >
+            <div class="result-info">
+              <div class="result-title">{{ result.title }}</div>
+              <div class="result-artist">{{ result.artist }}</div>
+              <div class="result-album" v-if="result.album">{{ result.album }}</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="header-decoration">
       <div class="decoration-dot"></div>
       <div class="decoration-dot"></div>
       <div class="decoration-dot"></div>
-    </div>
-    
-    <!-- 搜索结果下拉框 -->
-    <div v-if="showResults && searchResults && searchResults.length > 0" class="search-results">
-      <div 
-        v-for="result in searchResults" 
-        :key="result.id" 
-        class="result-item"
-        @click="selectResult(result)"
-      >
-        <div class="result-info">
-          <div class="result-title">{{ result.title }}</div>
-          <div class="result-artist">{{ result.artist }}</div>
-          <div class="result-album" v-if="result.album">{{ result.album }}</div>
-        </div>
-      </div>
     </div>
   </header>
 </template>
@@ -198,17 +199,19 @@ onUnmounted(() => {
   text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.3);
 }
 
-.logo-decoration {
-  font-size: 1.8rem;
-  animation: bounce 2s infinite;
+.search-container-wrapper {
+  position: relative;
+  display: flex;
+  flex-grow: 1;
+  max-width: 600px;
+  min-width: 250px;
 }
 
 .search-container {
   display: flex;
   flex-grow: 1;
-  max-width: 600px;
-  min-width: 250px;
   position: relative;
+  z-index: 1001; /* 确保搜索框在搜索结果上方 */
 }
 
 .search-input {
@@ -270,7 +273,7 @@ onUnmounted(() => {
   position: absolute;
   top: 100%;
   left: 0;
-  right: 0;
+  width: 100%;
   background: white;
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
@@ -286,6 +289,9 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background-color 0.2s;
   border-bottom: 1px solid #f0f0f0;
+  max-height: 80px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .result-item:hover {
@@ -299,23 +305,33 @@ onUnmounted(() => {
 .result-info {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .result-title {
   font-weight: bold;
   color: #5c4b7b;
   margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .result-artist {
   color: #9370db;
   font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .result-album {
   color: #a0a0a0;
   font-size: 0.8rem;
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .no-results {
