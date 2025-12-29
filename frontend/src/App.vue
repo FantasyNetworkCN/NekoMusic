@@ -1,5 +1,6 @@
 <script setup>
 import SearchHeader from './components/SearchHeader.vue'
+import Footer from './components/Footer.vue'
 </script>
 
 <template>
@@ -18,10 +19,17 @@ import SearchHeader from './components/SearchHeader.vue'
       </div>
     </main>
     <CatGirl />
+    <Footer />
   </div>
 </template>
 
 <style scoped>
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 main {
   flex: 1;
   padding: 20px;
