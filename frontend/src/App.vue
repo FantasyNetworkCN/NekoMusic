@@ -1,6 +1,5 @@
 <script setup>
 import SearchHeader from './components/SearchHeader.vue'
-import CatGirl from './components/CatGirl.vue'
 </script>
 
 <template>
