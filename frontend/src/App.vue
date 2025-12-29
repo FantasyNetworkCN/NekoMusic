@@ -1,4 +1,5 @@
 <script setup>
+import { RouterView } from 'vue-router'
 import SearchHeader from './components/SearchHeader.vue'
 import Footer from './components/Footer.vue'
 </script>
@@ -7,18 +8,9 @@ import Footer from './components/Footer.vue'
   <div id="app">
     <SearchHeader />
     <main>
-      <div class="content">
-        <div class="welcome-card">
-          <h2 class="welcome-title">欢迎使用 NekoMusic</h2>
-          <p class="welcome-subtitle">使用上方的搜索框来搜索您喜欢的音乐</p>
-          <div class="decoration-element">
-            <div class="music-note note-1">♪</div>
-            <div class="music-note note-2">♫</div>
-          </div>
-        </div>
-      </div>
+      <RouterView />
     </main>
-    <Footer/>
+    <Footer />
   </div>
 </template>
 
