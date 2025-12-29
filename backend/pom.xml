@@ -86,6 +86,13 @@
             <version>5.9.2</version>
             <scope>test</scope>
         </dependency>
+        
+        <!-- Argon2密码哈希库 -->
+        <dependency>
+            <groupId>de.mkammerer</groupId>
+            <artifactId>argon2-jvm</artifactId>
+            <version>2.11</version>
+        </dependency>
     </dependencies>
 
     <build>
