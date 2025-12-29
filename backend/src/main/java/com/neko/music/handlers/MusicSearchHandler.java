@@ -37,8 +37,13 @@ public class MusicSearchHandler extends HttpServlet {
             // 搜索音乐
             List<Music> results = searchMusic(searchRequest.getQuery());
             
+            // 如果没有搜索结果，返回null
+            Object responseResults = results.isEmpty() ? null : results;
+            
             // 返回结果
-            SearchResponse searchResponse = new SearchResponse(true, "搜索成功", results);
+            SearchResponse searchResponse = new SearchResponse(!results.isEmpty(), 
+                results.isEmpty() ? "未找到匹配的音乐" : "搜索成功", 
+                responseResults);
             
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
@@ -130,9 +135,9 @@ public class MusicSearchHandler extends HttpServlet {
     private static class SearchResponse {
         private boolean success;
         private String message;
-        private List<Music> results;
+        private Object results;
         
-        public SearchResponse(boolean success, String message, List<Music> results) {
+        public SearchResponse(boolean success, String message, Object results) {
             this.success = success;
             this.message = message;
             this.results = results;
@@ -142,8 +147,8 @@ public class MusicSearchHandler extends HttpServlet {
         public void setSuccess(boolean success) { this.success = success; }
         public String getMessage() { return message; }
         public void setMessage(String message) { this.message = message; }
-        public List<Music> getResults() { return results; }
-        public void setResults(List<Music> results) { this.results = results; }
+        public Object getResults() { return results; }
+        public void setResults(Object results) { this.results = results; }
     }
     
     // 内部类用于表示错误响应
