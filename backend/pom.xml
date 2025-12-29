@@ -27,6 +27,13 @@
             <version>11.0.24</version>
         </dependency>
 
+        <!-- Jetty Servlets 用于CORS支持 -->
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-servlets</artifactId>
+            <version>11.0.24</version>
+        </dependency>
+
         <!-- Jackson 用于JSON处理 -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
