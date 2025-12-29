@@ -23,8 +23,8 @@ public class Main {
         databaseManager = new DatabaseManager(configManager);
         databaseManager.init();
         
-        // 创建Jetty服务器
-        server = new Server(8080);
+        // 创建Jetty服务器，使用配置的端口
+        server = new Server(configManager.getPort());
         
         // 创建上下文处理器
         ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
@@ -32,11 +32,12 @@ public class Main {
         server.setHandler(context);
         
         // 注册搜索音乐API处理器
-        context.addServlet(new ServletHolder(MusicSearchHandler.class), "/api/music/search");
+        ServletHolder holder = new ServletHolder(new MusicSearchHandler());
+        context.addServlet(holder, "/api/music/search");
         
         // 启动服务器
         server.start();
-        System.out.println("NekoMusic服务器已在端口8080启动");
+        System.out.println("NekoMusic服务器已在端口" + configManager.getPort() + "启动");
         System.out.println("API端点:");
         System.out.println("  POST /api/music/search - 搜索音乐");
         server.join();

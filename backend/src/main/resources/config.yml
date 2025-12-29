@@ -1,10 +1,8 @@
-# 运行端口
-Port: 8080
+port: 8080
 
-# 数据库配置
 mysql:
-  host: localhost
+  host: 10.0.5.2
   port: 3306
-  database: nek_music
+  database: neko_music
   username: root
-  password: ""
+  password: wcjs123

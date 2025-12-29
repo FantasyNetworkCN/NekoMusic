@@ -2,6 +2,7 @@ package com.neko.music.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import java.io.InputStream;
 
@@ -11,8 +12,9 @@ public class ConfigManager {
     private String mysqlDatabase = "nek_music";
     private String mysqlUsername = "root";
     private String mysqlPassword = "";
+    private int port = 8080; // 默认端口
     
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
         try {
@@ -30,6 +32,11 @@ public class ConfigManager {
                     if (mysqlNode.has("username")) mysqlUsername = mysqlNode.get("username").asText();
                     if (mysqlNode.has("password")) mysqlPassword = mysqlNode.get("password").asText();
                 }
+                
+                // 读取端口配置
+                if (configNode.has("port")) {
+                    port = configNode.get("port").asInt();
+                }
             }
             
             System.out.println("配置加载完成:");
@@ -37,6 +44,7 @@ public class ConfigManager {
             System.out.println("  MySQL Port: " + mysqlPort);
             System.out.println("  MySQL Database: " + mysqlDatabase);
             System.out.println("  MySQL Username: " + mysqlUsername);
+            System.out.println("  Port: " + port);
         } catch (Exception e) {
             System.err.println("加载配置时出错: " + e.getMessage());
             // 使用默认值
@@ -62,5 +70,9 @@ public class ConfigManager {
 
     public String getMysqlPassword() {
         return mysqlPassword;
+    }
+    
+    public int getPort() {
+        return port;
     }
 }
