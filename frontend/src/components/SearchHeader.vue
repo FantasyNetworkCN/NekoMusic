@@ -42,13 +42,6 @@
         </div>
       </div>
     </div>
-    <div v-else-if="showResults && searchQuery && searchResults === null" class="search-results no-results">
-      <div class="result-item">
-        <div class="result-info">
-          <div class="no-results-text">未找到匹配的音乐</div>
-        </div>
-      </div>
-    </div>
   </header>
 </template>
 
@@ -114,17 +107,18 @@ const performSearch = async () => {
     if (response.ok) {
       if (data.success && data.results) {
         searchResults.value = data.results
+        showResults.value = true
         console.log('搜索成功:', data.results)
       } else {
-        // 当后端返回null或空结果时
+        // 当后端返回null时，不显示结果框
         searchResults.value = data.results // 这里将是null
+        showResults.value = false
         console.log('未找到匹配结果:', data.message)
       }
-      showResults.value = true
     } else {
       console.error('搜索失败:', data.message || '未知错误')
       searchResults.value = null
-      showResults.value = true
+      showResults.value = false
     }
   } catch (error) {
     console.error('搜索请求失败:', error)
