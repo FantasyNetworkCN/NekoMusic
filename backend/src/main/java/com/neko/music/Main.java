@@ -6,6 +6,7 @@ import com.neko.music.database.DatabaseManager;
 import com.neko.music.handlers.MusicSearchHandler;
 import com.neko.music.handlers.AdminLoginHandler;
 import com.neko.music.handlers.AdminStatsHandler;
+import com.neko.music.handlers.ChartDataHandler;
 import com.neko.music.service.AdminAuthService;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -63,6 +64,10 @@ public class Main {
         ServletHolder adminStatsHolder = new ServletHolder(new AdminStatsHandler());
         context.addServlet(adminStatsHolder, "/api/admin/stats");
         
+        // 注册图表数据API处理器
+        ServletHolder chartDataHolder = new ServletHolder(new ChartDataHandler());
+        context.addServlet(chartDataHolder, "/api/admin/chart-data");
+        
         // 启动服务器
         server.start();
         System.out.println("NekoMusic服务器已在端口" + configManager.getPort() + "启动");
@@ -70,6 +75,7 @@ public class Main {
         System.out.println("  POST /api/music/search - 搜索音乐");
         System.out.println("  POST /api/admin/login - 管理员登录");
         System.out.println("  GET /api/admin/stats - 管理员统计信息 (需要管理员登录)");
+        System.out.println("  GET /api/admin/chart-data - 管理员图表数据 (需要管理员登录)");
         server.join();
     }
     
