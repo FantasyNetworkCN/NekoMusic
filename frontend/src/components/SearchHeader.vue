@@ -20,6 +20,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import API_CONFIG from '@/config/apiConfig.js'
 
 const searchQuery = ref('')
 
@@ -27,8 +28,8 @@ const performSearch = async () => {
   if (!searchQuery.value.trim()) return
   
   try {
-    // 发送搜索请求到后端
-    const response = await fetch('http://localhost:8080/api/music/search', {
+    // 发送POST搜索请求到后端
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/search`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -39,14 +40,13 @@ const performSearch = async () => {
     })
     
     const data = await response.json()
-    console.log('搜索结果:', data)
     
-    // 这里可以将搜索结果传递给父组件或存储在状态中
-    if (data.success) {
-      // 搜索成功，可以将结果传递给其他组件
+    // 检查响应是否成功
+    if (response.ok && data.success) {
       console.log('搜索成功:', data.results)
+      // 这里可以将搜索结果传递给其他组件
     } else {
-      console.error('搜索失败:', data.message)
+      console.error('搜索失败:', data.message || '未知错误')
     }
   } catch (error) {
     console.error('搜索请求失败:', error)
