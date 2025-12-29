@@ -1,8 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import SearchResultsView from '@/views/SearchResultsView.vue'
-import AdminView from '@/views/AdminView.vue'
 import AdminLoginView from '@/views/AdminLoginView.vue'
+import AdminLayout from '@/layouts/AdminLayout.vue'
+import AdminView from '@/views/AdminView.vue'
+import AdminMusicView from '@/views/AdminMusicView.vue'
+import AdminUsersView from '@/views/AdminUsersView.vue'
+import AdminSettingsView from '@/views/AdminSettingsView.vue'
 
 // 检查管理员是否已登录
 function isAdminLoggedIn() {
@@ -30,21 +34,42 @@ const router = createRouter({
       props: true
     },
     {
+      path: '/admin/login',
+      name: 'admin-login',
+      component: AdminLoginView
+    },
+    {
       path: '/admin',
-      name: 'admin',
-      component: AdminView,
+      component: AdminLayout,
       beforeEnter: (to, from, next) => {
         if (isAdminLoggedIn()) {
           next(); // 如果已登录，允许访问
         } else {
           next('/admin/login'); // 如果未登录，重定向到登录页面
         }
-      }
-    },
-    {
-      path: '/admin/login',
-      name: 'admin-login',
-      component: AdminLoginView
+      },
+      children: [
+        {
+          path: '', // 默认子路由，对应 /admin
+          name: 'admin',
+          component: AdminView
+        },
+        {
+          path: 'music', // 对应 /admin/music
+          name: 'admin-music',
+          component: AdminMusicView
+        },
+        {
+          path: 'users', // 对应 /admin/users
+          name: 'admin-users',
+          component: AdminUsersView
+        },
+        {
+          path: 'settings', // 对应 /admin/settings
+          name: 'admin-settings',
+          component: AdminSettingsView
+        }
+      ]
     }
   ]
 })
