@@ -3,18 +3,21 @@
     <div class="header-content">
       <div class="logo-container">
         <h1 class="logo">NekoMusic</h1>
-        <div class="logo-decoration">🐱</div>
+        <div class="logo-decoration">favicon.ico</div>
       </div>
       <div class="search-container">
         <input
           v-model="searchQuery"
+          @input="handleInput"
           @keyup.enter="performSearch"
           type="text"
           placeholder="搜索音乐、艺术家或专辑..."
           class="search-input"
+          :disabled="isLoading"
         />
-        <button @click="performSearch" class="search-button">
-          <span>🔍</span>
+        <button @click="performSearch" class="search-button" :disabled="isLoading">
+          <span v-if="isLoading">⏳</span>
+          <span v-else>搜索</span>
         </button>
       </div>
     </div>
@@ -23,19 +26,77 @@
       <div class="decoration-dot"></div>
       <div class="decoration-dot"></div>
     </div>
+    
+    <!-- 搜索结果下拉框 -->
+    <div v-if="showResults && searchResults && searchResults.length > 0" class="search-results">
+      <div 
+        v-for="result in searchResults" 
+        :key="result.id" 
+        class="result-item"
+        @click="selectResult(result)"
+      >
+        <div class="result-info">
+          <div class="result-title">{{ result.title }}</div>
+          <div class="result-artist">{{ result.artist }}</div>
+          <div class="result-album" v-if="result.album">{{ result.album }}</div>
+        </div>
+      </div>
+    </div>
+    <div v-else-if="showResults && searchQuery && searchResults === null" class="search-results no-results">
+      <div class="result-item">
+        <div class="result-info">
+          <div class="no-results-text">未找到匹配的音乐</div>
+        </div>
+      </div>
+    </div>
   </header>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 
 const searchQuery = ref('')
+const searchResults = ref(null)
+const showResults = ref(false)
+const isLoading = ref(false)
+let debounceTimer = null
 
+// 防抖搜索函数
+const debouncedSearch = (query) => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+  }
+  
+  debounceTimer = setTimeout(async () => {
+    if (query.trim()) {
+      await performSearch()
+    } else {
+      // 如果输入框为空，清空搜索结果
+      searchResults.value = null
+      showResults.value = false
+    }
+  }, 500) // 500ms防抖延迟
+}
+
+// 处理输入事件
+const handleInput = () => {
+  if (searchQuery.value.trim()) {
+    debouncedSearch(searchQuery.value)
+    showResults.value = true
+  } else {
+    searchResults.value = null
+    showResults.value = false
+  }
+}
+
+// 执行搜索
 const performSearch = async () => {
   if (!searchQuery.value.trim()) return
   
   try {
+    isLoading.value = true
+    
     // 发送POST搜索请求到后端
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/search`, {
       method: 'POST',
@@ -50,16 +111,55 @@ const performSearch = async () => {
     const data = await response.json()
     
     // 检查响应是否成功
-    if (response.ok && data.success) {
-      console.log('搜索成功:', data.results)
-      // 这里可以将搜索结果传递给其他组件
+    if (response.ok) {
+      if (data.success && data.results) {
+        searchResults.value = data.results
+        console.log('搜索成功:', data.results)
+      } else {
+        // 当后端返回null或空结果时
+        searchResults.value = data.results // 这里将是null
+        console.log('未找到匹配结果:', data.message)
+      }
+      showResults.value = true
     } else {
       console.error('搜索失败:', data.message || '未知错误')
+      searchResults.value = null
+      showResults.value = true
     }
   } catch (error) {
     console.error('搜索请求失败:', error)
+    searchResults.value = null
+    showResults.value = true
+  } finally {
+    isLoading.value = false
   }
 }
+
+// 选择结果项
+const selectResult = (result) => {
+  searchQuery.value = `${result.title} - ${result.artist}`
+  searchResults.value = null
+  showResults.value = false
+}
+
+// 点击外部区域隐藏搜索结果
+const handleClickOutside = (event) => {
+  const searchHeader = event.target.closest('.search-header')
+  if (!searchHeader) {
+    showResults.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+  }
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>
 
 <style scoped>
@@ -72,6 +172,7 @@ const performSearch = async () => {
   top: 0;
   z-index: 100;
   border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+  position: relative;
 }
 
 .header-content {
@@ -127,11 +228,17 @@ const performSearch = async () => {
   background: rgba(255, 255, 255, 0.9);
   border: 2px solid #ffccf9;
   transition: all 0.3s ease;
+  padding-right: 60px; /* 为按钮留出空间 */
 }
 
 .search-input:focus {
   border-color: #6a5acd;
   box-shadow: 0 4px 20px rgba(106, 90, 205, 0.3);
+}
+
+.search-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .search-button {
@@ -154,10 +261,77 @@ const performSearch = async () => {
   justify-content: center;
 }
 
-.search-button:hover {
+.search-button:hover:not(:disabled) {
   background: linear-gradient(135deg, #5c4b7b, #7a5bc0);
   transform: translateY(-50%) scale(1.05);
   box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
+}
+
+.search-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 5px;
+  border: 1px solid #ffccf9;
+}
+
+.result-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.result-item:hover {
+  background-color: #fff5f9;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.result-title {
+  font-weight: bold;
+  color: #5c4b7b;
+  margin-bottom: 4px;
+}
+
+.result-artist {
+  color: #9370db;
+  font-size: 0.9rem;
+}
+
+.result-album {
+  color: #a0a0a0;
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+.no-results {
+  background: #fffaf0;
+}
+
+.no-results-text {
+  text-align: center;
+  color: #a0a0a0;
+  font-style: italic;
 }
 
 .header-decoration {
@@ -212,6 +386,10 @@ const performSearch = async () => {
   
   .header-decoration {
     display: none;
+  }
+  
+  .search-results {
+    min-width: 100%;
   }
 }
 </style>
