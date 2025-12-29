@@ -44,6 +44,13 @@
             <version>2.15.2</version>
         </dependency>
 
+        <!-- Jackson DataFormat YAML 用于YAML处理 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <version>2.15.2</version>
+        </dependency>
+
         <!-- Jakarta Servlet API -->
         <dependency>
             <groupId>jakarta.servlet</groupId>

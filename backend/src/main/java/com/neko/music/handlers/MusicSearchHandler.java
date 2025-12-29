@@ -3,9 +3,8 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.handler.AbstractHandler;
 
+import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -16,19 +15,11 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MusicSearchHandler extends AbstractHandler {
+public class MusicSearchHandler extends HttpServlet {
     private ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) 
-            throws IOException {
-        
-        if (!"POST".equalsIgnoreCase(request.getMethod())) {
-            response.setStatus(HttpStatus.METHOD_NOT_ALLOWED_405);
-            baseRequest.setHandled(true);
-            return;
-        }
-
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
         // 读取请求体
         StringBuilder requestBody = new StringBuilder();
         try (InputStream inputStream = request.getInputStream()) {
@@ -60,8 +51,6 @@ public class MusicSearchHandler extends AbstractHandler {
             ErrorResponse errorResponse = new ErrorResponse("请求格式错误: " + e.getMessage());
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
         }
-        
-        baseRequest.setHandled(true);
     }
     
     private List<Music> searchMusic(String query) {
