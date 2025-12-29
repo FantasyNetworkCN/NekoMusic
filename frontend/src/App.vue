@@ -1,5 +1,6 @@
 <script setup>
 import SearchHeader from './components/SearchHeader.vue'
+import Footer from './components/Footer.vue'
 </script>
 
 <template>
@@ -18,15 +19,21 @@ import SearchHeader from './components/SearchHeader.vue'
       </div>
     </main>
     <CatGirl />
+    <Footer />
   </div>
 </template>
 
 <style scoped>
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 main {
   flex: 1;
   padding: 20px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='2' fill='%23ffccf9' opacity='0.3'/%3E%3C/svg%3E");
-  background-size: 100px 100px;
+  position: relative;
 }
 
 .content {
@@ -38,15 +45,35 @@ main {
 }
 
 .welcome-card {
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 25px;
   padding: 40px;
-  box-shadow: 0 8px 32px rgba(255, 182, 193, 0.3);
-  border: 1px solid rgba(255, 182, 193, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   position: relative;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   margin: 20px auto;
   max-width: 90%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.welcome-card::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff, #ff9ec0);
+  background-size: 400%;
+  border-radius: 30px;
+  z-index: -1;
+  filter: blur(20px);
+  opacity: 0.6;
+  animation: gradientShift 10s ease infinite;
 }
 
 .welcome-title {
@@ -54,16 +81,20 @@ main {
   margin-bottom: 1rem;
   font-size: 2.2rem;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd);
+  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  position: relative;
+  z-index: 1;
 }
 
 .welcome-subtitle {
   color: #887bb0;
   font-size: 1.2rem;
   margin-bottom: 30px;
+  position: relative;
+  z-index: 1;
 }
 
 .decoration-element {
@@ -77,6 +108,8 @@ main {
   font-size: 1.8rem;
   opacity: 0.7;
   animation: float 3s ease-in-out infinite;
+  position: relative;
+  z-index: 1;
 }
 
 .note-1 {
@@ -100,5 +133,22 @@ main {
   50% {
     transform: translateY(-10px) rotate(5deg);
   }
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.welcome-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(31, 38, 135, 0.5);
 }
 </style>

@@ -11,14 +11,14 @@
             @input="handleInput"
             @keyup.enter="performSearch"
             type="text"
-            placeholder="搜索音乐、艺术家或专辑..."
+            placeholder="搜索音乐、艺术家或歌词"
             class="search-input"
             :disabled="isLoading"
           />
-          <button @click="performSearch" class="search-button" :disabled="isLoading">
+<!--          <button @click="performSearch" class="search-button" :disabled="isLoading">
             <span v-if="isLoading">⏳</span>
             <span v-else>搜索</span>
-          </button>
+          </button>-->
         </div>
         
         <!-- 搜索结果下拉框 -->
@@ -159,15 +159,20 @@ onUnmounted(() => {
 
 <style scoped>
 .search-header {
-  background: linear-gradient(135deg, #ff9ec0 0%, #ffccf9 100%);
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: #5c4b7b;
   padding: 1rem 0;
-  box-shadow: 0 4px 20px rgba(255, 158, 192, 0.4);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   position: sticky;
   top: 0;
   z-index: 100;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   position: relative;
+  border-radius: 20px;
+  margin: 10px auto;
+  max-width: 1200px;
 }
 
 .header-content {
@@ -192,11 +197,13 @@ onUnmounted(() => {
   font-size: 2rem;
   font-weight: bold;
   flex-shrink: 0;
-  background: linear-gradient(45deg, #6a5acd, #ff69b4);
+  background: linear-gradient(45deg, #6a5acd, #ff69b4, #84ffff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.3);
+  position: relative;
+  z-index: 2;
 }
 
 .search-container-wrapper {
@@ -221,16 +228,24 @@ onUnmounted(() => {
   border-radius: 30px;
   font-size: 1rem;
   outline: none;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.9);
-  border: 2px solid #ffccf9;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   transition: all 0.3s ease;
   padding-right: 60px; /* 为按钮留出空间 */
+  color: #333;
+}
+
+.search-input::placeholder {
+  color: rgba(92, 75, 123, 0.6);
 }
 
 .search-input:focus {
-  border-color: #6a5acd;
-  box-shadow: 0 4px 20px rgba(106, 90, 205, 0.3);
+  border: 1px solid rgba(106, 90, 205, 0.5);
+  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .search-input:disabled {
@@ -244,24 +259,26 @@ onUnmounted(() => {
   top: 50%;
   transform: translateY(-50%);
   padding: 9px 20px;
-  background: linear-gradient(135deg, #6a5acd, #9370db);
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
   color: white;
   border: none;
   border-radius: 24px;
   cursor: pointer;
   font-size: 1.2rem;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.4);
+  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
   min-width: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 
 .search-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #5c4b7b, #7a5bc0);
+  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
   transform: translateY(-50%) scale(1.05);
-  box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
+  box-shadow: 0 10px 30px rgba(106, 90, 205, 0.5);
 }
 
 .search-button:disabled {
@@ -274,28 +291,31 @@ onUnmounted(() => {
   top: 100%;
   left: 0;
   width: 100%;
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 15px;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   z-index: 1000;
   max-height: 300px;
   overflow-y: auto;
   margin-top: 5px;
-  border: 1px solid #ffccf9;
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .result-item {
   padding: 12px 16px;
   cursor: pointer;
-  transition: background-color 0.2s;
-  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s, transform 0.2s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   max-height: 80px;
   max-width: 100%;
   overflow: hidden;
 }
 
 .result-item:hover {
-  background-color: #fff5f9;
+  background-color: rgba(255, 255, 255, 0.5);
+  transform: translateX(5px);
 }
 
 .result-item:last-child {
@@ -400,6 +420,10 @@ onUnmounted(() => {
   
   .search-results {
     min-width: 100%;
+  }
+  
+  .search-header {
+    margin: 10px;
   }
 }
 </style>
