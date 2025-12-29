@@ -23,12 +23,6 @@
             <span class="nav-text">用户管理</span>
           </router-link>
         </li>
-        <li>
-          <router-link to="/admin/settings" class="nav-link" :class="{ 'active': isActiveRoute('/admin/settings') }">
-            <span class="nav-icon">⚙️</span>
-            <span class="nav-text">系统设置</span>
-          </router-link>
-        </li>
       </ul>
     </nav>
   </div>
