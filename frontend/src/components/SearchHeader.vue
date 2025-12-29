@@ -58,6 +58,75 @@ const showResults = ref(false)
 const isLoading = ref(false)
 let debounceTimer = null
 
+// 防抖搜索函数 - 只获取结果，不跳转页面
+const debouncedSearch = (query) => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+  }
+  
+  debounceTimer = setTimeout(async () => {
+    if (query.trim()) {
+      await fetchSearchResults(query)
+    } else {
+      // 如果输入框为空，清空搜索结果
+      searchResults.value = null
+      showResults.value = false
+    }
+    
+    // 确保输入框保持焦点
+    setTimeout(() => {
+      const inputElement = document.querySelector('.search-input')
+      if (inputElement && document.activeElement !== inputElement) {
+        inputElement.focus()
+      }
+    }, 0)
+  }, 500) // 500ms防抖延迟
+}
+
+// 获取搜索结果，不跳转页面
+const fetchSearchResults = async (query) => {
+  try {
+    isLoading.value = true
+    
+    // 发送POST搜索请求到后端
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query: query
+      })
+    })
+    
+    const data = await response.json()
+    
+    // 检查响应是否成功
+    if (response.ok) {
+      if (data.success && data.results) {
+        searchResults.value = data.results
+        showResults.value = true
+        console.log('搜索成功:', data.results)
+      } else {
+        // 当后端返回null时，不显示结果框
+        searchResults.value = null
+        showResults.value = false
+        console.log('未找到匹配结果:', data.message)
+      }
+    } else {
+      console.error('搜索失败:', data.message || '未知错误')
+      searchResults.value = null
+      showResults.value = false
+    }
+  } catch (error) {
+    console.error('搜索请求失败:', error)
+    searchResults.value = null
+    showResults.value = false
+  } finally {
+    isLoading.value = false
+  }
+}
+
 // 跳转到首页
 const goHome = () => {
   router.push('/')
@@ -66,28 +135,10 @@ const goHome = () => {
   showResults.value = false
 }
 
-// 防抖搜索函数
-const debouncedSearch = (query) => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer)
-  }
-  
-  debounceTimer = setTimeout(async () => {
-    if (query.trim()) {
-      await performSearch()
-    } else {
-      // 如果输入框为空，清空搜索结果
-      searchResults.value = null
-      showResults.value = false
-    }
-  }, 500) // 500ms防抖延迟
-}
-
-// 处理输入事件
+// 处理输入事件 - 触发防抖搜索
 const handleInput = () => {
   if (searchQuery.value.trim()) {
     debouncedSearch(searchQuery.value)
-    showResults.value = true
   } else {
     searchResults.value = null
     showResults.value = false
@@ -120,12 +171,9 @@ const performSearch = async () => {
         searchResults.value = data.results
         showResults.value = true
         console.log('搜索成功:', data.results)
-        
-        // 跳转到搜索结果页面
-        router.push(`/search/${encodeURIComponent(searchQuery.value)}`)
       } else {
         // 当后端返回null时，不显示结果框
-        searchResults.value = data.results // 这里将是null
+        searchResults.value = null
         showResults.value = false
         console.log('未找到匹配结果:', data.message)
       }
@@ -140,6 +188,10 @@ const performSearch = async () => {
     showResults.value = false
   } finally {
     isLoading.value = false
+    
+    // 只有在回车时才跳转页面
+    router.push(`/search/${encodeURIComponent(searchQuery.value)}`)
+    
     // 确保输入框保持焦点
     setTimeout(() => {
       const inputElement = document.querySelector('.search-input')
@@ -156,8 +208,8 @@ const selectResult = (result) => {
   searchResults.value = null
   showResults.value = false
   
-  // 跳转到搜索结果页面
-  router.push(`/search/${encodeURIComponent(searchQuery.value)}`)
+  // 不跳转页面，只更新搜索框内容
+  // 跳转应该只在用户按回车键时发生
   
   // 确保输入框保持焦点
   setTimeout(() => {
