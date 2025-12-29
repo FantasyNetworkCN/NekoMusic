@@ -1,0 +1,10 @@
+# 运行端口
+Port: 8080
+
+# 数据库配置
+mysql:
+  host: localhost
+  port: 3306
+  database: nek_music
+  username: root
+  password: ""
