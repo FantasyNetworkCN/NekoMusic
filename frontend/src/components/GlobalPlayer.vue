@@ -2,7 +2,7 @@
   <div class="global-player">
     <div class="player-content">
       <!-- 音乐封面 -->
-      <div class="cover-container">
+      <div class="cover-container" @click="goToDetails">
         <img 
           v-if="currentMusic"
           :src="getCoverUrl(currentMusic.id)" 
@@ -14,7 +14,7 @@
       </div>
       
       <!-- 音乐信息 -->
-      <div class="music-info">
+      <div class="music-info" @click.stop>
         <div v-if="currentMusic" class="music-title">{{ currentMusic.title }}</div>
         <div v-else class="music-title placeholder-text">请选择音乐播放</div>
         <div v-if="currentMusic" class="music-artist">{{ currentMusic.artist }}</div>
@@ -32,7 +32,7 @@
           @loadedmetadata="onLoadedMetadata"
         />
         
-        <div class="control-buttons">
+        <div class="control-buttons" @click.stop>
           <button @click="togglePlayPause" class="play-pause-btn" :disabled="!currentMusic">
             <span v-if="isPlaying && currentMusic">⏸️</span>
             <span v-else-if="!currentMusic">▶️</span>
@@ -40,7 +40,7 @@
           </button>
         </div>
         
-        <div class="progress-container">
+        <div class="progress-container" @click.stop>
           <span class="time">{{ formatTime(currentTime) }}</span>
           <input 
             v-if="currentMusic"
@@ -55,7 +55,7 @@
       </div>
       
       <!-- 歌词显示区域 -->
-      <div class="lyrics-container">
+      <div class="lyrics-container" @click.stop>
         <div class="lyrics-content">
           <div class="lyric-line" :class="{ 'active': isCurrentLyric(0), 'active-enter': isCurrentLyric(0) && currentAnimationIndex === 0 }">
             {{ getLyricLine(0) }}
@@ -71,7 +71,10 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+
+const router = useRouter()
 
 // 从localStorage获取当前播放的音乐信息
 const currentMusic = ref(JSON.parse(localStorage.getItem('currentPlayingMusic')) || null)
@@ -181,6 +184,14 @@ const formatTime = (seconds) => {
   const min = Math.floor(seconds / 60)
   const sec = Math.floor(seconds % 60)
   return `${min}:${sec < 10 ? '0' : ''}${sec}`
+}
+
+// 跳转到音乐详情页面
+const goToDetails = () => {
+  if (currentMusic.value) {
+    // 跳转到音乐详情页面
+    router.push(`/detail/${currentMusic.value.id}`)
+  }
 }
 
 // 获取音乐封面URL
