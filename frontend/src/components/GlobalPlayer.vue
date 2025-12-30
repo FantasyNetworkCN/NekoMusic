@@ -98,11 +98,15 @@ const togglePlayPause = () => {
       // 暂停：立即更新状态，然后淡出暂停
       isPlaying.value = false
       updateGlobalPlayerState()
+      // 广播播放状态变化
+      broadcastPlayerStateChange()
       fadeOut(audioPlayer.value)
     } else {
       // 播放：立即更新状态，然后淡入播放
       isPlaying.value = true
       updateGlobalPlayerState()
+      // 广播播放状态变化
+      broadcastPlayerStateChange()
       fadeIn(audioPlayer.value)
     }
   }
@@ -165,6 +169,8 @@ const fadeIn = (audioElement) => {
 const onAudioEnded = () => {
   isPlaying.value = false
   updateGlobalPlayerState()
+  // 广播播放状态变化
+  broadcastPlayerStateChange()
 }
 
 // 时间更新事件
@@ -203,6 +209,8 @@ const onLoadedMetadata = () => {
   if (audioPlayer.value) {
     duration.value = audioPlayer.value.duration
     updateGlobalPlayerState()
+    // 广播播放状态变化
+    broadcastPlayerStateChange()
     
     // 重置歌词索引
     previousLyricIndex = -1
@@ -221,6 +229,8 @@ const onProgressChange = (event) => {
     audioPlayer.value.currentTime = newTime
     currentTime.value = newTime
     updateGlobalPlayerState()
+    // 广播播放状态变化
+    broadcastPlayerStateChange()
   }
 }
 
@@ -232,6 +242,20 @@ const updateGlobalPlayerState = () => {
     duration: duration.value
   };
   localStorage.setItem('globalPlayerState', JSON.stringify(state));
+}
+
+// 广播播放器状态变化
+const broadcastPlayerStateChange = () => {
+  // 创建自定义事件来通知播放状态变化
+  const event = new CustomEvent('playerStateChange', {
+    detail: {
+      isPlaying: isPlaying.value,
+      currentTime: currentTime.value,
+      duration: duration.value,
+      currentMusic: currentMusic.value
+    }
+  });
+  window.dispatchEvent(event);
 }
 
 // 格式化时间（秒转分:秒）
@@ -420,11 +444,15 @@ watch(audioPlayer, (newPlayer) => {
     newPlayer.addEventListener('play', () => {
       isPlaying.value = true
       updateGlobalPlayerState();
+      // 广播播放状态变化
+      broadcastPlayerStateChange();
     })
     
     newPlayer.addEventListener('pause', () => {
       isPlaying.value = false
       updateGlobalPlayerState();
+      // 广播播放状态变化
+      broadcastPlayerStateChange();
     })
   }
 }, { immediate: true })
@@ -462,6 +490,8 @@ const handleStorageChange = (e) => {
         isPlaying.value = false;
         duration.value = 0;
         updateGlobalPlayerState();
+        // 广播播放状态变化
+        broadcastPlayerStateChange();
       }
       // 清空歌词
       lyrics.value = ''
@@ -516,9 +546,57 @@ const handleStorageChange = (e) => {
   }
 }
 
+// 处理自定义播放状态变化事件
+const handlePlayerStateChange = (e) => {
+  const state = e.detail;
+  // 更新播放器状态，无论audio元素是否准备好
+  isPlaying.value = state.isPlaying;
+  currentTime.value = state.currentTime;
+  duration.value = state.duration;
+  progress.value = state.currentTime;
+
+  // 如果有audio元素则同步操作
+  if (audioPlayer.value && currentMusic.value && currentMusic.value.id === state.currentMusic?.id) {
+    // 等待音频加载完成再执行操作
+    const playWhenReady = () => {
+      if (audioPlayer.value) {
+        audioPlayer.value.currentTime = state.currentTime;
+        if (state.isPlaying) {
+          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+        } else {
+          audioPlayer.value.pause();
+        }
+      }
+    };
+
+    if (audioPlayer.value.readyState >= 2) { // HAVE_CURRENT_DATA
+      playWhenReady();
+    } else {
+      audioPlayer.value.addEventListener('loadeddata', playWhenReady, { once: true });
+    }
+    updateGlobalPlayerState();
+  } else if (currentMusic.value && currentMusic.value.id === state.currentMusic?.id) {
+    // 如果audio元素还没准备好，等待并执行操作
+    const handleMetadata = () => {
+      if (audioPlayer.value) {
+        audioPlayer.value.currentTime = state.currentTime;
+        if (state.isPlaying) {
+          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+        } else {
+          audioPlayer.value.pause();
+        }
+      }
+    };
+
+    audioPlayer.value?.addEventListener('loadedmetadata', handleMetadata, { once: true });
+  }
+}
+
 onMounted(() => {
   // 监听storage事件，以响应其他标签页的播放变化
   window.addEventListener('storage', handleStorageChange)
+  // 监听自定义事件，以响应播放页面的状态变化
+  window.addEventListener('playerStateChange', handlePlayerStateChange)
   
   // 初始化当前播放音乐
   const storedMusic = localStorage.getItem('currentPlayingMusic')
@@ -550,6 +628,7 @@ onMounted(() => {
 // 组件卸载时移除事件监听
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorageChange)
+  window.removeEventListener('playerStateChange', handlePlayerStateChange)
 })
 </script>
 
