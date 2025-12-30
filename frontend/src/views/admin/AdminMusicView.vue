@@ -16,35 +16,44 @@
           <p>管理平台音乐资源，包括添加、编辑、删除音乐等操作。</p>
           
           <div class="admin-controls">
-            <button class="add-btn" @click="showAddForm = !showAddForm">
-              {{ showAddForm ? '取消添加' : '添加音乐' }}
+            <button class="add-btn" @click="showAddForm = true">
+              添加音乐
             </button>
           </div>
           
-          <div v-if="showAddForm" class="add-music-form">
-            <h3>添加新音乐</h3>
-            <div class="form-grid">
-              <div class="form-group">
-                <label>音乐名称 *</label>
-                <input type="text" v-model="newMusic.title" placeholder="请输入音乐名称" />
-              </div>
-              <div class="form-group">
-                <label>艺术家 *</label>
-                <input type="text" v-model="newMusic.artist" placeholder="请输入艺术家" />
-              </div>
-              <div class="form-group">
-                <label>专辑</label>
-                <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
-              </div>
-              <div class="form-group">
-                <label>时长(秒)</label>
-                <input type="number" v-model="newMusic.duration" placeholder="请输入音乐时长(秒)" />
+          <!-- 添加音乐模态框 -->
+          <Transition name="modal">
+            <div v-if="showAddForm" class="edit-modal-overlay" @click="closeAddModal">
+              <div class="edit-modal" @click.stop ref="addModalRef">
+                <div class="modal-header">
+                  <h3>添加音乐</h3>
+                  <button class="close-btn" @click="closeAddModal">&times;</button>
+                </div>
+                <div class="modal-content">
+                  <div class="form-group">
+                    <label>音乐名称 *</label>
+                    <input type="text" v-model="newMusic.title" placeholder="请输入音乐名称" />
+                  </div>
+                  <div class="form-group">
+                    <label>艺术家 *</label>
+                    <input type="text" v-model="newMusic.artist" placeholder="请输入艺术家" />
+                  </div>
+                  <div class="form-group">
+                    <label>专辑</label>
+                    <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
+                  </div>
+                  <div class="form-group">
+                    <label>时长(秒)</label>
+                    <input type="number" v-model="newMusic.duration" placeholder="请输入音乐时长(秒)" />
+                  </div>
+                </div>
+                <div class="form-actions modal-actions">
+                  <button class="secondary-btn" @click="closeAddModal">取消</button>
+                  <button class="primary-btn" @click="addMusic">添加音乐</button>
+                </div>
               </div>
             </div>
-            <div class="form-actions">
-              <button class="primary-btn" @click="addMusic">添加音乐</button>
-            </div>
-          </div>
+          </Transition>
           
           <!-- 编辑音乐悬浮窗 -->
           <Transition name="modal">
@@ -100,6 +109,7 @@
               <table class="music-table">
                 <thead>
                   <tr>
+                    <th>ID</th>
                     <th>音乐名称</th>
                     <th>艺术家</th>
                     <th>专辑</th>
@@ -109,6 +119,7 @@
                 </thead>
                 <tbody>
                   <tr v-for="music in filteredMusicList" :key="music.id">
+                    <td>{{ music.id }}</td>
                     <td>{{ music.title }}</td>
                     <td>{{ music.artist }}</td>
                     <td>{{ music.album }}</td>
@@ -182,8 +193,9 @@ const editingMusic = ref(null)
 const searchQuery = ref('')
 const isLoading = ref(false)
 
-// 悬浮窗拖动状态
+// 模态框引用
 const editModalRef = ref(null)
+const addModalRef = ref(null)
 const modalPosition = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
@@ -275,6 +287,11 @@ const resetForm = () => {
     uploadUserId: 0
   }
   showAddForm.value = false
+}
+
+// 关闭添加音乐模态框
+const closeAddModal = () => {
+  resetForm()
 }
 
 // 编辑音乐
@@ -725,6 +742,12 @@ const logout = () => {
   padding: 12px 15px;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.music-table th:first-child,
+.music-table td:first-child {
+  text-align: center;
+  width: 80px;
 }
 
 .music-table th {
