@@ -63,8 +63,12 @@ public class DatabaseManager {
                     album VARCHAR(255),
                     duration INT, -- 时长，单位秒
                     file_path VARCHAR(500),
+                    cover_path VARCHAR(500),
+                    language VARCHAR(50) NOT NULL DEFAULT '未知语言',
+                    tags VARCHAR(500),
                     upload_user_id INT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     FOREIGN KEY (upload_user_id) REFERENCES users(id)
                 )
                 """;

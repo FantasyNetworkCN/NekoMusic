@@ -105,22 +105,14 @@ public class ChartDataHandler extends HttpServlet {
                 chartData.put("musicTrendData", musicTrendData);
             }
             
-            // 获取最近7天的访问量数据
-            String visitTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM access_logs WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
-            try (PreparedStatement stmt = conn.prepareStatement(visitTrendQuery);
-                 ResultSet rs = stmt.executeQuery()) {
-                Map<String, Integer> visitTrendData = new HashMap<>();
-                while (rs.next()) {
-                    visitTrendData.put(rs.getString("date"), rs.getInt("count"));
-                }
-                chartData.put("visitTrendData", visitTrendData);
-            }
+            // 获取最近7天的访问量数据 - 已移除访问日志功能
+            chartData.put("visitTrendData", new HashMap<>());
         } catch (Exception e) {
             logger.error("查询图表数据时出错", e);
             // 出错时返回空数据
             chartData.put("userTrendData", new HashMap<>());
             chartData.put("musicTrendData", new HashMap<>());
-            chartData.put("visitTrendData", new HashMap<>());
+            chartData.put("visitTrendData", new HashMap<>()); // 保留此值以便界面兼容，但不再使用访问日志
         }
         
         return chartData;

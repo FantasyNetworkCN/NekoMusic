@@ -169,7 +169,7 @@ public class MusicManagementHandler extends HttpServlet {
         List<Music> musicList = new ArrayList<>();
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, file_path, upload_user_id, created_at, updated_at FROM music ORDER BY created_at DESC";
+            String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, created_at, updated_at FROM music ORDER BY created_at DESC";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 ResultSet rs = stmt.executeQuery();
                 
@@ -181,6 +181,9 @@ public class MusicManagementHandler extends HttpServlet {
                     music.setAlbum(rs.getString("album"));
                     music.setDuration(rs.getInt("duration"));
                     music.setFilePath(rs.getString("file_path"));
+                    music.setCoverFilePath(rs.getString("cover_path"));
+                    music.setLanguage(rs.getString("language"));
+                    music.setTags(rs.getString("tags"));
                     music.setUploadUserId(rs.getInt("upload_user_id"));
                     music.setCreatedAt(rs.getTimestamp("created_at").toString());
                     music.setUpdatedAt(rs.getTimestamp("updated_at").toString());
@@ -220,7 +223,7 @@ public class MusicManagementHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, file_path, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
                 
@@ -234,6 +237,9 @@ public class MusicManagementHandler extends HttpServlet {
                     music.setAlbum(rs.getString("album"));
                     music.setDuration(rs.getInt("duration"));
                     music.setFilePath(rs.getString("file_path"));
+                    music.setCoverFilePath(rs.getString("cover_path"));
+                    music.setLanguage(rs.getString("language"));
+                    music.setTags(rs.getString("tags"));
                     music.setUploadUserId(rs.getInt("upload_user_id"));
                     music.setCreatedAt(rs.getTimestamp("created_at").toString());
                     music.setUpdatedAt(rs.getTimestamp("updated_at").toString());
@@ -278,25 +284,29 @@ public class MusicManagementHandler extends HttpServlet {
             AddMusicRequest addRequest = objectMapper.readValue(requestBody.toString(), AddMusicRequest.class);
             
             if (addRequest.getTitle() == null || addRequest.getTitle().trim().isEmpty() ||
-                addRequest.getArtist() == null || addRequest.getArtist().trim().isEmpty()) {
+                addRequest.getArtist() == null || addRequest.getArtist().trim().isEmpty() ||
+                addRequest.getLanguage() == null || addRequest.getLanguage().trim().isEmpty()) {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("音乐标题和艺术家不能为空");
+                ErrorResponse errorResponse = new ErrorResponse("音乐标题、艺术家和语言不能为空");
                 response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                 return;
             }
             
             int id;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "INSERT INTO music (title, artist, album, duration, file_path, upload_user_id) VALUES (?, ?, ?, ?, ?, ?)";
+                String sql = "INSERT INTO music (title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                     stmt.setString(1, addRequest.getTitle());
                     stmt.setString(2, addRequest.getArtist());
                     stmt.setString(3, addRequest.getAlbum() != null ? addRequest.getAlbum() : "未知专辑");
                     stmt.setInt(4, addRequest.getDuration() != null ? addRequest.getDuration() : 0);
                     stmt.setString(5, addRequest.getFilePath() != null ? addRequest.getFilePath() : "");
+                    stmt.setString(6, addRequest.getCoverFilePath() != null ? addRequest.getCoverFilePath() : "");
+                    stmt.setString(7, addRequest.getLanguage() != null ? addRequest.getLanguage() : "未知语言");
+                    stmt.setString(8, addRequest.getTags() != null ? addRequest.getTags() : "");
                     // 使用NULL而不是0以避免外键约束问题
-                    stmt.setObject(6, null);
+                    stmt.setObject(9, null);
                     
                     int affectedRows = stmt.executeUpdate();
                     
@@ -321,7 +331,7 @@ public class MusicManagementHandler extends HttpServlet {
             // 获取新添加的音乐信息
             Music newMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, file_path, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+                String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, id);
                     
@@ -335,6 +345,9 @@ public class MusicManagementHandler extends HttpServlet {
                         newMusic.setAlbum(rs.getString("album"));
                         newMusic.setDuration(rs.getInt("duration"));
                         newMusic.setFilePath(rs.getString("file_path"));
+                        newMusic.setCoverFilePath(rs.getString("cover_path"));
+                        newMusic.setLanguage(rs.getString("language"));
+                        newMusic.setTags(rs.getString("tags"));
                         newMusic.setUploadUserId(rs.getInt("upload_user_id"));
                         newMusic.setCreatedAt(rs.getTimestamp("created_at").toString());
                         newMusic.setUpdatedAt(rs.getTimestamp("updated_at").toString());
@@ -372,26 +385,30 @@ public class MusicManagementHandler extends HttpServlet {
             EditMusicRequest editRequest = objectMapper.readValue(requestBody.toString(), EditMusicRequest.class);
             
             if (editRequest.getId() == null || editRequest.getTitle() == null || editRequest.getTitle().trim().isEmpty() ||
-                editRequest.getArtist() == null || editRequest.getArtist().trim().isEmpty()) {
+                editRequest.getArtist() == null || editRequest.getArtist().trim().isEmpty() ||
+                editRequest.getLanguage() == null || editRequest.getLanguage().trim().isEmpty()) {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("音乐ID、标题和艺术家不能为空");
+                ErrorResponse errorResponse = new ErrorResponse("音乐ID、标题、艺术家和语言不能为空");
                 response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                 return;
             }
             
             int rowsUpdated;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "UPDATE music SET title = ?, artist = ?, album = ?, duration = ?, file_path = ?, upload_user_id = ?, updated_at = NOW() WHERE id = ?";
+                String sql = "UPDATE music SET title = ?, artist = ?, album = ?, duration = ?, file_path = ?, cover_path = ?, language = ?, tags = ?, upload_user_id = ?, updated_at = NOW() WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setString(1, editRequest.getTitle());
                     stmt.setString(2, editRequest.getArtist());
                     stmt.setString(3, editRequest.getAlbum() != null ? editRequest.getAlbum() : "未知专辑");
                     stmt.setInt(4, editRequest.getDuration() != null ? editRequest.getDuration() : 0);
                     stmt.setString(5, editRequest.getFilePath() != null ? editRequest.getFilePath() : "");
+                    stmt.setString(6, editRequest.getCoverFilePath() != null ? editRequest.getCoverFilePath() : "");
+                    stmt.setString(7, editRequest.getLanguage() != null ? editRequest.getLanguage() : "未知语言");
+                    stmt.setString(8, editRequest.getTags() != null ? editRequest.getTags() : "");
                     // 使用NULL而不是0以避免外键约束问题
-                    stmt.setObject(6, null);
-                    stmt.setInt(7, editRequest.getId());
+                    stmt.setObject(9, null);
+                    stmt.setInt(10, editRequest.getId());
                     
                     rowsUpdated = stmt.executeUpdate();
                 }
@@ -408,7 +425,7 @@ public class MusicManagementHandler extends HttpServlet {
             // 获取更新后的音乐信息
             Music updatedMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, file_path, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+                String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, editRequest.getId());
                     
@@ -422,6 +439,8 @@ public class MusicManagementHandler extends HttpServlet {
                         updatedMusic.setAlbum(rs.getString("album"));
                         updatedMusic.setDuration(rs.getInt("duration"));
                         updatedMusic.setFilePath(rs.getString("file_path"));
+                        updatedMusic.setCoverFilePath(rs.getString("cover_path"));
+                        updatedMusic.setLanguage(rs.getString("language"));
                         updatedMusic.setUploadUserId(rs.getInt("upload_user_id"));
                         updatedMusic.setCreatedAt(rs.getTimestamp("created_at").toString());
                         updatedMusic.setUpdatedAt(rs.getTimestamp("updated_at").toString());
@@ -506,6 +525,9 @@ public class MusicManagementHandler extends HttpServlet {
         private String album;
         private int duration; // 时长，单位秒
         private String filePath;
+        private String coverFilePath; // 封面路径
+        private String language; // 语言
+        private String tags; // 标签
         private int uploadUserId;
         private String createdAt;
         private String updatedAt;
@@ -523,6 +545,12 @@ public class MusicManagementHandler extends HttpServlet {
         public void setDuration(int duration) { this.duration = duration; }
         public String getFilePath() { return filePath; }
         public void setFilePath(String filePath) { this.filePath = filePath; }
+        public String getCoverFilePath() { return coverFilePath; }
+        public void setCoverFilePath(String coverFilePath) { this.coverFilePath = coverFilePath; }
+        public String getLanguage() { return language; }
+        public void setLanguage(String language) { this.language = language; }
+        public String getTags() { return tags; }
+        public void setTags(String tags) { this.tags = tags; }
         public int getUploadUserId() { return uploadUserId; }
         public void setUploadUserId(int uploadUserId) { this.uploadUserId = uploadUserId; }
         public String getCreatedAt() { return createdAt; }
@@ -538,6 +566,9 @@ public class MusicManagementHandler extends HttpServlet {
         private String album;
         private Integer duration;
         private String filePath;
+        private String coverFilePath;
+        private String language;
+        private String tags;
         private Integer uploadUserId;
         
         // Getters and Setters
@@ -551,6 +582,12 @@ public class MusicManagementHandler extends HttpServlet {
         public void setDuration(Integer duration) { this.duration = duration; }
         public String getFilePath() { return filePath; }
         public void setFilePath(String filePath) { this.filePath = filePath; }
+        public String getCoverFilePath() { return coverFilePath; }
+        public void setCoverFilePath(String coverFilePath) { this.coverFilePath = coverFilePath; }
+        public String getLanguage() { return language; }
+        public void setLanguage(String language) { this.language = language; }
+        public String getTags() { return tags; }
+        public void setTags(String tags) { this.tags = tags; }
         public Integer getUploadUserId() { return uploadUserId; }
         public void setUploadUserId(Integer uploadUserId) { this.uploadUserId = uploadUserId; }
     }
@@ -563,6 +600,9 @@ public class MusicManagementHandler extends HttpServlet {
         private String album;
         private Integer duration;
         private String filePath;
+        private String coverFilePath;
+        private String language;
+        private String tags;
         private Integer uploadUserId;
         
         // Getters and Setters
@@ -578,6 +618,12 @@ public class MusicManagementHandler extends HttpServlet {
         public void setDuration(Integer duration) { this.duration = duration; }
         public String getFilePath() { return filePath; }
         public void setFilePath(String filePath) { this.filePath = filePath; }
+        public String getCoverFilePath() { return coverFilePath; }
+        public void setCoverFilePath(String coverFilePath) { this.coverFilePath = coverFilePath; }
+        public String getLanguage() { return language; }
+        public void setLanguage(String language) { this.language = language; }
+        public String getTags() { return tags; }
+        public void setTags(String tags) { this.tags = tags; }
         public Integer getUploadUserId() { return uploadUserId; }
         public void setUploadUserId(Integer uploadUserId) { this.uploadUserId = uploadUserId; }
     }

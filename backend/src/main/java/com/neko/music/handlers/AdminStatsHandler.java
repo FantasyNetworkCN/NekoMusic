@@ -100,27 +100,11 @@ public class AdminStatsHandler extends HttpServlet {
                 }
             }
             
-            // 获取今日访问量
-            String visitQuery = "SELECT COUNT(*) FROM access_logs WHERE DATE(created_at) = CURDATE()"; // 正确的访问日志表
-            try (PreparedStatement stmt = conn.prepareStatement(visitQuery);
-                 ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    stats.put("todayVisits", rs.getInt(1));
-                } else {
-                    stats.put("todayVisits", 0);
-                }
-            }
+            // 获取今日访问量 - 已移除访问日志功能
+            stats.put("todayVisits", 0);
             
-            // 获取总搜索次数
-            String searchQuery = "SELECT COUNT(*) FROM search_logs"; // 正确的搜索日志表
-            try (PreparedStatement stmt = conn.prepareStatement(searchQuery);
-                 ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    stats.put("totalSearches", rs.getInt(1));
-                } else {
-                    stats.put("totalSearches", 0);
-                }
-            }
+            // 获取总搜索次数 - 已移除搜索日志功能
+            stats.put("totalSearches", 0);
             
             // 获取最近7天的用户注册趋势数据
             String userTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM users WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
@@ -145,38 +129,22 @@ public class AdminStatsHandler extends HttpServlet {
                 stats.put("musicTrendData", musicTrendMap);
             }
             
-            // 获取最近7天的访问量趋势数据
-            String visitTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM access_logs WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
-            try (PreparedStatement stmt = conn.prepareStatement(visitTrendQuery);
-                 ResultSet rs = stmt.executeQuery()) {
-                Map<String, Integer> visitTrendMap = new HashMap<>();
-                while (rs.next()) {
-                    visitTrendMap.put(rs.getString("date"), rs.getInt("count"));
-                }
-                stats.put("visitTrendData", visitTrendMap);
-            }
+            // 获取最近7天的访问量趋势数据 - 已移除访问日志功能
+            stats.put("visitTrendData", new HashMap<>());
             
-            // 获取最近7天的搜索量趋势数据
-            String searchTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM search_logs WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
-            try (PreparedStatement stmt = conn.prepareStatement(searchTrendQuery);
-                 ResultSet rs = stmt.executeQuery()) {
-                Map<String, Integer> searchTrendMap = new HashMap<>();
-                while (rs.next()) {
-                    searchTrendMap.put(rs.getString("date"), rs.getInt("count"));
-                }
-                stats.put("searchTrendData", searchTrendMap);
-            }
+            // 获取最近7天的搜索量趋势数据 - 已移除搜索日志功能
+            stats.put("searchTrendData", new HashMap<>());
         } catch (Exception e) {
             logger.error("查询统计数据时出错", e);
             // 出错时返回默认值
             stats.put("totalMusic", 0);
             stats.put("totalUsers", 0);
-            stats.put("todayVisits", 0);
-            stats.put("totalSearches", 0);
+            stats.put("todayVisits", 0); // 保留此值以便界面兼容，但不再使用访问日志
+            stats.put("totalSearches", 0); // 保留此值以便界面兼容，但不再使用搜索日志
             stats.put("userTrendData", new HashMap<>());
             stats.put("musicTrendData", new HashMap<>());
-            stats.put("visitTrendData", new HashMap<>());
-            stats.put("searchTrendData", new HashMap<>());
+            stats.put("visitTrendData", new HashMap<>()); // 保留此值以便界面兼容，但不再使用访问日志
+            stats.put("searchTrendData", new HashMap<>()); // 保留此值以便界面兼容，但不再使用搜索日志
         }
         
         return stats;

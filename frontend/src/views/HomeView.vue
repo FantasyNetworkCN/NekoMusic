@@ -3,7 +3,8 @@
     <div class="content">
       <div class="welcome-card">
         <h2 class="welcome-title">欢迎使用 NekoMusic</h2>
-        <p class="welcome-subtitle">使用上方的搜索框来搜索您喜欢的音乐</p>
+        <p class="welcome-subtitle">本站不收集用户数据所以不会有定向推荐</p>
+        <p class="welcome-subtitle">不是做不到这是这样不道德</p>
         <div class="decoration-element">
           <div class="music-note note-1">♪</div>
           <div class="music-note note-2">♫</div>

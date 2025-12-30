@@ -24,27 +24,60 @@
           <!-- 添加音乐模态框 -->
           <Transition name="modal">
             <div v-if="showAddForm" class="edit-modal-overlay" @click="closeAddModal">
-              <div class="edit-modal" @click.stop ref="addModalRef">
+              <div class="edit-modal edit-modal-wide" @click.stop ref="addModalRef">
                 <div class="modal-header">
                   <h3>添加音乐</h3>
                   <button class="close-btn" @click="closeAddModal">&times;</button>
                 </div>
-                <div class="modal-content">
-                  <div class="form-group">
-                    <label>音乐名称 *</label>
-                    <input type="text" v-model="newMusic.title" placeholder="请输入音乐名称" />
+                <div class="modal-content horizontal-layout">
+                  <div class="form-column left-column">
+                    <div class="form-group">
+                      <label>🎵 音乐图标</label>
+                      <input type="file" @change="handleCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件" />
+                      <div v-if="newMusic.coverFileName" class="file-info">已选择: {{ newMusic.coverFileName }}</div>
+                    </div>
+                    <div class="form-group">
+                      <label>🎵 音乐文件 *</label>
+                      <input type="file" @change="handleMusicFileChange" accept=".mp3" placeholder="请选择MP3音乐文件" />
+                      <div v-if="newMusic.fileName" class="file-info">已选择: {{ newMusic.fileName }}</div>
+                    </div>
+                    <div class="form-group">
+                      <label>⏱️ 时长(秒)</label>
+                      <input type="number" v-model="newMusic.duration" placeholder="音乐时长将自动读取" readonly />
+                    </div>
+                    <div class="form-group">
+                      <label>🌐 语言 *</label>
+                      <select v-model="newMusic.language" placeholder="请选择语言">
+                        <option value="">请选择语言</option>
+                        <option value="中文">中文</option>
+                        <option value="粤语">粤语</option>
+                        <option value="上海语">上海语</option>
+                        <option value="英文">英文</option>
+                        <option value="日语">日语</option>
+                        <option value="韩语">韩语</option>
+                        <option value="法语">法语</option>
+                        <option value="德语">德语</option>
+                        <option value="俄语">俄语</option>
+                      </select>
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label>艺术家 *</label>
-                    <input type="text" v-model="newMusic.artist" placeholder="请输入艺术家" />
-                  </div>
-                  <div class="form-group">
-                    <label>专辑</label>
-                    <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
-                  </div>
-                  <div class="form-group">
-                    <label>时长(秒)</label>
-                    <input type="number" v-model="newMusic.duration" placeholder="请输入音乐时长(秒)" />
+                  <div class="form-column right-column">
+                    <div class="form-group">
+                      <label>🎵 音乐名称 *</label>
+                      <input type="text" v-model="newMusic.title" placeholder="请输入音乐名称" />
+                    </div>
+                    <div class="form-group">
+                      <label>🎤 艺术家 *</label>
+                      <input type="text" v-model="newMusic.artist" placeholder="请输入艺术家" />
+                    </div>
+                    <div class="form-group">
+                      <label>🏷️ 标签</label>
+                      <input type="text" v-model="newMusic.tags" placeholder="请输入标签，多个标签用逗号分隔" />
+                    </div>
+                    <div class="form-group">
+                      <label>💿 专辑</label>
+                      <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
+                    </div>
                   </div>
                 </div>
                 <div class="form-actions modal-actions">
@@ -58,27 +91,62 @@
           <!-- 编辑音乐悬浮窗 -->
           <Transition name="modal">
             <div v-if="editingMusic" class="edit-modal-overlay" @click="closeEditModal">
-              <div class="edit-modal" @click.stop ref="editModalRef">
+              <div class="edit-modal edit-modal-wide" @click.stop ref="editModalRef">
                 <div class="modal-header">
                   <h3>编辑音乐</h3>
                   <button class="close-btn" @click="cancelEdit">&times;</button>
                 </div>
-                <div class="modal-content">
-                  <div class="form-group">
-                    <label>音乐名称 *</label>
-                    <input type="text" v-model="editingMusic.title" placeholder="请输入音乐名称" />
+                <div class="modal-content horizontal-layout">
+                  <div class="form-column left-column">
+                    <div class="form-group">
+                      <label>🎵 音乐图标</label>
+                      <input type="file" @change="handleEditCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件" />
+                      <div v-if="editingMusic.coverFileName" class="file-info">已选择: {{ editingMusic.coverFileName }}</div>
+                      <div v-if="editingMusic.coverFilePath && !editingMusic.coverFileName" class="file-info">当前图标: {{ editingMusic.coverFilePath.split('/').pop() }}</div>
+                    </div>
+                    <div class="form-group">
+                      <label>🎵 音乐文件</label>
+                      <input type="file" @change="handleEditMusicFileChange" accept=".mp3" placeholder="请选择MP3音乐文件" />
+                      <div v-if="editingMusic.fileName" class="file-info">已选择: {{ editingMusic.fileName }}</div>
+                      <div v-if="editingMusic.filePath && !editingMusic.fileName" class="file-info">当前文件: {{ editingMusic.filePath.split('/').pop() }}</div>
+                    </div>
+                    <div class="form-group">
+                      <label>⏱️ 时长(秒)</label>
+                      <input type="number" v-model="editingMusic.duration" placeholder="音乐时长将自动读取" readonly />
+                    </div>
+                    <div class="form-group">
+                      <label>🌐 语言 *</label>
+                      <select v-model="editingMusic.language" placeholder="请选择语言">
+                        <option value="">请选择语言</option>
+                        <option value="中文">中文</option>
+                        <option value="粤语">粤语</option>
+                        <option value="上海语">上海语</option>
+                        <option value="英文">英文</option>
+                        <option value="日语">日语</option>
+                        <option value="韩语">韩语</option>
+                        <option value="法语">法语</option>
+                        <option value="德语">德语</option>
+                        <option value="俄语">俄语</option>
+                      </select>
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label>艺术家 *</label>
-                    <input type="text" v-model="editingMusic.artist" placeholder="请输入艺术家" />
-                  </div>
-                  <div class="form-group">
-                    <label>专辑</label>
-                    <input type="text" v-model="editingMusic.album" placeholder="请输入专辑" />
-                  </div>
-                  <div class="form-group">
-                    <label>时长(秒)</label>
-                    <input type="number" v-model="editingMusic.duration" placeholder="请输入音乐时长(秒)" />
+                  <div class="form-column right-column">
+                    <div class="form-group">
+                      <label>🎵 音乐名称 *</label>
+                      <input type="text" v-model="editingMusic.title" placeholder="请输入音乐名称" />
+                    </div>
+                    <div class="form-group">
+                      <label>🎤 艺术家 *</label>
+                      <input type="text" v-model="editingMusic.artist" placeholder="请输入艺术家" />
+                    </div>
+                    <div class="form-group">
+                      <label>🏷️ 标签</label>
+                      <input type="text" v-model="editingMusic.tags" placeholder="请输入标签，多个标签用逗号分隔" />
+                    </div>
+                    <div class="form-group">
+                      <label>💿 专辑</label>
+                      <input type="text" v-model="editingMusic.album" placeholder="请输入专辑" />
+                    </div>
                   </div>
                 </div>
                 <div class="form-actions modal-actions">
@@ -151,6 +219,83 @@ import API_CONFIG from '@/config/apiConfig.js'
 
 const router = useRouter()
 
+// 添加文件处理函数
+const handleMusicFileChange = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // 检查文件类型是否为MP3
+    if (file.type !== 'audio/mpeg' && !file.name.toLowerCase().endsWith('.mp3')) {
+      alert('请选择MP3格式的音乐文件')
+      event.target.value = '' // 清空选择
+      return
+    }
+    
+    newMusic.value.file = file
+    newMusic.value.fileName = file.name
+    
+    // 读取音频时长
+    const audio = new Audio()
+    audio.src = URL.createObjectURL(file)
+    audio.onloadedmetadata = () => {
+      newMusic.value.duration = Math.floor(audio.duration)
+      URL.revokeObjectURL(audio.src) // 释放对象URL
+    }
+  }
+}
+
+const handleCoverFileChange = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // 检查文件类型是否为图片
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片格式的图标文件')
+      event.target.value = '' // 清空选择
+      return
+    }
+    
+    newMusic.value.coverFile = file
+    newMusic.value.coverFileName = file.name
+  }
+}
+
+const handleEditMusicFileChange = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // 检查文件类型是否为MP3
+    if (file.type !== 'audio/mpeg' && !file.name.toLowerCase().endsWith('.mp3')) {
+      alert('请选择MP3格式的音乐文件')
+      event.target.value = '' // 清空选择
+      return
+    }
+    
+    editingMusic.value.file = file
+    editingMusic.value.fileName = file.name
+    
+    // 读取音频时长
+    const audio = new Audio()
+    audio.src = URL.createObjectURL(file)
+    audio.onloadedmetadata = () => {
+      editingMusic.value.duration = Math.floor(audio.duration)
+      URL.revokeObjectURL(audio.src) // 释放对象URL
+    }
+  }
+}
+
+const handleEditCoverFileChange = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // 检查文件类型是否为图片
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片格式的图标文件')
+      event.target.value = '' // 清空选择
+      return
+    }
+    
+    editingMusic.value.coverFile = file
+    editingMusic.value.coverFileName = file.name
+  }
+}
+
 // 管理员信息
 const adminInfo = ref({})
 
@@ -184,10 +329,15 @@ const showAddForm = ref(false)
 const newMusic = ref({
   title: '',
   artist: '',
+  language: '',
   album: '',
   duration: 0,
   filePath: '',
-  uploadUserId: 0
+  uploadUserId: 0,
+  file: null,
+  fileName: '',
+  coverFile: null,
+  coverFileName: ''
 })
 const editingMusic = ref(null)
 const searchQuery = ref('')
@@ -234,26 +384,38 @@ const fetchMusicList = async () => {
 
 // 添加音乐
 const addMusic = async () => {
-  if (!newMusic.value.title || !newMusic.value.artist) {
-    alert('请填写音乐名称和艺术家')
+  if (!newMusic.value.title || !newMusic.value.artist || !newMusic.value.language) {
+    alert('请填写音乐名称、艺术家和语言')
     return
   }
   
+  if (!newMusic.value.file) {
+    alert('请选择音乐文件')
+    return
+  }
+  
+  // 创建FormData对象，用于上传文件
+  const formData = new FormData()
+  formData.append('title', newMusic.value.title)
+  formData.append('artist', newMusic.value.artist)
+  formData.append('language', newMusic.value.language)
+  formData.append('album', newMusic.value.album || '未知专辑')
+  formData.append('duration', newMusic.value.duration || 0)
+  formData.append('uploadUserId', newMusic.value.uploadUserId || 0)
+  formData.append('musicFile', newMusic.value.file)
+  
+  if (newMusic.value.coverFile) {
+    formData.append('coverFile', newMusic.value.coverFile)
+  }
+  
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/add`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/upload`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        // 注意：使用FormData时，不要设置Content-Type，浏览器会自动设置
         'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
       },
-      body: JSON.stringify({
-        title: newMusic.value.title,
-        artist: newMusic.value.artist,
-        album: newMusic.value.album || '未知专辑',
-        duration: newMusic.value.duration || 0,
-        filePath: newMusic.value.filePath || '',
-        uploadUserId: newMusic.value.uploadUserId || 0
-      })
+      body: formData
     })
     
     const data = await response.json()
@@ -281,10 +443,15 @@ const resetForm = () => {
   newMusic.value = {
     title: '',
     artist: '',
+    language: '',
     album: '',
     duration: 0,
     filePath: '',
-    uploadUserId: 0
+    uploadUserId: 0,
+    file: null,
+    fileName: '',
+    coverFile: null,
+    coverFileName: ''
   }
   showAddForm.value = false
 }
@@ -357,27 +524,37 @@ const stopDrag = () => {
 
 // 保存编辑
 const saveEdit = async () => {
-  if (!editingMusic.value.title || !editingMusic.value.artist) {
-    alert('请填写音乐名称和艺术家')
+  if (!editingMusic.value.title || !editingMusic.value.artist || !editingMusic.value.language) {
+    alert('请填写音乐名称、艺术家和语言')
     return
   }
   
+  // 创建FormData对象，用于上传文件
+  const formData = new FormData()
+  formData.append('id', editingMusic.value.id)
+  formData.append('title', editingMusic.value.title)
+  formData.append('artist', editingMusic.value.artist)
+  formData.append('language', editingMusic.value.language)
+  formData.append('album', editingMusic.value.album || '未知专辑')
+  formData.append('duration', editingMusic.value.duration || 0)
+  formData.append('uploadUserId', editingMusic.value.uploadUserId || 0)
+  
+  if (editingMusic.value.file) {
+    formData.append('musicFile', editingMusic.value.file)
+  }
+  
+  if (editingMusic.value.coverFile) {
+    formData.append('coverFile', editingMusic.value.coverFile)
+  }
+  
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/edit`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/upload`, {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json',
+        // 注意：使用FormData时，不要设置Content-Type，浏览器会自动设置
         'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
       },
-      body: JSON.stringify({
-        id: editingMusic.value.id,
-        title: editingMusic.value.title,
-        artist: editingMusic.value.artist,
-        album: editingMusic.value.album,
-        duration: editingMusic.value.duration,
-        filePath: editingMusic.value.filePath,
-        uploadUserId: editingMusic.value.uploadUserId
-      })
+      body: formData
     })
     
     const data = await response.json()
@@ -553,7 +730,8 @@ const logout = () => {
 .admin-content-wrapper {
   flex: 1; /* 让内容区域占据剩余空间 */
   padding: 0 20px;
-  min-height: 0; /* 允许内容区域收缩 */
+  min-height: calc(100vh - 140px); /* 增加最小高度，考虑头部和边距 */
+  height: auto; /* 允许自适应高度 */
   overflow: auto; /* 如果内容过多，允许滚动 */
 }
 
@@ -622,30 +800,76 @@ const logout = () => {
 }
 
 .form-group label {
-  margin-bottom: 5px;
-  color: #5c4b7b;
-  font-weight: 500;
+  margin-bottom: 8px;
+  color: #6a5acd;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
 }
 
 .form-group input {
-  padding: 10px 15px;
+  padding: 12px 15px;
   border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(106, 90, 205, 0.2);
   color: #333;
   font-size: 1rem;
   transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-group input[type="file"] {
+  padding: 10px;
+  background: rgba(240, 240, 255, 0.4);
+  border: 2px dashed rgba(106, 90, 205, 0.3);
+  cursor: pointer;
+}
+
+.form-group input[type="file"]:hover {
+  background: rgba(230, 230, 250, 0.5);
+  border: 2px dashed rgba(106, 90, 205, 0.5);
 }
 
 .form-group input:focus {
   outline: none;
   border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 0 0 2px rgba(106, 90, 205, 0.2);
-  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.2);
+  background: rgba(255, 255, 255, 0.4);
 }
+
+.form-group input::file-selector-button {
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 15px;
+  margin-right: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.form-group input::file-selector-button:hover {
+  background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
+}
+
+.file-info {
+  margin-top: 5px;
+  font-size: 0.85rem;
+  color: #6a5acd;
+  padding: 5px;
+  background: rgba(106, 90, 205, 0.1);
+  border-radius: 5px;
+  word-break: break-all;
+}
+
+
 
 .form-actions {
   display: flex;
@@ -813,28 +1037,69 @@ const logout = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   align-items: flex-start;  /* 改为flex-start，并配合padding-top定位 */
-  padding-top: 15vh;  /* 增加顶部填充，让悬浮窗位于垂直方向的60%左右 */
+  padding-top: 5vh;  /* 继续往上移动，从8vh减少到5vh */
   z-index: 9999;
 }
 
 .edit-modal {
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 15px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  min-width: 400px;
-  max-width: 500px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 240, 255, 0.95));
+  border-radius: 20px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  min-width: 700px;
+  min-height: 450px;
   display: flex;
   flex-direction: column;
   position: relative; /* 使用相对定位，让其在overlay中居中 */
   cursor: default;
   z-index: 10000;
+  overflow: hidden;
+  animation: modalSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.edit-modal-wide {
+  width: 750px;
+  max-width: 90vw;
+}
+
+.modal-content.horizontal-layout {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  padding: 25px;
+}
+
+.form-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.left-column {
+  border-right: 1px solid rgba(106, 90, 205, 0.2);
+  padding-right: 15px;
+}
+
+.right-column {
+  padding-left: 15px;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Vue过渡动画 */
@@ -859,59 +1124,69 @@ const logout = () => {
 }
 
 .modal-header {
-  padding: 15px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 20px 25px;
+  border-bottom: 1px solid rgba(106, 90, 205, 0.2);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(106, 90, 205, 0.2);
-  border-radius: 15px 15px 0 0;
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.15), rgba(138, 43, 226, 0.15));
+  border-radius: 20px 20px 0 0;
   cursor: default; /* 移除拖动光标 */
 }
 
 .modal-header h3 {
   margin: 0;
   color: #6a5acd;
+  font-size: 1.4rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-header h3::before {
+  content: "🎵";
   font-size: 1.2rem;
 }
 
 .close-btn {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.3);
   border: none;
   color: #6a5acd;
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   cursor: pointer;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: background 0.3s ease;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
 }
 
 .close-btn:hover {
   background: rgba(231, 76, 60, 0.2);
   color: #e74c3c;
+  transform: rotate(90deg);
 }
 
 .modal-content {
-  padding: 20px;
   flex: 1;
 }
 
 .modal-content .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 0;
 }
 
 .modal-actions {
-  padding: 15px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 20px 25px;
+  border-top: 1px solid rgba(106, 90, 205, 0.15);
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 0 0 15px 15px;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(240, 240, 255, 0.3), rgba(230, 230, 250, 0.3));
+  border-radius: 0 0 20px 20px;
 }
 
 /* Vue过渡动画 */
