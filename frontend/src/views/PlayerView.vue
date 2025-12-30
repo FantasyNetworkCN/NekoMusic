@@ -50,14 +50,6 @@
         </div>
       </div>
       
-      <!-- 隐藏的音频元素 -->
-      <audio 
-        ref="audioPlayer" 
-        :src="`${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.id}`" 
-        @ended="onAudioEnded"
-        @timeupdate="onTimeUpdate"
-        @loadedmetadata="onLoadedMetadata"
-      />
     </div>
     
     <div v-else class="loading">
@@ -67,7 +59,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 
@@ -79,6 +71,9 @@ const duration = ref(0)
 const lyrics = ref('')
 const parsedLyrics = ref([])
 const lyricsContent = ref(null)
+
+// 用于定时器的引用
+let timeUpdateInterval = null
 
 // 获取音乐详情
 const fetchMusicDetail = async (musicId) => {
@@ -201,74 +196,7 @@ const togglePlayPause = () => {
   }
 }
 
-// 音量淡出效果
-const fadeOut = (audioElement) => {
-  if (!audioElement) return
 
-  const fadeDuration = 300 // 毫秒
-  const initialVolume = audioElement.volume || 1
-  const fadeInterval = 50 // 毫秒
-  const decrement = (initialVolume * fadeInterval) / fadeDuration
-
-  const fade = () => {
-    if (audioElement.volume > 0.1) { // 避免完全静音时的数值问题
-      audioElement.volume = Math.max(0, audioElement.volume - decrement)
-      setTimeout(fade, fadeInterval)
-    } else {
-      audioElement.volume = 0
-      audioElement.pause()
-      isPlaying.value = false
-    }
-  }
-
-  fade()
-}
-
-// 音量淡入效果
-const fadeIn = (audioElement) => {
-  if (!audioElement) return
-
-  const fadeDuration = 300 // 毫秒
-  const targetVolume = 1 // 可以根据需要调整
-  const fadeInterval = 50 // 毫秒
-  const increment = (targetVolume * fadeInterval) / fadeDuration
-
-  let currentVolume = audioElement.volume || 0
-  const target = Math.min(targetVolume, 1)
-
-  const fade = () => {
-    if (currentVolume < target) {
-      currentVolume = Math.min(target, currentVolume + increment)
-      audioElement.volume = currentVolume
-      setTimeout(fade, fadeInterval)
-    } else {
-      audioElement.volume = target
-    }
-  }
-
-  fade()
-}
-
-// 音频结束事件
-const onAudioEnded = () => {
-  isPlaying.value = false
-}
-
-// 时间更新事件
-const onTimeUpdate = () => {
-  if (audioPlayer.value) {
-    currentTime.value = audioPlayer.value.currentTime
-    // 更新歌词位置
-    setTimeout(() => calculateLyricPositions(), 0) // 使用setTimeout确保DOM已更新
-  }
-}
-
-// 音频元数据加载完成
-const onLoadedMetadata = () => {
-  if (audioPlayer.value) {
-    duration.value = audioPlayer.value.duration
-  }
-}
 
 // 监听全局播放器状态变化
 const handlePlayerStateChange = (e) => {
@@ -278,9 +206,10 @@ const handlePlayerStateChange = (e) => {
   if (currentPlayingMusic && currentMusic.value && currentPlayingMusic.id === currentMusic.value.id) {
     isPlaying.value = state.isPlaying;
     currentTime.value = state.currentTime;
+    duration.value = state.duration;
     
     // 更新歌词位置
-    setTimeout(() => calculateLyricPositions(), 0) // 使用setTimeout确保DOM已更新
+    updateActiveLyric(); // 直接更新歌词高亮状态
   }
 }
 
@@ -302,6 +231,13 @@ const getCurrentLyricIndex = () => {
 const isActiveLyric = (index) => {
   const currentIndex = getCurrentLyricIndex()
   return currentIndex === index
+}
+
+// 更新当前高亮歌词
+const updateActiveLyric = async () => {
+  // 确保DOM已更新后再执行滚动
+  await nextTick();
+  scrollToActiveLyric();
 }
 
 // 获取歌词行类型（active, before, after）
@@ -383,17 +319,17 @@ const scrollToActiveLyric = () => {
   const lyricElements = lyricsContent.value.children
   if (activeIndex >= 0 && activeIndex < lyricElements.length) {
     const activeElement = lyricElements[activeIndex]
-    const container = activeElement.parentElement
     
     // 计算滚动位置，使当前歌词居中
-    const containerWidth = container.offsetWidth
-    const elementOffsetLeft = activeElement.offsetLeft
-    const elementWidth = activeElement.offsetWidth
-    const scrollLeft = elementOffsetLeft - (containerWidth / 2) + (elementWidth / 2)
+    const container = lyricsContent.value;
+    const containerHeight = container.clientHeight;
+    const elementHeight = activeElement.offsetHeight;
+    const elementOffsetTop = activeElement.offsetTop;
+    const scrollTop = elementOffsetTop - (containerHeight / 2) + (elementHeight / 2);
     
     // 平滑滚动到目标位置
     container.scrollTo({
-      left: scrollLeft,
+      top: scrollTop,
       behavior: 'smooth'
     })
   }
@@ -428,12 +364,6 @@ const playMusic = async () => {
       }
     });
     window.dispatchEvent(event);
-    
-    // 同时更新本地播放状态
-    if (audioPlayer.value) {
-      audioPlayer.value.currentTime = 0;
-      isPlaying.value = true;
-    }
   }
 }
 
@@ -493,6 +423,36 @@ const handleImageError = (event) => {
   event.target.src = '/src/assets/default-cover.png'; // 使用默认封面
 }
 
+// 定期检查播放时间，确保歌词实时更新
+const startTimer = () => {
+  if (timeUpdateInterval) {
+    clearInterval(timeUpdateInterval);
+  }
+  
+  timeUpdateInterval = setInterval(() => {
+    // 从localStorage获取当前播放状态
+    const storedState = localStorage.getItem('globalPlayerState');
+    if (storedState) {
+      const state = JSON.parse(storedState);
+      
+      // 检查当前播放的音乐是否是本页面的音乐
+      const currentPlayingMusic = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null');
+      if (currentPlayingMusic && currentMusic.value && currentPlayingMusic.id === currentMusic.value.id) {
+        // 更新播放时间
+        const previousTime = currentTime.value;
+        currentTime.value = state.currentTime;
+        duration.value = state.duration;
+        isPlaying.value = state.isPlaying;
+        
+        // 如果时间发生变化，则更新歌词高亮
+        if (Math.abs(currentTime.value - previousTime) > 0.1) { // 防止过于频繁的更新
+          updateActiveLyric();
+        }
+      }
+    }
+  }, 300); // 每300毫秒更新一次，平衡性能和流畅度
+};
+
 // 初始化
 onMounted(async () => {
   // 监听自定义事件，以响应全局播放器的状态变化
@@ -501,12 +461,18 @@ onMounted(async () => {
   const musicId = route.params.id
   if (musicId) {
     await fetchMusicDetail(musicId)
+    // 启动定时器以持续更新歌词
+    startTimer();
   }
 })
 
-// 组件卸载时移除事件监听
+// 组件卸载时移除事件监听和定时器
 onUnmounted(() => {
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
+  if (timeUpdateInterval) {
+    clearInterval(timeUpdateInterval);
+    timeUpdateInterval = null;
+  }
 })
 </script>
 
