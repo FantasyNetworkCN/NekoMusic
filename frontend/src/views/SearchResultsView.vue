@@ -6,7 +6,6 @@
           v-for="result in searchResults" 
           :key="result.id" 
           class="result-item"
-          @click="selectResult(result)"
         >
           <img 
             :src="getCoverUrl(result.id)" 
@@ -14,10 +13,18 @@
             class="result-cover"
             @error="handleImageError"
           />
-          <div class="result-info">
+          <div class="result-info" @click="selectResult(result)">
             <div class="result-title">{{ result.title }}</div>
             <div class="result-artist">作曲：{{ result.artist }}</div>
             <div class="result-album">专辑：{{ result.album || '未知专辑' }}</div>
+          </div>
+          <div class="result-actions">
+            <button @click.stop="playMusic(result)" class="play-btn" title="播放">
+              ▶️
+            </button>
+            <button @click.stop="downloadMusic(result)" class="download-btn" title="下载">
+              ⬇️
+            </button>
           </div>
         </div>
       </div>
@@ -89,11 +96,66 @@ const searchMusic = async (query) => {
 
 // 选择结果项
 const selectResult = (result) => {
+  // 点击搜索结果跳转到详情页面
+  router.push(`/detail/${result.id}`)
+}
+
+// 播放音乐 - 通过全局播放器播放
+const playMusic = async (result) => {
   // 设置当前播放的音乐到localStorage，触发全局播放器
   localStorage.setItem('currentPlayingMusic', JSON.stringify(result));
   
-  // 点击搜索结果跳转到播放页面
-  router.push(`/detail/${result.id}`)
+  // 等待一会儿，让全局播放器加载音乐
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // 更新全局播放器状态为播放
+  const state = {
+    isPlaying: true,
+    currentTime: 0,
+    duration: result.duration || 0
+  };
+  localStorage.setItem('globalPlayerState', JSON.stringify(state));
+  
+  // 触发storage事件，确保全局播放器能响应变化
+  window.dispatchEvent(new StorageEvent('storage', {
+    key: 'globalPlayerState',
+    newValue: JSON.stringify(state),
+    oldValue: localStorage.getItem('globalPlayerState')
+  }));
+}
+
+// 下载音乐
+const downloadMusic = async (result) => {
+  try {
+    // 使用fetch API获取音乐文件
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${result.id}`);
+    const blob = await response.blob();
+    
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = result.filename || `${result.title}.mp3`;
+    
+    // 添加到DOM，点击并移除
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // 释放URL对象
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('下载音乐失败:', error);
+    
+    // 如果fetch方法失败，回退到直接链接方法
+    const link = document.createElement('a');
+    link.href = `${API_CONFIG.BASE_URL}/api/music/file/${result.id}`;
+    link.download = result.filename || `${result.title}.mp3`;
+    link.target = '_blank'; // 在新标签页中打开，而不是当前页面
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 }
 
 // 获取音乐封面URL
@@ -201,6 +263,33 @@ onMounted(async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.result-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.play-btn, .download-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.play-btn:hover, .download-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(106, 90, 205, 0.6);
 }
 
 .no-results {
