@@ -16,14 +16,13 @@
         <h1 class="music-title">{{ currentMusic.title }}</h1>
         <p class="music-artist">作曲：{{ currentMusic.artist }}</p>
         <p class="music-album">专辑：{{ currentMusic.album || '未知专辑' }}</p>
-        <p class="music-duration">时长：{{ formatDuration(currentMusic.duration) }}</p>
       </div>
       
       <!-- 音乐播放器 -->
       <div class="player-controls">
         <audio 
           ref="audioPlayer" 
-          :src="`${API_CONFIG.BASE_URL}/${currentMusic.filePath || 'default.mp3'}`" 
+          :src="`${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.id}`" 
           @ended="onAudioEnded"
           @timeupdate="onTimeUpdate"
           @loadedmetadata="onLoadedMetadata"
