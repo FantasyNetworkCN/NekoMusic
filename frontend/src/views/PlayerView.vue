@@ -50,14 +50,6 @@
         </div>
       </div>
       
-      <!-- 隐藏的音频元素 -->
-      <audio 
-        ref="audioPlayer" 
-        :src="`${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.id}`" 
-        @ended="onAudioEnded"
-        @timeupdate="onTimeUpdate"
-        @loadedmetadata="onLoadedMetadata"
-      />
     </div>
     
     <div v-else class="loading">
@@ -201,74 +193,7 @@ const togglePlayPause = () => {
   }
 }
 
-// 音量淡出效果
-const fadeOut = (audioElement) => {
-  if (!audioElement) return
 
-  const fadeDuration = 300 // 毫秒
-  const initialVolume = audioElement.volume || 1
-  const fadeInterval = 50 // 毫秒
-  const decrement = (initialVolume * fadeInterval) / fadeDuration
-
-  const fade = () => {
-    if (audioElement.volume > 0.1) { // 避免完全静音时的数值问题
-      audioElement.volume = Math.max(0, audioElement.volume - decrement)
-      setTimeout(fade, fadeInterval)
-    } else {
-      audioElement.volume = 0
-      audioElement.pause()
-      isPlaying.value = false
-    }
-  }
-
-  fade()
-}
-
-// 音量淡入效果
-const fadeIn = (audioElement) => {
-  if (!audioElement) return
-
-  const fadeDuration = 300 // 毫秒
-  const targetVolume = 1 // 可以根据需要调整
-  const fadeInterval = 50 // 毫秒
-  const increment = (targetVolume * fadeInterval) / fadeDuration
-
-  let currentVolume = audioElement.volume || 0
-  const target = Math.min(targetVolume, 1)
-
-  const fade = () => {
-    if (currentVolume < target) {
-      currentVolume = Math.min(target, currentVolume + increment)
-      audioElement.volume = currentVolume
-      setTimeout(fade, fadeInterval)
-    } else {
-      audioElement.volume = target
-    }
-  }
-
-  fade()
-}
-
-// 音频结束事件
-const onAudioEnded = () => {
-  isPlaying.value = false
-}
-
-// 时间更新事件
-const onTimeUpdate = () => {
-  if (audioPlayer.value) {
-    currentTime.value = audioPlayer.value.currentTime
-    // 更新歌词位置
-    setTimeout(() => calculateLyricPositions(), 0) // 使用setTimeout确保DOM已更新
-  }
-}
-
-// 音频元数据加载完成
-const onLoadedMetadata = () => {
-  if (audioPlayer.value) {
-    duration.value = audioPlayer.value.duration
-  }
-}
 
 // 监听全局播放器状态变化
 const handlePlayerStateChange = (e) => {
@@ -428,12 +353,6 @@ const playMusic = async () => {
       }
     });
     window.dispatchEvent(event);
-    
-    // 同时更新本地播放状态
-    if (audioPlayer.value) {
-      audioPlayer.value.currentTime = 0;
-      isPlaying.value = true;
-    }
   }
 }
 
