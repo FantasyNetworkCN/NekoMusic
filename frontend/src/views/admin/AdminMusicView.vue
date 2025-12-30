@@ -700,8 +700,8 @@ const getCoverUrl = (musicId) => {
 
 // 处理封面图片加载错误
 const handleImageError = (event) => {
-  // 如果图片加载失败，使用默认图标base64数据
-  event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA4ElEQVR42mNkYGD4z0ADwMjIyMjISDPgPwMNAigFkgBJ6P2HspsYcAHW//8Z/gEJxv8MDAzMDAz/GWDi/wE+BgYGlP8MjAwMjL8ZcAHG//8ZYOL/Gf7/B5n8n4GBgQEkDhJnZGBgQJX7/x+kwAEmB5L7DxIHqfzP8B8kDhIHqfwPUoESJ4mBQDqABJQDyQGSAGkwQoqTxEAgHUAiOgckB5IEaWjECgAA221UBf5t3xQAAAAASUVORK5CYII='
+  // 如果图片加载失败，使用后端API的默认图标
+  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`;
 }
 
 const logout = () => {
