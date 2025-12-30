@@ -149,13 +149,15 @@ watch(audioPlayer, (newPlayer) => {
   if (newPlayer) {
     newPlayer.addEventListener('play', () => {
       isPlaying.value = true
+      updateGlobalPlayerState();
     })
     
     newPlayer.addEventListener('pause', () => {
       isPlaying.value = false
+      updateGlobalPlayerState();
     })
   }
-})
+}, { immediate: true })
 
 // 监听localStorage变化，响应播放音乐的改变
 const handleStorageChange = (e) => {
@@ -172,7 +174,6 @@ const handleStorageChange = (e) => {
         currentTime.value = 0;
         progress.value = 0;
         duration.value = 0;
-        updateGlobalPlayerState();
       }
     } else if (!e.newValue) {
       // 没有音乐了，暂停播放器
@@ -190,22 +191,46 @@ const handleStorageChange = (e) => {
     // 从播放页面接收状态更新
     if (e.newValue) {
       const state = JSON.parse(e.newValue);
-      // 如果播放页面正在操作，同步其状态到全局播放器
+      // 更新播放器状态，无论audio元素是否准备好
+      isPlaying.value = state.isPlaying;
+      currentTime.value = state.currentTime;
+      duration.value = state.duration;
+      progress.value = state.currentTime;
+      
+      // 如果有audio元素则同步操作
       if (audioPlayer.value && currentMusic.value) {
-        // 同步播放状态
-        if (state.isPlaying !== isPlaying.value) {
-          if (state.isPlaying) {
-            audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
-          } else {
-            audioPlayer.value.pause();
+        // 等待音频加载完成再执行操作
+        const playWhenReady = () => {
+          if (audioPlayer.value) {
+            audioPlayer.value.currentTime = state.currentTime;
+            if (state.isPlaying) {
+              audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+            } else {
+              audioPlayer.value.pause();
+            }
           }
-          isPlaying.value = state.isPlaying;
-        }
+        };
         
-        // 同步时间（但不强制跳转，仅更新显示）
-        currentTime.value = state.currentTime;
-        duration.value = state.duration;
-        progress.value = state.currentTime;
+        if (audioPlayer.value.readyState >= 2) { // HAVE_CURRENT_DATA
+          playWhenReady();
+        } else {
+          audioPlayer.value.addEventListener('loadeddata', playWhenReady, { once: true });
+        }
+        updateGlobalPlayerState();
+      } else if (currentMusic.value) {
+        // 如果audio元素还没准备好，等待并执行操作
+        const handleMetadata = () => {
+          if (audioPlayer.value) {
+            audioPlayer.value.currentTime = state.currentTime;
+            if (state.isPlaying) {
+              audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+            } else {
+              audioPlayer.value.pause();
+            }
+          }
+        };
+        
+        audioPlayer.value?.addEventListener('loadedmetadata', handleMetadata, { once: true });
       }
     }
   }
@@ -220,6 +245,21 @@ onMounted(() => {
   if (storedMusic) {
     currentMusic.value = JSON.parse(storedMusic)
   }
+  
+  // 初始化时从localStorage获取播放状态
+  const storedState = localStorage.getItem('globalPlayerState');
+  if (storedState) {
+    const state = JSON.parse(storedState);
+    currentTime.value = state.currentTime;
+    duration.value = state.duration;
+    progress.value = state.currentTime;
+    
+    // 如果全局播放器应该正在播放，则同步播放状态
+    if (state.isPlaying && audioPlayer.value && currentMusic.value) {
+      audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+      isPlaying.value = true;
+    }
+  }
 })
 
 // 组件卸载时移除事件监听
@@ -231,29 +271,32 @@ onUnmounted(() => {
 <style scoped>
 .global-player {
   position: fixed;
-  top: 0;
+  bottom: 0;
+  left: 0;
   right: 0;
-  height: 100vh;
-  width: 300px;
+  height: 80px;
+  width: 100%;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-left: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 20px 15px;
-  box-shadow: -2px 0 20px rgba(0, 0, 0, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 20px;
+  box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   transition: transform 0.3s ease;
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  flex-direction: row;
+  align-items: center;
+  gap: 15px;
 }
 
 .player-content {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   height: 100%;
+  width: 100%;
   gap: 15px;
-  overflow: auto;
 }
 
 .cover-container {
@@ -261,8 +304,8 @@ onUnmounted(() => {
 }
 
 .music-cover {
-  width: 50px;
-  height: 50px;
+  width: 60px;
+  height: 60px;
   object-fit: cover;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -280,12 +323,16 @@ onUnmounted(() => {
 .music-info {
   flex-grow: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 200px;
 }
 
 .music-title {
   font-weight: bold;
   color: #5c4b7b;
-  font-size: 1rem;
+  font-size: 0.9rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -298,7 +345,7 @@ onUnmounted(() => {
 
 .music-artist {
   color: #9370db;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -310,6 +357,7 @@ onUnmounted(() => {
   gap: 12px;
   flex-grow: 1;
   min-width: 200px;
+  max-width: 400px;
 }
 
 .control-buttons {
@@ -384,21 +432,34 @@ audio {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
+  .global-player {
+    height: 70px;
+    padding: 8px 15px;
+  }
+  
   .player-content {
     gap: 10px;
   }
   
   .music-cover {
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
+  }
+  
+  .music-info {
+    max-width: 120px;
   }
   
   .music-title {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
   
   .music-artist {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
+  }
+  
+  .player-controls {
+    max-width: 300px;
   }
   
   .play-pause-btn {

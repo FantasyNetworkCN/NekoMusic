@@ -1,6 +1,6 @@
 <template>
-  <div class="music-player-view">
-    <div class="player-container" v-if="currentMusic">
+  <div class="music-detail-view">
+    <div class="detail-container" v-if="currentMusic">
       <!-- 音乐封面 -->
       <div class="cover-section">
         <img 
@@ -14,62 +14,37 @@
       <!-- 音乐信息 -->
       <div class="music-info">
         <h1 class="music-title">{{ currentMusic.title }}</h1>
-        <p class="music-artist">作曲：{{ currentMusic.artist }}</p>
-        <p class="music-album">专辑：{{ currentMusic.album || '未知专辑' }}</p>
+        <p class="music-artist">艺术家：{{ currentMusic.artist }}</p>
+        <p class="music-album" v-if="currentMusic.album">专辑：{{ currentMusic.album }}</p>
       </div>
       
-      <!-- 播放控件 -->
-      <div class="player-controls">
-        <audio 
-          ref="audioPlayer" 
-          :src="`${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.id}`" 
-          @ended="onAudioEnded"
-          @timeupdate="onTimeUpdate"
-          @loadedmetadata="onLoadedMetadata"
-        />
-        
-        <div class="progress-container">
-          <span class="time">{{ formatTime(currentTime) }}</span>
-          <input 
-            type="range" 
-            class="progress-bar" 
-            :value="progress" 
-            @input="onProgressChange"
-            :max="duration"
-          />
-          <span class="time">{{ formatTime(duration) }}</span>
-        </div>
-        
-        <div class="control-buttons">
-          <button @click="togglePlayPause" class="play-pause-btn">
-            <span v-if="isPlaying">⏸️</span>
-            <span v-else>▶️</span>
-          </button>
-        </div>
+      <!-- 操作按钮 -->
+      <div class="action-buttons">
+        <button @click="playMusic" class="play-btn">
+          播放音乐
+        </button>
+        <button @click="downloadMusic" class="download-btn">
+          下载音乐
+        </button>
       </div>
     </div>
     
     <div v-else class="loading">
-      <p>加载音乐信息中...</p>
+      <p>加载音乐详情中...</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 
 const route = useRoute()
 const currentMusic = ref(null)
-const audioPlayer = ref(null)
-const isPlaying = ref(false)
-const currentTime = ref(0)
-const duration = ref(0)
-const progress = ref(0)
 
-// 获取音乐信息
-const fetchMusicInfo = async (musicId) => {
+// 获取音乐详情
+const fetchMusicDetail = async (musicId) => {
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/info/${musicId}`, {
       method: 'GET',
@@ -81,78 +56,81 @@ const fetchMusicInfo = async (musicId) => {
     const data = await response.json()
     if (data.success) {
       currentMusic.value = data.data;
-      // 设置当前播放的音乐到localStorage，触发全局播放器
-      localStorage.setItem('currentPlayingMusic', JSON.stringify(data.data));
     } else {
-      console.error('获取音乐信息失败:', data.message)
+      console.error('获取音乐详情失败:', data.message)
     }
   } catch (error) {
-    console.error('请求音乐信息时出错:', error)
+    console.error('请求音乐详情时出错:', error)
   }
 }
 
-// 播放/暂停控制
-const togglePlayPause = () => {
-  if (audioPlayer.value) {
-    if (isPlaying.value) {
-      audioPlayer.value.pause()
-    } else {
-      audioPlayer.value.play().catch(e => console.log('播放被阻止:', e))
+// 播放音乐 - 通过全局播放器播放
+const playMusic = async () => {
+  if (currentMusic.value) {
+    // 设置当前播放的音乐到localStorage，触发全局播放器
+    localStorage.setItem('currentPlayingMusic', JSON.stringify(currentMusic.value));
+    
+    // 触发storage事件，确保全局播放器能响应变化
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'currentPlayingMusic',
+      newValue: JSON.stringify(currentMusic.value),
+      oldValue: localStorage.getItem('currentPlayingMusic')
+    }));
+    
+    // 等待一会儿，让全局播放器加载音乐
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 更新全局播放器状态为播放
+    const state = {
+      isPlaying: true,
+      currentTime: 0,
+      duration: currentMusic.value.duration || 0
+    };
+    localStorage.setItem('globalPlayerState', JSON.stringify(state));
+    
+    // 触发storage事件，确保全局播放器能响应变化
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'globalPlayerState',
+      newValue: JSON.stringify(state),
+      oldValue: localStorage.getItem('globalPlayerState')
+    }));
+  }
+}
+
+// 下载音乐
+const downloadMusic = async () => {
+  if (currentMusic.value) {
+    try {
+      // 使用fetch API获取音乐文件
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.value.id}`);
+      const blob = await response.blob();
+      
+      // 创建下载链接
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = currentMusic.value.filename || `${currentMusic.value.title}.mp3`;
+      
+      // 添加到DOM，点击并移除
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // 释放URL对象
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('下载音乐失败:', error);
+      
+      // 如果fetch方法失败，回退到直接链接方法
+      const link = document.createElement('a');
+      link.href = `${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.value.id}`;
+      link.download = currentMusic.value.filename || `${currentMusic.value.title}.mp3`;
+      link.target = '_blank'; // 在新标签页中打开，而不是当前页面
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
-    isPlaying.value = !isPlaying.value
-    updateGlobalPlayerState()
   }
-}
-
-// 音频结束事件
-const onAudioEnded = () => {
-  isPlaying.value = false
-  updateGlobalPlayerState()
-}
-
-// 时间更新事件
-const onTimeUpdate = () => {
-  if (audioPlayer.value) {
-    currentTime.value = audioPlayer.value.currentTime
-    progress.value = currentTime.value
-    updateGlobalPlayerState()
-  }
-}
-
-// 音频元数据加载完成
-const onLoadedMetadata = () => {
-  if (audioPlayer.value) {
-    duration.value = audioPlayer.value.duration
-  }
-}
-
-// 进度条变化
-const onProgressChange = (event) => {
-  const newTime = parseFloat(event.target.value)
-  if (audioPlayer.value) {
-    audioPlayer.value.currentTime = newTime
-    currentTime.value = newTime
-    updateGlobalPlayerState()
-  }
-}
-
-// 更新全局播放器状态
-const updateGlobalPlayerState = () => {
-  const state = {
-    isPlaying: isPlaying.value,
-    currentTime: currentTime.value,
-    duration: duration.value
-  };
-  localStorage.setItem('globalPlayerState', JSON.stringify(state));
-}
-
-// 格式化时间（秒转分:秒）
-const formatTime = (seconds) => {
-  if (isNaN(seconds) || seconds < 0) return '0:00'
-  
-  const min = Math.floor(seconds / 60)
-  const sec = Math.floor(seconds % 60)
-  return `${min}:${sec < 10 ? '0' : ''}${sec}`
 }
 
 // 格式化时长为分秒格式
@@ -160,7 +138,7 @@ const formatDuration = (duration) => {
   if (!duration || duration < 0) return '0:00'
   
   const minutes = Math.floor(duration / 60)
-  const seconds = duration % 60
+  const seconds = Math.floor(duration % 60)
   
   return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`
 }
@@ -172,78 +150,26 @@ const getCoverUrl = (musicId) => {
 
 // 处理封面图片加载错误
 const handleImageError = (event) => {
-  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`
+  event.target.src = '/src/assets/default-cover.png'; // 使用默认封面
 }
-
-// 监听localStorage变化，同步全局播放器状态
-const handleStorageChange = (e) => {
-  if (e.key === 'globalPlayerState') {
-    // 同步播放状态，但要避免循环更新
-    if (e.newValue) {
-      const state = JSON.parse(e.newValue);
-      // 同步时间信息，但不强制改变播放状态（避免冲突）
-      currentTime.value = state.currentTime;
-      duration.value = state.duration;
-    }
-  } else if (e.key === 'currentPlayingMusic') {
-    // 保持当前页面显示的音乐与全局播放器一致
-    if (e.newValue) {
-      const newMusic = JSON.parse(e.newValue);
-      if (newMusic.id == route.params.id) {
-        currentMusic.value = newMusic;
-      }
-    }
-  }
-}
-
-// 监听音频播放状态
-watch(audioPlayer, (newPlayer) => {
-  if (newPlayer) {
-    newPlayer.addEventListener('play', () => {
-      isPlaying.value = true
-      updateGlobalPlayerState()
-    })
-    
-    newPlayer.addEventListener('pause', () => {
-      isPlaying.value = false
-      updateGlobalPlayerState()
-    })
-  }
-})
 
 // 初始化
 onMounted(async () => {
   const musicId = route.params.id
   if (musicId) {
-    await fetchMusicInfo(musicId)
+    await fetchMusicDetail(musicId)
   }
-  
-  // 监听storage事件，以响应全局播放器的音乐变化
-  window.addEventListener('storage', handleStorageChange)
-  
-  // 初始化时从localStorage获取播放状态
-  const storedState = localStorage.getItem('globalPlayerState');
-  if (storedState) {
-    const state = JSON.parse(storedState);
-    currentTime.value = state.currentTime;
-    duration.value = state.duration;
-  }
-})
-
-// 组件卸载时移除事件监听
-onUnmounted(() => {
-  window.removeEventListener('storage', handleStorageChange)
 })
 </script>
 
 <style scoped>
-.music-player-view {
+.music-detail-view {
   max-width: 800px;
   margin: 40px auto;
   padding: 20px;
 }
 
-.player-container {
+.detail-container {
   background: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -276,7 +202,7 @@ onUnmounted(() => {
 .music-title {
   font-size: 1.8rem;
   color: #5c4b7b;
-  margin: 0 0 10px 0;
+  margin: 0 0 15px 0;
   font-weight: bold;
 }
 
@@ -289,66 +215,44 @@ onUnmounted(() => {
   text-align: left;
 }
 
-.player-controls {
+.action-buttons {
   margin-top: 30px;
-}
-
-.progress-container {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 20px;
-}
-
-.time {
-  color: #5c4b7b;
-  font-weight: bold;
-  min-width: 40px;
-}
-
-.progress-bar {
-  flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(106, 90, 205, 0.3);
-  outline: none;
-  -webkit-appearance: none;
-}
-
-.progress-bar::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #6a5acd;
-  cursor: pointer;
-}
-
-.control-buttons {
   display: flex;
   justify-content: center;
   gap: 20px;
 }
 
-.play-pause-btn {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
+.play-btn, .download-btn {
+  padding: 12px 24px;
+  border-radius: 25px;
   border: none;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
-  color: white;
-  font-size: 1.5rem;
+  font-size: 1rem;
+  font-weight: bold;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 20px rgba(106, 90, 205, 0.4);
   transition: all 0.3s ease;
+  min-width: 120px;
 }
 
-.play-pause-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 10px 25px rgba(106, 90, 205, 0.6);
+.play-btn {
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.9), rgba(138, 43, 226, 0.9));
+  color: white;
+  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
+}
+
+.play-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
+}
+
+.download-btn {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.9), rgba(25, 118, 210, 0.9));
+  color: white;
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+}
+
+.download-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6);
 }
 
 .loading {
@@ -358,13 +262,8 @@ onUnmounted(() => {
   font-size: 1.2rem;
 }
 
-/* 隐藏audio元素 */
-audio {
-  display: none;
-}
-
 @media (max-width: 768px) {
-  .player-container {
+  .detail-container {
     padding: 20px;
     margin: 20px;
   }
@@ -389,17 +288,13 @@ audio {
     text-align: center;
   }
   
-  .progress-container {
+  .action-buttons {
     flex-direction: column;
-    gap: 10px;
+    align-items: center;
   }
   
-  .time {
-    align-self: center;
-  }
-  
-  .progress-bar {
-    width: 100%;
+  .play-btn, .download-btn {
+    width: 80%;
   }
 }
 </style>
