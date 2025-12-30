@@ -2,6 +2,7 @@
 import { RouterView } from 'vue-router'
 import SearchHeader from './components/SearchHeader.vue'
 import Footer from './components/Footer.vue'
+import GlobalPlayer from './components/GlobalPlayer.vue'
 </script>
 
 <template>
@@ -10,6 +11,7 @@ import Footer from './components/Footer.vue'
     <main>
       <RouterView />
     </main>
+    <GlobalPlayer />
     <Footer />
   </div>
 </template>
