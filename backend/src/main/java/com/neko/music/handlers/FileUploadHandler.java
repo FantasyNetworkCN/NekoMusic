@@ -456,6 +456,17 @@ public class FileUploadHandler extends HttpServlet {
     private int insertMusicToDatabase(String title, String artist, String album, int duration, Integer uploadUserId) throws SQLException {
         int id;
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            // 验证提供的uploadUserId是否存在于users表中
+            Integer validUploadUserId = null;
+            if (uploadUserId != null) {
+                if (isUserExists(conn, uploadUserId)) {
+                    validUploadUserId = uploadUserId;
+                } else {
+                    // 如果用户不存在，记录警告并使用null
+                    logger.warn("提供的upload_user_id {} 不存在于users表中，将使用NULL", uploadUserId);
+                }
+            }
+            
             String sql = "INSERT INTO music (title, artist, album, duration, file_path, cover_path, upload_user_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
             try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, title);
@@ -464,7 +475,7 @@ public class FileUploadHandler extends HttpServlet {
                 stmt.setInt(4, duration);
                 stmt.setString(5, ""); // 文件路径将在后续更新
                 stmt.setString(6, ""); // 封面路径将在后续更新
-                stmt.setObject(7, uploadUserId != null ? uploadUserId : null);
+                stmt.setObject(7, validUploadUserId); // 使用验证后的用户ID或null
                 
                 int affectedRows = stmt.executeUpdate();
                 
@@ -482,6 +493,20 @@ public class FileUploadHandler extends HttpServlet {
             }
         }
         return id;
+    }
+    
+    // 验证用户是否存在
+    private boolean isUserExists(Connection conn, int userId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM users WHERE id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        }
+        return false;
     }
     
     // 更新数据库中的文件路径
@@ -502,6 +527,17 @@ public class FileUploadHandler extends HttpServlet {
     private void updateMusicInDatabase(int id, String title, String artist, String album, int duration, 
                                       String musicFilePath, String coverFilePath, Integer uploadUserId) throws SQLException {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            // 验证提供的uploadUserId是否存在于users表中
+            Integer validUploadUserId = null;
+            if (uploadUserId != null) {
+                if (isUserExists(conn, uploadUserId)) {
+                    validUploadUserId = uploadUserId;
+                } else {
+                    // 如果用户不存在，记录警告并使用null
+                    logger.warn("提供的upload_user_id {} 不存在于users表中，将使用NULL", uploadUserId);
+                }
+            }
+            
             String sql = "UPDATE music SET title = ?, artist = ?, album = ?, duration = ?, file_path = ?, cover_path = ?, upload_user_id = ?, updated_at = NOW() WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, title);
@@ -510,7 +546,7 @@ public class FileUploadHandler extends HttpServlet {
                 stmt.setInt(4, duration);
                 stmt.setString(5, musicFilePath);
                 stmt.setString(6, coverFilePath);
-                stmt.setObject(7, uploadUserId != null ? uploadUserId : null);
+                stmt.setObject(7, validUploadUserId); // 使用验证后的用户ID或null
                 stmt.setInt(8, id);
                 
                 int rowsUpdated = stmt.executeUpdate();

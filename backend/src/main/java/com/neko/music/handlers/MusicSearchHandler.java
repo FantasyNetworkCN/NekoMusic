@@ -63,6 +63,7 @@ public class MusicSearchHandler extends HttpServlet {
     
     private List<Music> searchMusic(String query) {
         List<Music> results = new ArrayList<>();
+        int limit = 50; // 设置默认限制
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at " +
@@ -71,9 +72,9 @@ public class MusicSearchHandler extends HttpServlet {
                          "ORDER BY created_at DESC " +
                          "LIMIT ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, query);
-                stmt.setString(2, query);
-                stmt.setString(3, query);
+                stmt.setString(1, "%" + query + "%");
+                stmt.setString(2, "%" + query + "%");
+                stmt.setString(3, "%" + query + "%");
                 stmt.setInt(4, limit);
                 
                 ResultSet rs = stmt.executeQuery();
@@ -90,7 +91,7 @@ public class MusicSearchHandler extends HttpServlet {
                     music.setUploadUserId(rs.getInt("upload_user_id"));
                     music.setCreatedAt(rs.getTimestamp("created_at").toString());
                     
-                    musicList.add(music);
+                    results.add(music);
                 }
             }
         } catch (Exception e) {
