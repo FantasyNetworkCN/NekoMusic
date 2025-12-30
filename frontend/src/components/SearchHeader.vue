@@ -210,20 +210,10 @@ const performSearch = async () => {
 
 // 选择结果项
 const selectResult = (result) => {
-  searchQuery.value = `${result.title} - ${result.artist}`
+  // 点击搜索结果直接跳转到播放页面
+  router.push(`/player/${result.id}`)
   searchResults.value = null
   showResults.value = false
-  
-  // 不跳转页面，只更新搜索框内容
-  // 跳转应该只在用户按回车键时发生
-  
-  // 确保输入框保持焦点
-  setTimeout(() => {
-    const inputElement = document.querySelector('.search-input')
-    if (inputElement) {
-      inputElement.focus()
-    }
-  }, 0)
 }
 
 // 获取音乐封面URL
