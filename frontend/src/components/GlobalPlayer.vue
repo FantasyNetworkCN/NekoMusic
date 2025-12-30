@@ -57,10 +57,10 @@
       <!-- 歌词显示区域 -->
       <div class="lyrics-container">
         <div class="lyrics-content">
-          <div class="lyric-line" :class="{ 'active': isCurrentLyric(0) }">
+          <div class="lyric-line" :class="{ 'active': isCurrentLyric(0), 'active-enter': isCurrentLyric(0) && currentAnimationIndex === 0 }">
             {{ getLyricLine(0) }}
           </div>
-          <div class="lyric-line" :class="{ 'active': isCurrentLyric(1) }">
+          <div class="lyric-line" :class="{ 'active': isCurrentLyric(1), 'active-enter': isCurrentLyric(1) && currentAnimationIndex === 1 }">
             {{ getLyricLine(1) }}
           </div>
         </div>
@@ -83,6 +83,10 @@ const progress = ref(0)
 const lyrics = ref('')
 const parsedLyrics = ref([])
 const lyricsContent = ref(null)
+const currentAnimationIndex = ref(-1)
+
+// 记录上一个歌词索引
+let previousLyricIndex = -1
 
 // 播放/暂停控制
 const togglePlayPause = () => {
@@ -109,6 +113,28 @@ const onTimeUpdate = () => {
     currentTime.value = audioPlayer.value.currentTime
     progress.value = currentTime.value
     updateGlobalPlayerState()
+    
+    // 检测当前歌词是否发生变化，如果是，则触发动画
+    if (parsedLyrics.value.length > 0) {
+      let currentLyricIndex = -1
+      for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
+        const lyric = parsedLyrics.value[i]
+        if (currentTime.value >= lyric.time) {
+          currentLyricIndex = i
+          break
+        }
+      }
+      
+      // 如果当前歌词索引发生变化，则触发动画
+      if (previousLyricIndex !== currentLyricIndex && currentLyricIndex !== -1) {
+        currentAnimationIndex.value = 0 // 为当前歌词行触发动画
+        previousLyricIndex = currentLyricIndex
+        // 动画结束后清除动画索引
+        setTimeout(() => {
+          currentAnimationIndex.value = -1
+        }, 600)
+      }
+    }
   }
 }
 
@@ -117,6 +143,9 @@ const onLoadedMetadata = () => {
   if (audioPlayer.value) {
     duration.value = audioPlayer.value.duration
     updateGlobalPlayerState()
+    
+    // 重置歌词索引
+    previousLyricIndex = -1
     
     // 加载歌词
     if (currentMusic.value) {
@@ -617,13 +646,14 @@ onUnmounted(() => {
 .lyrics-container {
   flex: 1;
   min-width: 150px;
-  max-width: 300px;
+  max-width: 350px;
   height: 100%;
   overflow: hidden;
   display: flex;
   align-items: center;
-  padding-left: 10px;
+  padding-left: 20px;
   border-left: 1px solid #eee;
+  margin-left: 10px;
 }
 
 .lyrics-content {
@@ -633,25 +663,48 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  gap: 2px;
+  gap: 6px;
+  overflow: hidden;
+  position: relative;
 }
 
 .lyric-line {
-  color: #999;
-  font-size: 0.7rem;
+  color: #888;
+  font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
   text-align: left;
-  line-height: 1.3;
-  transition: all 0.3s ease;
+  line-height: 1.5;
+  opacity: 0.5;
+  position: relative;
+  transition: opacity 0.4s ease;
 }
 
 .lyric-line.active {
   color: #6a5acd;
-  font-weight: 600;
-  font-size: 0.75rem;
+  font-weight: 700;
+  font-size: 1rem;
+  opacity: 1;
+  text-shadow: 0 0 10px rgba(106, 90, 205, 0.5);
+}
+
+/* 滚动进入动画 */
+@keyframes scrollIn {
+  0% {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 当歌词变成活动状态时的滚动动画 */
+.lyric-line.active-enter {
+  animation: scrollIn 0.6s ease-out;
 }
 
 /* 隐藏audio元素 */
