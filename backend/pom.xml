@@ -110,7 +110,7 @@
         
         <!-- JAudiotagger用于读取音频文件信息 -->
         <dependency>
-            <groupId>org.jaudiotagger</groupId>
+            <groupId>net.jthink</groupId>
             <artifactId>jaudiotagger</artifactId>
             <version>3.0.1</version>
         </dependency>

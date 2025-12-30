@@ -8,6 +8,7 @@ import com.neko.music.handlers.MusicManagementHandler;
 import com.neko.music.handlers.AdminLoginHandler;
 import com.neko.music.handlers.AdminStatsHandler;
 import com.neko.music.handlers.ChartDataHandler;
+import com.neko.music.handlers.FileUploadHandler;
 import com.neko.music.service.AdminAuthService;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -91,6 +92,8 @@ public class Main {
         
         // 注册文件上传API处理器
         ServletHolder fileUploadHolder = new ServletHolder(new FileUploadHandler());
+        jakarta.servlet.MultipartConfigElement multipartConfig = new jakarta.servlet.MultipartConfigElement(System.getProperty("java.io.tmpdir"));
+        fileUploadHolder.getRegistration().setMultipartConfig(multipartConfig);
         context.addServlet(fileUploadHolder, "/api/music/upload");
         
         // 启动服务器
