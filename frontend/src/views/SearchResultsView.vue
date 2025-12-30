@@ -8,10 +8,16 @@
           class="result-item"
           @click="selectResult(result)"
         >
+          <img 
+            :src="getCoverUrl(result.id)" 
+            :alt="result.title"
+            class="result-cover"
+            @error="handleImageError"
+          />
           <div class="result-info">
             <div class="result-title">{{ result.title }}</div>
-            <div class="result-artist">{{ result.artist }}</div>
-            <div class="result-album" v-if="result.album">{{ result.album }}</div>
+            <div class="result-artist">作曲：{{ result.artist }}</div>
+            <div class="result-album">专辑：{{ result.album || '未知专辑' }}</div>
           </div>
         </div>
       </div>
@@ -86,6 +92,18 @@ const selectResult = (result) => {
   console.log('选择结果:', result)
 }
 
+// 获取音乐封面URL
+const getCoverUrl = (musicId) => {
+  // 返回新的API端点，通过音乐ID获取封面
+  return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
+}
+
+// 处理封面图片加载错误
+const handleImageError = (event) => {
+  // 如果图片加载失败，使用后端API的默认图标
+  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`;
+}
+
 // 监听路由参数变化
 watch(
   () => route.params.query,
@@ -129,6 +147,9 @@ onMounted(async () => {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
 .result-item:hover {
@@ -136,19 +157,30 @@ onMounted(async () => {
   box-shadow: inset 0 0 10px rgba(106, 90, 205, 0.3);
 }
 
+.result-cover {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
 .result-info {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-grow: 1;
+  gap: 2px;
 }
 
 .result-title {
   font-weight: bold;
   color: #5c4b7b;
-  margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 1rem;
 }
 
 .result-artist {
@@ -162,7 +194,6 @@ onMounted(async () => {
 .result-album {
   color: #a0a0a0;
   font-size: 0.8rem;
-  margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

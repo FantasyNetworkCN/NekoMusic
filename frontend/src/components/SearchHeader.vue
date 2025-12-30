@@ -29,10 +29,16 @@
             class="result-item"
             @click="selectResult(result)"
           >
+            <img 
+              :src="getCoverUrl(result.id)" 
+              :alt="result.title"
+              class="result-cover"
+              @error="handleImageError"
+            />
             <div class="result-info">
               <div class="result-title">{{ result.title }}</div>
-              <div class="result-artist">{{ result.artist }}</div>
-              <div class="result-album" v-if="result.album">{{ result.album }}</div>
+              <div class="result-artist">作曲：{{ result.artist }}</div>
+              <div class="result-album">专辑：{{ result.album || '未知专辑' }}</div>
             </div>
           </div>
         </div>
@@ -220,6 +226,18 @@ const selectResult = (result) => {
   }, 0)
 }
 
+// 获取音乐封面URL
+const getCoverUrl = (musicId) => {
+  // 返回新的API端点，通过音乐ID获取封面
+  return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
+}
+
+// 处理封面图片加载错误
+const handleImageError = (event) => {
+  // 如果图片加载失败，使用后端API的默认图标
+  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`;
+}
+
 // 点击外部区域隐藏搜索结果
 const handleClickOutside = (event) => {
   const searchHeader = event.target.closest('.search-header')
@@ -401,6 +419,9 @@ onUnmounted(() => {
   max-height: 80px;
   max-width: 100%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .result-item:hover {
@@ -412,19 +433,30 @@ onUnmounted(() => {
   border-bottom: none;
 }
 
+.result-cover {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
 .result-info {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-grow: 1;
+  gap: 2px;
 }
 
 .result-title {
   font-weight: bold;
   color: #5c4b7b;
-  margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.9rem;
 }
 
 .result-artist {
@@ -438,7 +470,6 @@ onUnmounted(() => {
 .result-album {
   color: #a0a0a0;
   font-size: 0.8rem;
-  margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
