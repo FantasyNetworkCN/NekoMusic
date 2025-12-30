@@ -53,21 +53,8 @@ public class MusicManagementHandler extends HttpServlet {
             return;
         }
         
-        String pathInfo = request.getPathInfo();
-        
-        // 检查路径信息来区分操作
-        if (pathInfo != null && pathInfo.equals("/add")) {
-            addMusic(request, response);
-        } else if (pathInfo == null) {
-            // 路径为 /api/music (没有额外路径信息)
-            addMusic(request, response);
-        } else {
-            // 其他路径，返回错误
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的POST请求路径: " + pathInfo + "，应为 /api/music/add");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
-        }
+        // 对于POST请求，总是执行添加操作
+        addMusic(request, response);
     }
 
     @Override
@@ -81,21 +68,9 @@ public class MusicManagementHandler extends HttpServlet {
             return;
         }
         
-        String pathInfo = request.getPathInfo();
-        
-        // 检查路径信息来区分操作
-        if (pathInfo != null && pathInfo.equals("/edit")) {
-            editMusic(request, response);
-        } else if (pathInfo == null) {
-            // 路径为 /api/music (没有额外路径信息)
-            editMusic(request, response);
-        } else {
-            // 其他路径，返回错误
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的PUT请求路径: " + pathInfo + "，应为 /api/music/edit");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
-        }
+        // 对于PUT请求，总是执行编辑操作，不严格区分路径
+        // 因为PUT方法的语义就是更新资源
+        editMusic(request, response);
     }
 
     @Override
@@ -317,7 +292,8 @@ public class MusicManagementHandler extends HttpServlet {
                     stmt.setString(3, addRequest.getAlbum() != null ? addRequest.getAlbum() : "未知专辑");
                     stmt.setInt(4, addRequest.getDuration() != null ? addRequest.getDuration() : 0);
                     stmt.setString(5, addRequest.getFilePath() != null ? addRequest.getFilePath() : "");
-                    stmt.setInt(6, addRequest.getUploadUserId() != null ? addRequest.getUploadUserId() : 0);
+                    // 使用NULL而不是0以避免外键约束问题
+                    stmt.setObject(6, null);
                     
                     int affectedRows = stmt.executeUpdate();
                     
@@ -410,7 +386,8 @@ public class MusicManagementHandler extends HttpServlet {
                     stmt.setString(3, editRequest.getAlbum() != null ? editRequest.getAlbum() : "未知专辑");
                     stmt.setInt(4, editRequest.getDuration() != null ? editRequest.getDuration() : 0);
                     stmt.setString(5, editRequest.getFilePath() != null ? editRequest.getFilePath() : "");
-                    stmt.setInt(6, editRequest.getUploadUserId() != null ? editRequest.getUploadUserId() : 0);
+                    // 使用NULL而不是0以避免外键约束问题
+                    stmt.setObject(6, null);
                     stmt.setInt(7, editRequest.getId());
                     
                     rowsUpdated = stmt.executeUpdate();
