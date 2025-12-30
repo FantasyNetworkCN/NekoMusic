@@ -13,11 +13,23 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.servlets.CrossOriginFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.DispatcherType;
 import java.util.EnumSet;
 
 public class Main {
+    static {
+        // 在类加载时尽早设置字符编码
+        System.setProperty("file.encoding", "UTF-8");
+        System.setProperty("sun.jnu.encoding", "UTF-8");
+        System.setProperty("sun.stdout.encoding", "UTF-8");
+        System.setProperty("sun.stderr.encoding", "UTF-8");
+    }
+    
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
+    
     private static Server server;
     private static DatabaseManager databaseManager;
     private static ConfigManager configManager;
@@ -25,7 +37,11 @@ public class Main {
     private static AdminAuthService adminAuthService;
 
     public static void main(String[] args) throws Exception {
-        System.out.println("正在启动NekoMusic音乐平台...");
+        // 重新设置System.out和System.err的编码
+        System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
+        System.setErr(new java.io.PrintStream(System.err, true, "UTF-8"));
+        
+        logger.info("正在启动NekoMusic音乐平台...");
         
         // 初始化配置管理器
         configManager = new ConfigManager();
@@ -75,17 +91,17 @@ public class Main {
         
         // 启动服务器
         server.start();
-        System.out.println("NekoMusic服务器已在端口" + configManager.getPort() + "启动");
-        System.out.println("API端点:");
-        System.out.println("  POST /api/music/search - 搜索音乐");
-        System.out.println("  GET /api/music/list - 获取音乐列表 (需要管理员登录)");
-        System.out.println("  GET /api/music/{id} - 获取特定音乐 (需要管理员登录)");
-        System.out.println("  POST /api/music/add - 添加音乐 (需要管理员登录)");
-        System.out.println("  PUT /api/music/edit - 编辑音乐 (需要管理员登录)");
-        System.out.println("  DELETE /api/music/delete/{id} - 删除音乐 (需要管理员登录)");
-        System.out.println("  POST /api/admin/login - 管理员登录");
-        System.out.println("  GET /api/admin/stats - 管理员统计信息 (需要管理员登录)");
-        System.out.println("  GET /api/admin/chart-data - 管理员图表数据 (需要管理员登录)");
+        logger.info("NekoMusic服务器已在端口{}启动", configManager.getPort());
+        logger.info("API端点:");
+        logger.info("  POST /api/music/search - 搜索音乐");
+        logger.info("  GET /api/music/list - 获取音乐列表 (需要管理员登录)");
+        logger.info("  GET /api/music/{id} - 获取特定音乐 (需要管理员登录)");
+        logger.info("  POST /api/music/add - 添加音乐 (需要管理员登录)");
+        logger.info("  PUT /api/music/edit - 编辑音乐 (需要管理员登录)");
+        logger.info("  DELETE /api/music/delete/{id} - 删除音乐 (需要管理员登录)");
+        logger.info("  POST /api/admin/login - 管理员登录");
+        logger.info("  GET /api/admin/stats - 管理员统计信息 (需要管理员登录)");
+        logger.info("  GET /api/admin/chart-data - 管理员图表数据 (需要管理员登录)");
         server.join();
     }
     
@@ -97,12 +113,12 @@ public class Main {
         if (adminDatabaseManager.getAllAdmins().isEmpty()) {
             boolean created = adminAuthService.createAdmin(defaultUsername, defaultPassword, "admin@nekomusic.com");
             if (created) {
-                System.out.println("默认管理员账号已创建: " + defaultUsername + "/" + defaultPassword);
+                logger.info("默认管理员账号已创建: {}/{}", defaultUsername, defaultPassword);
             } else {
-                System.err.println("创建默认管理员账号失败");
+                logger.error("创建默认管理员账号失败");
             }
         } else {
-            System.out.println("管理员表中已有数据，跳过创建默认管理员账号");
+            logger.info("管理员表中已有数据，跳过创建默认管理员账号");
         }
     }
     
