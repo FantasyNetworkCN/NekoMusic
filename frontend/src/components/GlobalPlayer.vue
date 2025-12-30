@@ -231,29 +231,32 @@ onUnmounted(() => {
 <style scoped>
 .global-player {
   position: fixed;
-  top: 0;
+  bottom: 0;
+  left: 0;
   right: 0;
-  height: 100vh;
-  width: 300px;
+  height: 80px;
+  width: 100%;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-left: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 20px 15px;
-  box-shadow: -2px 0 20px rgba(0, 0, 0, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 20px;
+  box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   transition: transform 0.3s ease;
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  flex-direction: row;
+  align-items: center;
+  gap: 15px;
 }
 
 .player-content {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   height: 100%;
+  width: 100%;
   gap: 15px;
-  overflow: auto;
 }
 
 .cover-container {
@@ -261,8 +264,8 @@ onUnmounted(() => {
 }
 
 .music-cover {
-  width: 50px;
-  height: 50px;
+  width: 60px;
+  height: 60px;
   object-fit: cover;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -280,12 +283,16 @@ onUnmounted(() => {
 .music-info {
   flex-grow: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 200px;
 }
 
 .music-title {
   font-weight: bold;
   color: #5c4b7b;
-  font-size: 1rem;
+  font-size: 0.9rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -298,7 +305,7 @@ onUnmounted(() => {
 
 .music-artist {
   color: #9370db;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -310,6 +317,7 @@ onUnmounted(() => {
   gap: 12px;
   flex-grow: 1;
   min-width: 200px;
+  max-width: 400px;
 }
 
 .control-buttons {
@@ -384,21 +392,34 @@ audio {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
+  .global-player {
+    height: 70px;
+    padding: 8px 15px;
+  }
+  
   .player-content {
     gap: 10px;
   }
   
   .music-cover {
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
+  }
+  
+  .music-info {
+    max-width: 120px;
   }
   
   .music-title {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
   
   .music-artist {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
+  }
+  
+  .player-controls {
+    max-width: 300px;
   }
   
   .play-pause-btn {
