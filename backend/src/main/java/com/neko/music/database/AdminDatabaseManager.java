@@ -42,7 +42,9 @@ public class AdminDatabaseManager {
                 album VARCHAR(255),
                 duration INT,
                 file_path VARCHAR(500),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                upload_user_id INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         """;
         
@@ -78,6 +80,19 @@ public class AdminDatabaseManager {
             )
         """;
         
+        // 创建会话表（用于管理员身份验证）
+        String sessionSql = """
+            CREATE TABLE IF NOT EXISTS admin_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                admin_id INT NOT NULL,
+                session_token VARCHAR(255) UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                FOREIGN KEY (admin_id) REFERENCES admins(id)
+            )
+        """;
+        
         try (Connection conn = databaseManager.getConnection();
              Statement stmt = conn.createStatement()) {
             
@@ -87,6 +102,10 @@ public class AdminDatabaseManager {
             stmt.execute(userSql);
             stmt.execute(searchLogSql);
             stmt.execute(accessLogSql);
+            stmt.execute(sessionSql);
+            
+            // 检查并更新music表结构（添加missing列）
+            updateMusicTableStructure(conn);
             
             System.out.println("管理员相关表初始化完成");
         } catch (SQLException e) {
@@ -234,5 +253,117 @@ public class AdminDatabaseManager {
             System.err.println("检查管理员是否存在失败: " + e.getMessage());
         }
         return false;
+    }
+    
+    /**
+     * 创建管理员会话
+     * @param adminId 管理员ID
+     * @param sessionToken 会话令牌
+     * @param expiresAt 过期时间戳 (毫秒)
+     * @return 创建是否成功
+     */
+    public boolean createAdminSession(int adminId, String sessionToken, long expiresAt) {
+        String sql = """
+            INSERT INTO admin_sessions (admin_id, session_token, expires_at)
+            VALUES (?, ?, ?)
+        """;
+        
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, adminId);
+            stmt.setString(2, sessionToken);
+            // 创建一个Timestamp对象来处理毫秒时间戳
+            stmt.setTimestamp(3, new Timestamp(expiresAt));
+            
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            System.err.println("创建管理员会话失败: " + e.getMessage());
+            e.printStackTrace(); // 添加详细错误日志
+            return false;
+        }
+    }
+    
+    /**
+     * 验证管理员会话令牌
+     * @param sessionToken 会话令牌
+     * @return 会话是否有效
+     */
+    public boolean validateAdminSession(String sessionToken) {
+        String sql = """
+            SELECT COUNT(*) FROM admin_sessions 
+            WHERE session_token = ? AND is_active = TRUE AND expires_at > NOW()
+        """;
+        
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, sessionToken);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("验证管理员会话失败: " + e.getMessage());
+        }
+        return false;
+    }
+    
+    /**
+     * 使管理员会话失效
+     * @param sessionToken 会话令牌
+     * @return 是否成功
+     */
+    public boolean invalidateAdminSession(String sessionToken) {
+        String sql = "UPDATE admin_sessions SET is_active = FALSE WHERE session_token = ?";
+        
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, sessionToken);
+            
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            System.err.println("使管理员会话失效失败: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * 检查并更新music表结构，确保包含所有必需的列
+     * @param conn 数据库连接
+     */
+    private void updateMusicTableStructure(Connection conn) {
+        try {
+            // 检查upload_user_id列是否存在
+            boolean hasUploadUserId = false;
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "upload_user_id")) {
+                hasUploadUserId = rs.next();
+            }
+            
+            // 检查updated_at列是否存在
+            boolean hasUpdatedAt = false;
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "updated_at")) {
+                hasUpdatedAt = rs.next();
+            }
+            
+            // 添加缺少的列
+            try (Statement stmt = conn.createStatement()) {
+                if (!hasUploadUserId) {
+                    stmt.execute("ALTER TABLE music ADD COLUMN upload_user_id INT DEFAULT 0");
+                    System.out.println("已添加upload_user_id列到music表");
+                }
+                
+                if (!hasUpdatedAt) {
+                    stmt.execute("ALTER TABLE music ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+                    System.out.println("已添加updated_at列到music表");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("更新music表结构失败: " + e.getMessage());
+        }
     }
 }

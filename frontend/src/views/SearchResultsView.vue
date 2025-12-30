@@ -20,6 +20,8 @@
       </div>
       <div v-else-if="searchQuery && searchResults && searchResults.length === 0" class="no-results">
         <h3>未找到 "{{ searchQuery }}" 的相关结果</h3>
+        <p>联系我们反馈补全音乐</p>
+        <a href="mailto:support@cnmsb.xin">support@cnmsb.xin</a>
       </div>
       <div v-else class="no-results">
         <h3>请输入搜索关键词</h3>
