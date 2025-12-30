@@ -591,7 +591,8 @@ public class FileUploadHandler extends HttpServlet {
                     music.setTags(rs.getString("tags"));
                     music.setDuration(rs.getInt("duration"));
                     music.setFilePath(rs.getString("file_path"));
-                    music.setCoverFilePath(rs.getString("cover_path"));
+                    String coverPath = rs.getString("cover_path");
+                    music.setCoverFilePath(coverPath != null && !coverPath.trim().isEmpty() ? coverPath : null);
                     music.setUploadUserId(rs.getInt("upload_user_id"));
                     music.setCreatedAt(rs.getTimestamp("created_at").toString());
                     music.setUpdatedAt(rs.getTimestamp("updated_at").toString());

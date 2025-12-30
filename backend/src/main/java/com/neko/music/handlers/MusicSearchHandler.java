@@ -140,6 +140,22 @@ public class MusicSearchHandler extends HttpServlet {
         public void setUploadUserId(int uploadUserId) { this.uploadUserId = uploadUserId; }
         public String getCreatedAt() { return createdAt; }
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+        
+        // 获取封面URL，如果封面文件不存在则返回默认图标路径
+        public String getCoverUrl() {
+            if (coverFilePath == null || coverFilePath.isEmpty()) {
+                return "/api/defaultIcon";
+            }
+            
+            // 检查封面文件是否存在
+            java.nio.file.Path coverPath = java.nio.file.Paths.get(coverFilePath);
+            if (java.nio.file.Files.exists(coverPath)) {
+                return coverFilePath;
+            } else {
+                // 如果文件不存在，返回默认图标路径
+                return "/api/defaultIcon";
+            }
+        }
     }
     
     // 内部类用于表示搜索响应
