@@ -89,6 +89,9 @@ const searchMusic = async (query) => {
 
 // 选择结果项
 const selectResult = (result) => {
+  // 设置当前播放的音乐到localStorage，触发全局播放器
+  localStorage.setItem('currentPlayingMusic', JSON.stringify(result));
+  
   // 点击搜索结果跳转到播放页面
   router.push(`/player/${result.id}`)
 }

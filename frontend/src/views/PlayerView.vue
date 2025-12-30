@@ -18,7 +18,7 @@
         <p class="music-album">专辑：{{ currentMusic.album || '未知专辑' }}</p>
       </div>
       
-      <!-- 音乐播放器 -->
+      <!-- 播放控件 -->
       <div class="player-controls">
         <audio 
           ref="audioPlayer" 
@@ -56,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 
@@ -80,7 +80,9 @@ const fetchMusicInfo = async (musicId) => {
     
     const data = await response.json()
     if (data.success) {
-      currentMusic.value = data.data
+      currentMusic.value = data.data;
+      // 设置当前播放的音乐到localStorage，触发全局播放器
+      localStorage.setItem('currentPlayingMusic', JSON.stringify(data.data));
     } else {
       console.error('获取音乐信息失败:', data.message)
     }
@@ -95,15 +97,17 @@ const togglePlayPause = () => {
     if (isPlaying.value) {
       audioPlayer.value.pause()
     } else {
-      audioPlayer.value.play()
+      audioPlayer.value.play().catch(e => console.log('播放被阻止:', e))
     }
     isPlaying.value = !isPlaying.value
+    updateGlobalPlayerState()
   }
 }
 
 // 音频结束事件
 const onAudioEnded = () => {
   isPlaying.value = false
+  updateGlobalPlayerState()
 }
 
 // 时间更新事件
@@ -111,6 +115,7 @@ const onTimeUpdate = () => {
   if (audioPlayer.value) {
     currentTime.value = audioPlayer.value.currentTime
     progress.value = currentTime.value
+    updateGlobalPlayerState()
   }
 }
 
@@ -127,12 +132,23 @@ const onProgressChange = (event) => {
   if (audioPlayer.value) {
     audioPlayer.value.currentTime = newTime
     currentTime.value = newTime
+    updateGlobalPlayerState()
   }
+}
+
+// 更新全局播放器状态
+const updateGlobalPlayerState = () => {
+  const state = {
+    isPlaying: isPlaying.value,
+    currentTime: currentTime.value,
+    duration: duration.value
+  };
+  localStorage.setItem('globalPlayerState', JSON.stringify(state));
 }
 
 // 格式化时间（秒转分:秒）
 const formatTime = (seconds) => {
-  if (isNaN(seconds)) return '0:00'
+  if (isNaN(seconds) || seconds < 0) return '0:00'
   
   const min = Math.floor(seconds / 60)
   const sec = Math.floor(seconds % 60)
@@ -159,15 +175,38 @@ const handleImageError = (event) => {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`
 }
 
+// 监听localStorage变化，同步全局播放器状态
+const handleStorageChange = (e) => {
+  if (e.key === 'globalPlayerState') {
+    // 同步播放状态，但要避免循环更新
+    if (e.newValue) {
+      const state = JSON.parse(e.newValue);
+      // 同步时间信息，但不强制改变播放状态（避免冲突）
+      currentTime.value = state.currentTime;
+      duration.value = state.duration;
+    }
+  } else if (e.key === 'currentPlayingMusic') {
+    // 保持当前页面显示的音乐与全局播放器一致
+    if (e.newValue) {
+      const newMusic = JSON.parse(e.newValue);
+      if (newMusic.id == route.params.id) {
+        currentMusic.value = newMusic;
+      }
+    }
+  }
+}
+
 // 监听音频播放状态
 watch(audioPlayer, (newPlayer) => {
   if (newPlayer) {
     newPlayer.addEventListener('play', () => {
       isPlaying.value = true
+      updateGlobalPlayerState()
     })
     
     newPlayer.addEventListener('pause', () => {
       isPlaying.value = false
+      updateGlobalPlayerState()
     })
   }
 })
@@ -178,6 +217,22 @@ onMounted(async () => {
   if (musicId) {
     await fetchMusicInfo(musicId)
   }
+  
+  // 监听storage事件，以响应全局播放器的音乐变化
+  window.addEventListener('storage', handleStorageChange)
+  
+  // 初始化时从localStorage获取播放状态
+  const storedState = localStorage.getItem('globalPlayerState');
+  if (storedState) {
+    const state = JSON.parse(storedState);
+    currentTime.value = state.currentTime;
+    duration.value = state.duration;
+  }
+})
+
+// 组件卸载时移除事件监听
+onUnmounted(() => {
+  window.removeEventListener('storage', handleStorageChange)
 })
 </script>
 
@@ -303,6 +358,11 @@ onMounted(async () => {
   font-size: 1.2rem;
 }
 
+/* 隐藏audio元素 */
+audio {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .player-container {
     padding: 20px;
@@ -327,6 +387,19 @@ onMounted(async () => {
   .music-album,
   .music-duration {
     text-align: center;
+  }
+  
+  .progress-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .time {
+    align-self: center;
+  }
+  
+  .progress-bar {
+    width: 100%;
   }
 }
 </style>
