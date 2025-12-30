@@ -93,7 +93,7 @@ const selectResult = (result) => {
   localStorage.setItem('currentPlayingMusic', JSON.stringify(result));
   
   // 点击搜索结果跳转到播放页面
-  router.push(`/player/${result.id}`)
+  router.push(`/detail/${result.id}`)
 }
 
 // 获取音乐封面URL

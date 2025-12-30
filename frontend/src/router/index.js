@@ -70,8 +70,8 @@ const router = createRouter({
       beforeEnter: adminGuard
     },
     {
-      path: '/player/:id',
-      name: 'player',
+      path: '/detail/:id',
+      name: 'detail',
       component: PlayerView,
       props: true
     }
