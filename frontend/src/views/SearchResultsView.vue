@@ -38,12 +38,13 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 
 const route = useRoute()
 const searchQuery = ref('')
 const searchResults = ref(null)
+const router = useRouter()
 
 // 初始化搜索查询
 if (route.params.query) {
@@ -88,8 +89,8 @@ const searchMusic = async (query) => {
 
 // 选择结果项
 const selectResult = (result) => {
-  // 可以根据需要实现选择结果后的逻辑
-  console.log('选择结果:', result)
+  // 点击搜索结果跳转到播放页面
+  router.push(`/player/${result.id}`)
 }
 
 // 获取音乐封面URL
