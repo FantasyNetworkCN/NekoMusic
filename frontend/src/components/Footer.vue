@@ -34,7 +34,8 @@
   border-top: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 -8px 32px rgba(31, 38, 135, 0.37);
   position: relative; /* 确保可以设置z-index */
-  z-index: 9999; /* 设置最高层级 */
+  z-index: 999; /* 设置低于播放器的层级 */
+  margin-bottom: 80px; /* 为底部播放器预留空间 */
 }
 
 .footer-content {
