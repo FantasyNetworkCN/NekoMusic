@@ -53,6 +53,18 @@
           <span class="time">{{ formatTime(duration) }}</span>
         </div>
       </div>
+      
+      <!-- 歌词显示区域 -->
+      <div class="lyrics-container">
+        <div class="lyrics-content">
+          <div class="lyric-line" :class="{ 'active': isCurrentLyric(0) }">
+            {{ getLyricLine(0) }}
+          </div>
+          <div class="lyric-line" :class="{ 'active': isCurrentLyric(1) }">
+            {{ getLyricLine(1) }}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -68,6 +80,9 @@ const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
 const progress = ref(0)
+const lyrics = ref('')
+const parsedLyrics = ref([])
+const lyricsContent = ref(null)
 
 // 播放/暂停控制
 const togglePlayPause = () => {
@@ -102,6 +117,11 @@ const onLoadedMetadata = () => {
   if (audioPlayer.value) {
     duration.value = audioPlayer.value.duration
     updateGlobalPlayerState()
+    
+    // 加载歌词
+    if (currentMusic.value) {
+      loadLyrics(currentMusic.value.id)
+    }
   }
 }
 
@@ -137,6 +157,159 @@ const formatTime = (seconds) => {
 // 获取音乐封面URL
 const getCoverUrl = (musicId) => {
   return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
+}
+
+// 获取歌词
+const getLyricsUrl = (musicId) => {
+  return `${API_CONFIG.BASE_URL}/api/music/lyrics/${musicId}`
+}
+
+// 加载歌词
+const loadLyrics = async (musicId) => {
+  try {
+    const response = await fetch(getLyricsUrl(musicId))
+    if (response.ok) {
+      const data = await response.json()
+      if (data.success) {
+        lyrics.value = data.data
+        parseLrcLyrics(data.data)
+      } else {
+        lyrics.value = ''
+        parsedLyrics.value = []
+      }
+    } else {
+      lyrics.value = ''
+      parsedLyrics.value = []
+    }
+  } catch (error) {
+    console.error('加载歌词失败:', error)
+    lyrics.value = ''
+    parsedLyrics.value = []
+  }
+}
+
+// 解析LRC歌词格式
+const parseLrcLyrics = (lrcText) => {
+  if (!lrcText) {
+    parsedLyrics.value = []
+    return
+  }
+  
+  const lines = lrcText.split('\n')
+  const parsed = []
+  
+  for (const line of lines) {
+    // 匹配 [mm:ss.xx] 或 [mm:ss.xxx] 格式的时间标签
+    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g
+    let match
+    const matches = []
+    
+    // 收集所有时间标签
+    while ((match = timeRegex.exec(line)) !== null) {
+      matches.push({
+        minutes: parseInt(match[1]),
+        seconds: parseInt(match[2]),
+        milliseconds: parseInt(match[3]),
+        index: match.index
+      })
+    }
+    
+    // 提取歌词文本（去除时间标签）
+    const text = line.replace(/\[(\d{2}):(\d{2})\.(\d{2,3})\]/g, '').trim()
+    
+    // 为每个时间标签创建一个歌词项
+    for (const timeMatch of matches) {
+      // 根据毫秒部分的位数正确计算秒数
+      let millisecondsDivisor
+      if (timeMatch.milliseconds.toString().length === 2) {
+        millisecondsDivisor = 100 // 两位毫秒，如 .25
+      } else {
+        millisecondsDivisor = 1000 // 三位毫秒，如 .250
+      }
+      const timeInSeconds = timeMatch.minutes * 60 + timeMatch.seconds + (timeMatch.milliseconds / millisecondsDivisor)
+      parsed.push({
+        time: timeInSeconds,
+        text: text
+      })
+    }
+  }
+  
+  // 按时间排序
+  parsed.sort((a, b) => a.time - b.time)
+  parsedLyrics.value = parsed
+}
+
+// 获取指定索引的歌词行文本
+const getLyricLine = (offset) => {
+  if (!currentMusic.value || parsedLyrics.value.length === 0) {
+    return currentMusic.value ? (offset === 0 ? '暂无歌词' : '') : '请选择音乐播放'
+  }
+  
+  // 查找当前时间点对应的歌词索引
+  let currentLyricIndex = -1
+  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
+    const lyric = parsedLyrics.value[i]
+    if (currentTime.value >= lyric.time) {
+      currentLyricIndex = i
+      break
+    }
+  }
+  
+  // 根据偏移量返回对应的歌词
+  const targetIndex = currentLyricIndex + offset
+  if (targetIndex >= 0 && targetIndex < parsedLyrics.value.length) {
+    return parsedLyrics.value[targetIndex].text || ''
+  }
+  
+  // 如果超出范围但不是第一行，返回空字符串
+  if (offset > 0) {
+    return ''
+  }
+  
+  // 如果还没到第一句歌词的时间，显示提示信息
+  if (currentLyricIndex === -1 && parsedLyrics.value.length > 0) {
+    return '即将开始...'
+  }
+  
+  return '...'
+}
+
+// 判断指定偏移量的歌词行是否是当前歌词
+const isCurrentLyric = (offset) => {
+  if (!currentMusic.value || parsedLyrics.value.length === 0) {
+    return offset === 0 && !currentMusic.value // 只有在没有选择音乐时，第一行才"活跃"
+  }
+  
+  // 查找当前时间点对应的歌词索引
+  let currentLyricIndex = -1
+  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
+    const lyric = parsedLyrics.value[i]
+    if (currentTime.value >= lyric.time) {
+      currentLyricIndex = i
+      break
+    }
+  }
+  
+  // 检查指定偏移量的行是否是当前行
+  return (currentLyricIndex + offset) >= 0 && (currentLyricIndex + offset) < parsedLyrics.value.length
+}
+
+// 获取当前应该显示的歌词文本 (保留此函数以备后续可能需要)
+const getCurrentLyricText = () => {
+  if (parsedLyrics.value.length === 0) {
+    return '暂无歌词'
+  }
+  
+  // 查找当前时间点对应的歌词
+  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
+    const lyric = parsedLyrics.value[i]
+    if (currentTime.value >= lyric.time) {
+      return lyric.text || '...'
+    }
+  }
+  
+  // 如果还没到第一句歌词的时间，显示提示信息
+  return '即将开始...'
 }
 
 // 处理封面图片加载错误
@@ -175,6 +348,13 @@ const handleStorageChange = (e) => {
         progress.value = 0;
         duration.value = 0;
       }
+      // 加载新音乐的歌词
+      if (newMusic) {
+        loadLyrics(newMusic.id)
+      } else {
+        lyrics.value = ''
+        parsedLyrics.value = []
+      }
     } else if (!e.newValue) {
       // 没有音乐了，暂停播放器
       currentMusic.value = null;
@@ -186,6 +366,9 @@ const handleStorageChange = (e) => {
         duration.value = 0;
         updateGlobalPlayerState();
       }
+      // 清空歌词
+      lyrics.value = ''
+      parsedLyrics.value = []
     }
   } else if (e.key === 'globalPlayerState') {
     // 从播放页面接收状态更新
@@ -244,6 +427,11 @@ onMounted(() => {
   const storedMusic = localStorage.getItem('currentPlayingMusic')
   if (storedMusic) {
     currentMusic.value = JSON.parse(storedMusic)
+    
+    // 初始化时加载歌词
+    if (currentMusic.value) {
+      loadLyrics(currentMusic.value.id)
+    }
   }
   
   // 初始化时从localStorage获取播放状态
@@ -425,6 +613,47 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
+/* 歌词显示区域 */
+.lyrics-container {
+  flex: 1;
+  min-width: 150px;
+  max-width: 300px;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+  border-left: 1px solid #eee;
+}
+
+.lyrics-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.lyric-line {
+  color: #999;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  text-align: left;
+  line-height: 1.3;
+  transition: all 0.3s ease;
+}
+
+.lyric-line.active {
+  color: #6a5acd;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
 /* 隐藏audio元素 */
 audio {
   display: none;
@@ -459,7 +688,11 @@ audio {
   }
   
   .player-controls {
-    max-width: 300px;
+    max-width: 200px;
+  }
+  
+  .lyrics-container {
+    display: none; /* 在小屏幕上隐藏歌词 */
   }
   
   .play-pause-btn {

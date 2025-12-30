@@ -1,0 +1,281 @@
+package com.neko.music.handlers;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.neko.music.Main;
+import org.eclipse.jetty.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Paths;
+
+public class MusicLyricsHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(MusicLyricsHandler.class);
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String pathInfo = request.getPathInfo();
+        
+        if (pathInfo == null || pathInfo.equals("/")) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 解析音乐ID (路径格式: /{id})
+        String idStr = pathInfo.replace("/", "");
+        int musicId;
+        
+        try {
+            musicId = Integer.parseInt(idStr);
+        } catch (NumberFormatException e) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 获取歌词信息
+        String lyrics = getLyricsById(musicId);
+        
+        if (lyrics == null) {
+            response.setStatus(HttpStatus.NOT_FOUND_404);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("歌词文件不存在");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        response.setStatus(HttpStatus.OK_200);
+        response.setContentType("application/json;charset=utf-8");
+        LyricsResponse lyricsResponse = new LyricsResponse(true, "获取歌词成功", lyrics);
+        response.getWriter().println(objectMapper.writeValueAsString(lyricsResponse));
+    }
+    
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        // 检查是否为管理员
+        if (!isAdminRequest(request)) {
+            response.setStatus(HttpStatus.UNAUTHORIZED_401);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("需要管理员权限");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        String pathInfo = request.getPathInfo();
+        
+        if (pathInfo == null || pathInfo.equals("/")) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 解析音乐ID (路径格式: /{id})
+        String idStr = pathInfo.replace("/", "");
+        int musicId;
+        
+        try {
+            musicId = Integer.parseInt(idStr);
+        } catch (NumberFormatException e) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 读取请求体中的歌词
+        StringBuilder requestBody = new StringBuilder();
+        String line;
+        while ((line = request.getReader().readLine()) != null) {
+            requestBody.append(line);
+        }
+        
+        LyricsRequest lyricsRequest;
+        try {
+            lyricsRequest = objectMapper.readValue(requestBody.toString(), LyricsRequest.class);
+        } catch (Exception e) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("无效的请求格式");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        if (lyricsRequest.getLyrics() == null) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("歌词内容不能为空");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 更新歌词文件
+        boolean success = updateLyricsFile(musicId, lyricsRequest.getLyrics());
+        
+        if (!success) {
+            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("更新歌词失败");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        response.setStatus(HttpStatus.OK_200);
+        response.setContentType("application/json;charset=utf-8");
+        SuccessResponse successResponse = new SuccessResponse(true, "更新歌词成功");
+        response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+    }
+    
+    /**
+     * 根据音乐ID获取歌词
+     */
+    private String getLyricsById(int musicId) {
+        try {
+            // 构建歌词文件路径
+            String lyricsDir = System.getProperty("user.dir") + "/Music/lyrics";
+            File lyricsDirFile = new File(lyricsDir);
+            if (!lyricsDirFile.exists()) {
+                lyricsDirFile.mkdirs();
+            }
+            
+            String lyricsFilePath = lyricsDir + "/" + musicId + ".lrc";
+            File lyricsFile = new File(lyricsFilePath);
+            
+            if (!lyricsFile.exists()) {
+                return null; // 歌词文件不存在
+            }
+            
+            // 读取歌词文件内容
+            StringBuilder content = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new FileReader(lyricsFile))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+            }
+            
+            // 移除最后的换行符
+            if (content.length() > 0) {
+                content.deleteCharAt(content.length() - 1);
+            }
+            
+            return content.toString();
+        } catch (Exception e) {
+            logger.error("读取歌词文件时出错", e);
+            return null;
+        }
+    }
+    
+    /**
+     * 更新歌词文件
+     */
+    private boolean updateLyricsFile(int musicId, String lyrics) {
+        try {
+            // 构建歌词文件目录
+            String lyricsDir = System.getProperty("user.dir") + "/Music/lyrics";
+            File lyricsDirFile = new File(lyricsDir);
+            if (!lyricsDirFile.exists()) {
+                lyricsDirFile.mkdirs();
+            }
+            
+            // 构建歌词文件路径
+            String lyricsFilePath = lyricsDir + "/" + musicId + ".lrc";
+            File lyricsFile = new File(lyricsFilePath);
+            
+            // 写入歌词内容
+            try (FileWriter writer = new FileWriter(lyricsFile)) {
+                writer.write(lyrics);
+            }
+            
+            return true;
+        } catch (Exception e) {
+            logger.error("更新歌词文件时出错", e);
+            return false;
+        }
+    }
+    
+    /**
+     * 检查请求是否来自管理员
+     */
+    private boolean isAdminRequest(HttpServletRequest request) {
+        String adminToken = request.getHeader("Admin-Token");
+        if (adminToken == null || adminToken.isEmpty()) {
+            return false;
+        }
+        
+        // 验证管理员令牌
+        return Main.getAdminAuthService().validateAdminToken(adminToken);
+    }
+
+    // 内部类用于表示歌词请求
+    private static class LyricsRequest {
+        private String lyrics;
+        
+        public String getLyrics() { return lyrics; }
+        public void setLyrics(String lyrics) { this.lyrics = lyrics; }
+    }
+    
+    // 内部类用于表示歌词响应
+    private static class LyricsResponse {
+        private boolean success;
+        private String message;
+        private String data;
+        
+        public LyricsResponse(boolean success, String message, String data) {
+            this.success = success;
+            this.message = message;
+            this.data = data;
+        }
+        
+        public boolean isSuccess() { return success; }
+        public void setSuccess(boolean success) { this.success = success; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+        public String getData() { return data; }
+        public void setData(String data) { this.data = data; }
+    }
+    
+    // 内部类用于表示成功响应
+    private static class SuccessResponse {
+        private boolean success;
+        private String message;
+        
+        public SuccessResponse(boolean success, String message) {
+            this.success = success;
+            this.message = message;
+        }
+        
+        public boolean isSuccess() { return success; }
+        public void setSuccess(boolean success) { this.success = success; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+    }
+    
+    // 内部类用于表示错误响应
+    private static class ErrorResponse {
+        private String error;
+        
+        public ErrorResponse(String error) {
+            this.error = error;
+        }
+        
+        public String getError() { return error; }
+        public void setError(String error) { this.error = error; }
+    }
+}
