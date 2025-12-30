@@ -47,18 +47,20 @@
                     </div>
                     <div class="form-group">
                       <label>🌐 语言 *</label>
-                      <select v-model="newMusic.language" placeholder="请选择语言">
-                        <option value="">请选择语言</option>
-                        <option value="中文">中文</option>
-                        <option value="粤语">粤语</option>
-                        <option value="上海语">上海语</option>
-                        <option value="英文">英文</option>
-                        <option value="日语">日语</option>
-                        <option value="韩语">韩语</option>
-                        <option value="法语">法语</option>
-                        <option value="德语">德语</option>
-                        <option value="俄语">俄语</option>
-                      </select>
+                      <div class="select-wrapper">
+                        <select v-model="newMusic.language" class="styled-select">
+                          <option value="" disabled>请选择语言</option>
+                          <option value="中文">中文</option>
+                          <option value="粤语">粤语</option>
+                          <option value="上海语">上海语</option>
+                          <option value="英文">英文</option>
+                          <option value="日语">日语</option>
+                          <option value="韩语">韩语</option>
+                          <option value="法语">法语</option>
+                          <option value="德语">德语</option>
+                          <option value="俄语">俄语</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                   <div class="form-column right-column">
@@ -116,18 +118,20 @@
                     </div>
                     <div class="form-group">
                       <label>🌐 语言 *</label>
-                      <select v-model="editingMusic.language" placeholder="请选择语言">
-                        <option value="">请选择语言</option>
-                        <option value="中文">中文</option>
-                        <option value="粤语">粤语</option>
-                        <option value="上海语">上海语</option>
-                        <option value="英文">英文</option>
-                        <option value="日语">日语</option>
-                        <option value="韩语">韩语</option>
-                        <option value="法语">法语</option>
-                        <option value="德语">德语</option>
-                        <option value="俄语">俄语</option>
-                      </select>
+                      <div class="select-wrapper">
+                        <select v-model="editingMusic.language" class="styled-select">
+                          <option value="" disabled>请选择语言</option>
+                          <option value="中文">中文</option>
+                          <option value="粤语">粤语</option>
+                          <option value="上海语">上海语</option>
+                          <option value="英文">英文</option>
+                          <option value="日语">日语</option>
+                          <option value="韩语">韩语</option>
+                          <option value="法语">法语</option>
+                          <option value="德语">德语</option>
+                          <option value="俄语">俄语</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                   <div class="form-column right-column">
@@ -1221,14 +1225,64 @@ const logout = () => {
     flex-direction: column;
   }
   
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  
   .edit-modal {
     min-width: 300px;
     margin: 10px;
     max-width: calc(100% - 20px);
   }
+}
+
+/* 美化选择框样式 */
+.select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.styled-select {
+  width: 100%;
+  padding: 12px 15px;
+  padding-right: 40px; /* 为自定义下拉箭头留出空间 */
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(106, 90, 205, 0.2);
+  color: #333;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  appearance: none; /* 隐藏默认下拉箭头 */
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.styled-select:hover {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(106, 90, 205, 0.5);
+}
+
+.styled-select:focus {
+  outline: none;
+  border: 1px solid rgba(106, 90, 205, 0.5);
+  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.2);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* 自定义下拉箭头 */
+.select-wrapper::after {
+  content: "▼";
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  transform: translateY(-50%);
+  pointer-events: none; /* 确保箭头不影响点击事件 */
+  color: #6a5acd;
+  font-size: 0.7rem;
+  transition: transform 0.3s ease;
+}
+
+/* 当选择框获得焦点时旋转箭头 */
+.styled-select:focus + .select-wrapper::after {
+  transform: translateY(-50%) rotate(180deg);
 }
 </style>
