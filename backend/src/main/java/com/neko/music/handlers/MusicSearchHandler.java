@@ -65,13 +65,16 @@ public class MusicSearchHandler extends HttpServlet {
         List<Music> results = new ArrayList<>();
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, file_path, upload_user_id, created_at " +
-                        "FROM music WHERE title LIKE ? OR artist LIKE ? OR album LIKE ?";
+            String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at " +
+                         "FROM music " +
+                         "WHERE (title LIKE ? OR artist LIKE ? OR album LIKE ?) " +
+                         "ORDER BY created_at DESC " +
+                         "LIMIT ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                String likeQuery = "%" + query + "%";
-                stmt.setString(1, likeQuery);
-                stmt.setString(2, likeQuery);
-                stmt.setString(3, likeQuery);
+                stmt.setString(1, query);
+                stmt.setString(2, query);
+                stmt.setString(3, query);
+                stmt.setInt(4, limit);
                 
                 ResultSet rs = stmt.executeQuery();
                 
@@ -83,10 +86,11 @@ public class MusicSearchHandler extends HttpServlet {
                     music.setAlbum(rs.getString("album"));
                     music.setDuration(rs.getInt("duration"));
                     music.setFilePath(rs.getString("file_path"));
+                    music.setCoverFilePath(rs.getString("cover_path"));
                     music.setUploadUserId(rs.getInt("upload_user_id"));
                     music.setCreatedAt(rs.getTimestamp("created_at").toString());
                     
-                    results.add(music);
+                    musicList.add(music);
                 }
             }
         } catch (Exception e) {
@@ -112,6 +116,7 @@ public class MusicSearchHandler extends HttpServlet {
         private String album;
         private int duration; // 时长，单位秒
         private String filePath;
+        private String coverFilePath; // 封面路径
         private int uploadUserId;
         private String createdAt;
         
@@ -128,6 +133,8 @@ public class MusicSearchHandler extends HttpServlet {
         public void setDuration(int duration) { this.duration = duration; }
         public String getFilePath() { return filePath; }
         public void setFilePath(String filePath) { this.filePath = filePath; }
+        public String getCoverFilePath() { return coverFilePath; }
+        public void setCoverFilePath(String coverFilePath) { this.coverFilePath = coverFilePath; }
         public int getUploadUserId() { return uploadUserId; }
         public void setUploadUserId(int uploadUserId) { this.uploadUserId = uploadUserId; }
         public String getCreatedAt() { return createdAt; }

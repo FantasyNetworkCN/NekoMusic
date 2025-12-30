@@ -61,27 +61,7 @@ public class AdminDatabaseManager {
             )
         """;
         
-        // 创建搜索日志表（用于统计）
-        String searchLogSql = """
-            CREATE TABLE IF NOT EXISTS search_logs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                query VARCHAR(255) NOT NULL,
-                user_id INT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """;
-        
-        // 创建访问日志表（用于统计）
-        String accessLogSql = """
-            CREATE TABLE IF NOT EXISTS access_logs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT,
-                ip_address VARCHAR(45),
-                user_agent TEXT,
-                page_visited VARCHAR(500),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """;
+
         
         // 创建会话表（用于管理员身份验证）
         String sessionSql = """
@@ -103,8 +83,6 @@ public class AdminDatabaseManager {
             stmt.execute(adminSql);
             stmt.execute(musicSql);
             stmt.execute(userSql);
-            stmt.execute(searchLogSql);
-            stmt.execute(accessLogSql);
             stmt.execute(sessionSql);
             
             // 检查并更新music表结构（添加missing列）
@@ -352,6 +330,24 @@ public class AdminDatabaseManager {
                 hasUpdatedAt = rs.next();
             }
             
+            // 检查cover_path列是否存在
+            boolean hasCoverPath = false;
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "cover_path")) {
+                hasCoverPath = rs.next();
+            }
+            
+            // 检查language列是否存在
+            boolean hasLanguage = false;
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "language")) {
+                hasLanguage = rs.next();
+            }
+            
+            // 检查tags列是否存在
+            boolean hasTags = false;
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "tags")) {
+                hasTags = rs.next();
+            }
+            
             // 添加缺少的列
             try (Statement stmt = conn.createStatement()) {
                 if (!hasUploadUserId) {
@@ -362,6 +358,21 @@ public class AdminDatabaseManager {
                 if (!hasUpdatedAt) {
                     stmt.execute("ALTER TABLE music ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
                     logger.info("已添加updated_at列到music表");
+                }
+                
+                if (!hasCoverPath) {
+                    stmt.execute("ALTER TABLE music ADD COLUMN cover_path VARCHAR(500)");
+                    logger.info("已添加cover_path列到music表");
+                }
+                
+                if (!hasLanguage) {
+                    stmt.execute("ALTER TABLE music ADD COLUMN language VARCHAR(50) NOT NULL DEFAULT '未知语言'");
+                    logger.info("已添加language列到music表");
+                }
+                
+                if (!hasTags) {
+                    stmt.execute("ALTER TABLE music ADD COLUMN tags VARCHAR(500)");
+                    logger.info("已添加tags列到music表");
                 }
             }
         } catch (SQLException e) {

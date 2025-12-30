@@ -89,6 +89,10 @@ public class Main {
         ServletHolder chartDataHolder = new ServletHolder(new ChartDataHandler());
         context.addServlet(chartDataHolder, "/api/admin/chart-data");
         
+        // 注册文件上传API处理器
+        ServletHolder fileUploadHolder = new ServletHolder(new FileUploadHandler());
+        context.addServlet(fileUploadHolder, "/api/music/upload");
+        
         // 启动服务器
         server.start();
         logger.info("NekoMusic服务器已在端口{}启动", configManager.getPort());
