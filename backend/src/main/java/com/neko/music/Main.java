@@ -8,6 +8,7 @@ import com.neko.music.handlers.MusicManagementHandler;
 import com.neko.music.handlers.MusicCoverHandler;
 import com.neko.music.handlers.MusicInfoHandler;
 import com.neko.music.handlers.MusicFileHandler;
+import com.neko.music.handlers.MusicLyricsHandler;
 import com.neko.music.handlers.AdminLoginHandler;
 import com.neko.music.handlers.AdminStatsHandler;
 import com.neko.music.handlers.ChartDataHandler;
@@ -112,6 +113,10 @@ public class Main {
         ServletHolder musicFileHolder = new ServletHolder(new MusicFileHandler());
         context.addServlet(musicFileHolder, "/api/music/file/*");
         
+        // 注册歌词API处理器（无需管理员权限）
+        ServletHolder musicLyricsHolder = new ServletHolder(new MusicLyricsHandler());
+        context.addServlet(musicLyricsHolder, "/api/music/lyrics/*");
+        
         // 启动服务器
         server.start();
         logger.info("NekoMusic服务器已在端口{}启动", configManager.getPort());
@@ -122,6 +127,8 @@ public class Main {
         logger.info("  GET /api/music/info/{id} - 获取音乐信息 (无需管理员登录)");
         logger.info("  GET /api/music/file/{id} - 获取音乐文件 (无需管理员登录)");
         logger.info("  GET /api/music/cover/{id} - 获取音乐封面 (无需管理员登录)");
+        logger.info("  GET /api/music/lyrics/{id} - 获取歌词 (无需管理员登录)");
+        logger.info("  POST /api/music/lyrics/{id} - 更新歌词 (需要管理员登录)");
         logger.info("  POST /api/music/add - 添加音乐 (需要管理员登录)");
         logger.info("  PUT /api/music/edit - 编辑音乐 (需要管理员登录)");
         logger.info("  DELETE /api/music/delete/{id} - 删除音乐 (需要管理员登录)");
