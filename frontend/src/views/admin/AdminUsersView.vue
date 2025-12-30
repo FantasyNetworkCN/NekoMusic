@@ -117,13 +117,16 @@ const adminInfo = ref({})
 
 // 检查管理员登录状态
 onMounted(() => {
-  const storedAdminInfo = localStorage.getItem('adminToken')
-  if (storedAdminInfo) {
+  const storedToken = localStorage.getItem('adminToken')
+  const storedAdminInfo = localStorage.getItem('adminInfo')
+  
+  if (storedToken && storedAdminInfo) {
     try {
       const parsedInfo = JSON.parse(storedAdminInfo)
       adminInfo.value = parsedInfo
     } catch (e) {
       console.error('解析管理员信息失败:', e)
+      router.push('/admin/login')
     }
   } else {
     router.push('/admin/login')
@@ -245,6 +248,7 @@ watch(currentPage, (newPage) => {
 
 const logout = () => {
   localStorage.removeItem('adminToken')
+  localStorage.removeItem('adminInfo')
   localStorage.removeItem('isAdminLoggedIn')
   router.push('/admin/login')
 }

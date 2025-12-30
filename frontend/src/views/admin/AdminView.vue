@@ -96,13 +96,16 @@ let trendChart = null
 
 // 初始化管理员信息
 onMounted(() => {
-  const storedAdminInfo = localStorage.getItem('adminToken')
-  if (storedAdminInfo) {
+  const storedToken = localStorage.getItem('adminToken')
+  const storedAdminInfo = localStorage.getItem('adminInfo')
+  
+  if (storedToken && storedAdminInfo) {
     try {
       const parsedInfo = JSON.parse(storedAdminInfo)
       adminInfo.value = parsedInfo
     } catch (e) {
       console.error('解析管理员信息失败:', e)
+      router.push('/admin/login')
     }
     fetchStats()
   } else {
@@ -113,8 +116,10 @@ onMounted(() => {
 
 // 组件激活时（例如路由切换回来时）重新获取数据
 onActivated(() => {
-  const storedAdminInfo = localStorage.getItem('adminToken')
-  if (storedAdminInfo) {
+  const storedToken = localStorage.getItem('adminToken')
+  const storedAdminInfo = localStorage.getItem('adminInfo')
+  
+  if (storedToken && storedAdminInfo) {
     fetchStats()
   }
 })
@@ -128,15 +133,14 @@ onUnmounted(() => {
 
 const fetchStats = async () => {
   try {
-    const storedAdminInfo = localStorage.getItem('adminToken')
-    const adminData = JSON.parse(storedAdminInfo || '{}')
+    const storedToken = localStorage.getItem('adminToken')
     
     // 获取总体统计数据
     const statsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/admin/stats`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': adminData.username || '' // 发送管理员用户名进行验证
+        'Authorization': `Bearer ${storedToken}` // 发送实际的会话令牌进行验证
       }
     })
     
@@ -162,7 +166,7 @@ const fetchStats = async () => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': adminData.username || '' // 发送管理员用户名进行验证
+        'Authorization': `Bearer ${storedToken}` // 发送实际的会话令牌进行验证
       }
     })
     
