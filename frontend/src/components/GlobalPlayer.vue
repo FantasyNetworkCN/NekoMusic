@@ -95,12 +95,16 @@ let previousLyricIndex = -1
 const togglePlayPause = () => {
   if (audioPlayer.value && currentMusic.value) {
     if (isPlaying.value) {
-      // 暂停：立即更新状态，然后淡出暂停
+      // 暂停：直接暂停，避免重音
       isPlaying.value = false
       updateGlobalPlayerState()
       // 广播播放状态变化
       broadcastPlayerStateChange()
-      fadeOut(audioPlayer.value)
+      // 立即暂停音频并静音
+      if (audioPlayer.value) {
+        audioPlayer.value.volume = 0;
+        audioPlayer.value.pause();
+      }
     } else {
       // 播放：立即更新状态，然后淡入播放
       isPlaying.value = true
@@ -115,33 +119,19 @@ const togglePlayPause = () => {
 // 音量淡出效果
 const fadeOut = (audioElement) => {
   if (!audioElement) return
+
+  // 为了防止暂停时出现重音，先快速将音量降低到0，然后暂停
+  // 使用更快速的淡出效果
+  const originalVolume = audioElement.volume;
   
-  const fadeDuration = 300 // 毫秒
-  const initialVolume = audioElement.volume || 1
-  const fadeInterval = 50 // 毫秒
-  const decrement = (initialVolume * fadeInterval) / fadeDuration
-  
-  const fade = () => {
-    if (audioElement.volume > 0.1) { // 避免完全静音时的数值问题
-      audioElement.volume = Math.max(0, audioElement.volume - decrement)
-      setTimeout(fade, fadeInterval)
-    } else {
-      audioElement.volume = 0
-      audioElement.pause()
-    }
-  }
-  
-  fade()
+  // 立即设置音量为0以避免重音，然后暂停音频
+  audioElement.volume = 0;
+  audioElement.pause();
 }
 
 // 音量淡入效果
 const fadeIn = (audioElement) => {
   if (!audioElement) return
-  
-  const fadeDuration = 300 // 毫秒
-  const targetVolume = 1 // 可以根据需要调整
-  const fadeInterval = 50 // 毫秒
-  const increment = (targetVolume * fadeInterval) / fadeDuration
   
   // 如果音频暂停了，需要先播放
   if (audioElement.paused) {
@@ -149,16 +139,18 @@ const fadeIn = (audioElement) => {
     audioElement.play().catch(e => console.log('播放被阻止:', e))
   }
   
-  let currentVolume = audioElement.volume || 0
-  const target = Math.min(targetVolume, 1)
+  const targetVolume = 1
+  const steps = 30 // 与之前保持一致
+  const increment = targetVolume / steps
+  let currentStep = 0
   
   const fade = () => {
-    if (currentVolume < target) {
-      currentVolume = Math.min(target, currentVolume + increment)
-      audioElement.volume = currentVolume
-      setTimeout(fade, fadeInterval)
+    if (currentStep < steps && audioElement.volume < targetVolume) {
+      audioElement.volume = Math.min(targetVolume, audioElement.volume + increment)
+      currentStep++
+      requestAnimationFrame(fade)
     } else {
-      audioElement.volume = target
+      audioElement.volume = targetVolume
     }
   }
   
@@ -171,6 +163,10 @@ const onAudioEnded = () => {
   updateGlobalPlayerState()
   // 广播播放状态变化
   broadcastPlayerStateChange()
+  // 确保音量为0
+  if (audioPlayer.value) {
+    audioPlayer.value.volume = 0
+  }
 }
 
 // 时间更新事件
@@ -550,7 +546,6 @@ const handleStorageChange = (e) => {
 const handlePlayerStateChange = (e) => {
   const state = e.detail;
   // 更新播放器状态，无论audio元素是否准备好
-  isPlaying.value = state.isPlaying;
   currentTime.value = state.currentTime;
   duration.value = state.duration;
   progress.value = state.currentTime;
@@ -558,32 +553,49 @@ const handlePlayerStateChange = (e) => {
   // 如果有audio元素则同步操作
   if (audioPlayer.value && currentMusic.value && currentMusic.value.id === state.currentMusic?.id) {
     // 等待音频加载完成再执行操作
-    const playWhenReady = () => {
+    const performStateChange = () => {
       if (audioPlayer.value) {
         audioPlayer.value.currentTime = state.currentTime;
         if (state.isPlaying) {
-          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+          // 如果是播放状态，执行淡入
+          isPlaying.value = true;
+          updateGlobalPlayerState();
+          fadeIn(audioPlayer.value);
         } else {
-          audioPlayer.value.pause();
+          // 如果是暂停状态，立即暂停并静音，避免重音
+          isPlaying.value = false;
+          if (audioPlayer.value) {
+            audioPlayer.value.volume = 0;
+            audioPlayer.value.pause();
+          }
+          updateGlobalPlayerState();
         }
       }
     };
 
     if (audioPlayer.value.readyState >= 2) { // HAVE_CURRENT_DATA
-      playWhenReady();
+      performStateChange();
     } else {
-      audioPlayer.value.addEventListener('loadeddata', playWhenReady, { once: true });
+      audioPlayer.value.addEventListener('loadeddata', performStateChange, { once: true });
     }
-    updateGlobalPlayerState();
   } else if (currentMusic.value && currentMusic.value.id === state.currentMusic?.id) {
     // 如果audio元素还没准备好，等待并执行操作
     const handleMetadata = () => {
       if (audioPlayer.value) {
         audioPlayer.value.currentTime = state.currentTime;
         if (state.isPlaying) {
-          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+          // 如果是播放状态，执行淡入
+          isPlaying.value = true;
+          updateGlobalPlayerState();
+          fadeIn(audioPlayer.value);
         } else {
-          audioPlayer.value.pause();
+          // 如果是暂停状态，立即暂停并静音，避免重音
+          isPlaying.value = false;
+          if (audioPlayer.value) {
+            audioPlayer.value.volume = 0;
+            audioPlayer.value.pause();
+          }
+          updateGlobalPlayerState();
         }
       }
     };
