@@ -58,10 +58,18 @@ public class AdminLoginHandler extends HttpServlet {
             if (adminOpt.isPresent()) {
                 Admin admin = adminOpt.get();
                 
+                // 创建会话令牌
+                String sessionToken = Main.getAdminAuthService().createAdminSession(admin);
+                if (sessionToken == null) {
+                    sendErrorResponse(response, 500, "创建会话失败");
+                    return;
+                }
+                
                 // 创建成功响应
                 Map<String, Object> successResponse = new HashMap<>();
                 successResponse.put("success", true);
                 successResponse.put("message", "登录成功");
+                successResponse.put("token", sessionToken);  // 返回会话令牌
                 successResponse.put("admin", Map.of(
                     "id", admin.getId(),
                     "username", admin.getUsername(),

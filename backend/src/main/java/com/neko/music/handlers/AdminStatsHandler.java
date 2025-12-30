@@ -34,8 +34,14 @@ public class AdminStatsHandler extends HttpServlet {
         }
 
         // 验证管理员登录状态
-        String adminToken = request.getHeader("Authorization");
-        if (adminToken == null || !isAdminLoggedIn(adminToken)) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            sendErrorResponse(response, 401, "需要管理员权限");
+            return;
+        }
+        
+        String token = authHeader.substring(7); // 移除 "Bearer " 前缀
+        if (!Main.getAdminAuthService().validateAdminToken(token)) {
             sendErrorResponse(response, 401, "需要管理员权限");
             return;
         }
@@ -64,16 +70,7 @@ public class AdminStatsHandler extends HttpServlet {
         doGet(request, response);
     }
 
-    private boolean isAdminLoggedIn(String token) {
-        try {
-            // 检查token是否包含有效的管理员信息（从localStorage的adminToken获取的用户名）
-            // 从前端的Authorization header中获取用户名并验证
-            Optional<Admin> adminOpt = Main.getAdminDatabaseManager().findAdminByUsername(token);
-            return adminOpt.isPresent();
-        } catch (Exception e) {
-            return false;
-        }
-    }
+
 
     private Map<String, Object> getPlatformStats() throws Exception {
         Map<String, Object> stats = new HashMap<>();
