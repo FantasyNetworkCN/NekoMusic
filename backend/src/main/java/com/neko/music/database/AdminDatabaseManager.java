@@ -3,6 +3,8 @@ package com.neko.music.database;
 import com.neko.music.model.Admin;
 import de.mkammerer.argon2.Argon2Factory;
 import de.mkammerer.argon2.Argon2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -10,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class AdminDatabaseManager {
+    private static final Logger logger = LoggerFactory.getLogger(AdminDatabaseManager.class);
     private final DatabaseManager databaseManager;
     private final Argon2 argon2;
 
@@ -107,9 +110,9 @@ public class AdminDatabaseManager {
             // 检查并更新music表结构（添加missing列）
             updateMusicTableStructure(conn);
             
-            System.out.println("管理员相关表初始化完成");
+            logger.info("管理员相关表初始化完成");
         } catch (SQLException e) {
-            System.err.println("表初始化失败: " + e.getMessage());
+            logger.error("表初始化失败", e);
         }
     }
 
@@ -131,7 +134,7 @@ public class AdminDatabaseManager {
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
         } catch (SQLException e) {
-            System.err.println("创建管理员失败: " + e.getMessage());
+            logger.error("创建管理员失败", e);
             return false;
         }
     }
@@ -157,7 +160,7 @@ public class AdminDatabaseManager {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("查找管理员失败: " + e.getMessage());
+            logger.error("查找管理员失败", e);
         }
         return Optional.empty();
     }
@@ -174,7 +177,7 @@ public class AdminDatabaseManager {
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
         } catch (SQLException e) {
-            System.err.println("更新登录时间失败: " + e.getMessage());
+            logger.error("更新登录时间失败", e);
             return false;
         }
     }
@@ -191,7 +194,7 @@ public class AdminDatabaseManager {
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
         } catch (SQLException e) {
-            System.err.println("更新密码失败: " + e.getMessage());
+            logger.error("更新密码失败", e);
             return false;
         }
     }
@@ -207,7 +210,7 @@ public class AdminDatabaseManager {
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
         } catch (SQLException e) {
-            System.err.println("删除管理员失败: " + e.getMessage());
+            logger.error("删除管理员失败", e);
             return false;
         }
     }
@@ -232,7 +235,7 @@ public class AdminDatabaseManager {
                 admins.add(admin);
             }
         } catch (SQLException e) {
-            System.err.println("获取所有管理员失败: " + e.getMessage());
+            logger.error("获取所有管理员失败", e);
         }
         return admins;
     }
@@ -250,7 +253,7 @@ public class AdminDatabaseManager {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("检查管理员是否存在失败: " + e.getMessage());
+            logger.error("检查管理员是否存在失败", e);
         }
         return false;
     }
@@ -279,8 +282,7 @@ public class AdminDatabaseManager {
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
         } catch (SQLException e) {
-            System.err.println("创建管理员会话失败: " + e.getMessage());
-            e.printStackTrace(); // 添加详细错误日志
+            logger.error("创建管理员会话失败", e);
             return false;
         }
     }
@@ -306,7 +308,7 @@ public class AdminDatabaseManager {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("验证管理员会话失败: " + e.getMessage());
+            logger.error("验证管理员会话失败", e);
         }
         return false;
     }
@@ -327,7 +329,7 @@ public class AdminDatabaseManager {
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
         } catch (SQLException e) {
-            System.err.println("使管理员会话失效失败: " + e.getMessage());
+            logger.error("使管理员会话失效失败", e);
             return false;
         }
     }
@@ -354,16 +356,16 @@ public class AdminDatabaseManager {
             try (Statement stmt = conn.createStatement()) {
                 if (!hasUploadUserId) {
                     stmt.execute("ALTER TABLE music ADD COLUMN upload_user_id INT DEFAULT 0");
-                    System.out.println("已添加upload_user_id列到music表");
+                    logger.info("已添加upload_user_id列到music表");
                 }
                 
                 if (!hasUpdatedAt) {
                     stmt.execute("ALTER TABLE music ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
-                    System.out.println("已添加updated_at列到music表");
+                    logger.info("已添加updated_at列到music表");
                 }
             }
         } catch (SQLException e) {
-            System.err.println("更新music表结构失败: " + e.getMessage());
+            logger.error("更新music表结构失败", e);
         }
     }
 }

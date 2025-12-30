@@ -3,10 +3,14 @@ package com.neko.music.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 
 public class ConfigManager {
+    private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
+    
     private String mysqlHost = "localhost";
     private int mysqlPort = 3306;
     private String mysqlDatabase = "nek_music";
@@ -33,7 +37,7 @@ public class ConfigManager {
             if (externalConfigFile.exists()) {
                 try (InputStream inputStream = new FileInputStream(externalConfigFile)) {
                     configNode = objectMapper.readTree(inputStream);
-                    System.out.println("从外部文件加载配置: " + externalConfigFile.getAbsolutePath());
+                    logger.info("从外部文件加载配置: {}", externalConfigFile.getAbsolutePath());
                 }
             }
             
@@ -55,15 +59,14 @@ public class ConfigManager {
                 }
             }
             
-            System.out.println("配置加载完成:");
-            System.out.println("  MySQL Host: " + mysqlHost);
-            System.out.println("  MySQL Port: " + mysqlPort);
-            System.out.println("  MySQL Database: " + mysqlDatabase);
-            System.out.println("  MySQL Username: " + mysqlUsername);
-            System.out.println("  Port: " + port);
+            logger.info("配置加载完成:");
+            logger.info("  MySQL Host: {}", mysqlHost);
+            logger.info("  MySQL Port: {}", mysqlPort);
+            logger.info("  MySQL Database: {}", mysqlDatabase);
+            logger.info("  MySQL Username: {}", mysqlUsername);
+            logger.info("  Port: {}", port);
         } catch (Exception e) {
-            System.err.println("加载配置时出错: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("加载配置时出错", e);
             // 使用默认值
         }
     }
@@ -89,14 +92,14 @@ public class ConfigManager {
                         while ((bytesRead = inputStream.read(buffer)) != -1) {
                             outputStream.write(buffer, 0, bytesRead);
                         }
-                        System.out.println("已将默认配置文件复制到: " + targetFile.getAbsolutePath());
+                        logger.info("已将默认配置文件复制到: {}", targetFile.getAbsolutePath());
                     }
                 } else {
-                    System.err.println("无法找到classpath中的默认配置文件");
+                    logger.warn("无法找到classpath中的默认配置文件");
                 }
             }
         } catch (IOException e) {
-            System.err.println("复制默认配置文件时出错: " + e.getMessage());
+            logger.error("复制默认配置文件时出错", e);
         }
     }
 
