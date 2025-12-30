@@ -3,6 +3,8 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -16,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class AdminLoginHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(AdminLoginHandler.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -86,8 +89,7 @@ public class AdminLoginHandler extends HttpServlet {
                 sendErrorResponse(response, 401, "用户名或密码错误");
             }
         } catch (Exception e) {
-            System.err.println("管理员登录处理错误: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("管理员登录处理错误", e);
             sendErrorResponse(response, 500, "服务器内部错误");
         }
     }
