@@ -4,6 +4,7 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.handlers.MusicSearchHandler;
+import com.neko.music.handlers.MusicManagementHandler;
 import com.neko.music.handlers.AdminLoginHandler;
 import com.neko.music.handlers.AdminStatsHandler;
 import com.neko.music.handlers.ChartDataHandler;
@@ -56,6 +57,11 @@ public class Main {
         ServletHolder searchHolder = new ServletHolder(new MusicSearchHandler());
         context.addServlet(searchHolder, "/api/music/search");
         
+        // 注册音乐管理API处理器
+        ServletHolder musicManagementHolder = new ServletHolder(new MusicManagementHandler());
+        context.addServlet(musicManagementHolder, "/api/music/list");
+        context.addServlet(musicManagementHolder, "/api/music/*");
+        
         // 注册管理员登录API处理器
         ServletHolder adminLoginHolder = new ServletHolder(new AdminLoginHandler());
         context.addServlet(adminLoginHolder, "/api/admin/login");
@@ -73,6 +79,11 @@ public class Main {
         System.out.println("NekoMusic服务器已在端口" + configManager.getPort() + "启动");
         System.out.println("API端点:");
         System.out.println("  POST /api/music/search - 搜索音乐");
+        System.out.println("  GET /api/music/list - 获取音乐列表 (需要管理员登录)");
+        System.out.println("  GET /api/music/{id} - 获取特定音乐 (需要管理员登录)");
+        System.out.println("  POST /api/music/ - 添加音乐 (需要管理员登录)");
+        System.out.println("  PUT /api/music/ - 编辑音乐 (需要管理员登录)");
+        System.out.println("  DELETE /api/music/{id} - 删除音乐 (需要管理员登录)");
         System.out.println("  POST /api/admin/login - 管理员登录");
         System.out.println("  GET /api/admin/stats - 管理员统计信息 (需要管理员登录)");
         System.out.println("  GET /api/admin/chart-data - 管理员图表数据 (需要管理员登录)");

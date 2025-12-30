@@ -161,8 +161,10 @@ const router = useRouter()
 
 // 检查管理员登录状态
 onMounted(() => {
-  const storedAdminInfo = localStorage.getItem('adminToken')
-  if (!storedAdminInfo) {
+  const storedToken = localStorage.getItem('adminToken')
+  const storedAdminInfo = localStorage.getItem('adminInfo')
+  
+  if (!storedToken || !storedAdminInfo) {
     router.push('/admin/login')
   }
 })

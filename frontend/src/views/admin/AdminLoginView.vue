@@ -79,9 +79,10 @@ const handleLogin = async () => {
     const data = await response.json()
     
     if (response.ok && data.success) {
-      // 登录成功，保存管理员信息到本地存储
-      localStorage.setItem('adminToken', JSON.stringify(data.admin))
+      // 登录成功，保存令牌到本地存储
+      localStorage.setItem('adminToken', data.token)  // 存储会话令牌，而不是管理员信息
       localStorage.setItem('isAdminLoggedIn', 'true')
+      localStorage.setItem('adminInfo', JSON.stringify(data.admin))  // 保留管理员信息用于显示
       
       // 跳转到管理员面板
       router.push('/admin')

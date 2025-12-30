@@ -110,4 +110,58 @@ public class AdminAuthService {
     public boolean adminExists(String username) {
         return adminDatabaseManager.adminExists(username);
     }
+    
+    /**
+     * 验证管理员令牌
+     * @param token 令牌
+     * @return 令牌是否有效
+     */
+    public boolean validateAdminToken(String token) {
+        if (token == null || token.trim().isEmpty()) {
+            return false;
+        }
+        
+        // 验证数据库中的会话
+        return adminDatabaseManager.validateAdminSession(token);
+    }
+    
+    /**
+     * 创建管理员会话令牌
+     * @param admin 管理员对象
+     * @return 生成的会话令牌，如果失败则返回null
+     */
+    public String createAdminSession(Admin admin) {
+        // 生成一个随机的会话令牌
+        String sessionToken = generateSessionToken();
+        
+        // 设置过期时间（例如，24小时后过期）
+        long expiresAt = System.currentTimeMillis() + (24 * 60 * 60 * 1000); // 24小时
+        
+        // 在数据库中创建会话记录
+        boolean success = adminDatabaseManager.createAdminSession(admin.getId(), sessionToken, expiresAt);
+        
+        if (success) {
+            return sessionToken;
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 生成会话令牌
+     * @return 生成的会话令牌
+     */
+    private String generateSessionToken() {
+        // 生成一个随机的令牌（在实际应用中，应该使用更安全的随机生成器）
+        return java.util.UUID.randomUUID().toString();
+    }
+    
+    /**
+     * 使管理员会话失效
+     * @param token 会话令牌
+     * @return 是否成功
+     */
+    public boolean logout(String token) {
+        return adminDatabaseManager.invalidateAdminSession(token);
+    }
 }
