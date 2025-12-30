@@ -60,6 +60,7 @@ public class FileUploadHandler extends HttpServlet {
             String artist = null;
             String album = null;
             String language = null;
+            String tags = null;
             Integer duration = 0;
             Integer uploadUserId = null;
             Part musicFilePart = null;
@@ -77,6 +78,8 @@ public class FileUploadHandler extends HttpServlet {
                     album = getPartValue(request, part);
                 } else if ("language".equals(fieldName)) {
                     language = getPartValue(request, part);
+                } else if ("tags".equals(fieldName)) {
+                    tags = getPartValue(request, part);
                 } else if ("duration".equals(fieldName)) {
                     String durationStr = getPartValue(request, part);
                     if (durationStr != null && !durationStr.trim().isEmpty()) {
@@ -161,7 +164,7 @@ public class FileUploadHandler extends HttpServlet {
             }
             
             // 生成音乐ID并保存音乐信息到数据库
-            int musicId = insertMusicToDatabase(title, artist, album, language, duration, uploadUserId);
+            int musicId = insertMusicToDatabase(title, artist, album, language, tags, duration, uploadUserId);
             
             // 构建文件路径
             String musicFilePath = MUSIC_DIR + File.separator + musicId + ".mp3";
@@ -232,6 +235,7 @@ public class FileUploadHandler extends HttpServlet {
             String artist = null;
             String album = null;
             String language = null;
+            String tags = null;
             Integer duration = 0;
             Integer uploadUserId = null;
             Part musicFilePart = null;
@@ -258,6 +262,8 @@ public class FileUploadHandler extends HttpServlet {
                     album = getPartValue(request, part);
                 } else if ("language".equals(fieldName)) {
                     language = getPartValue(request, part);
+                } else if ("tags".equals(fieldName)) {
+                    tags = getPartValue(request, part);
                 } else if ("duration".equals(fieldName)) {
                     String durationStr = getPartValue(request, part);
                     if (durationStr != null && !durationStr.trim().isEmpty()) {
@@ -372,7 +378,7 @@ public class FileUploadHandler extends HttpServlet {
             }
             
             // 更新数据库中的音乐信息
-            updateMusicInDatabase(id, title, artist, album, language, duration, musicFilePath, coverFilePath, uploadUserId);
+            updateMusicInDatabase(id, title, artist, album, language, tags, duration, musicFilePath, coverFilePath, uploadUserId);
             
             // 获取更新后的音乐信息
             Music updatedMusic = getMusicById(id);
@@ -456,7 +462,7 @@ public class FileUploadHandler extends HttpServlet {
     }
     
     // 将音乐信息插入数据库
-    private int insertMusicToDatabase(String title, String artist, String album, String language, int duration, Integer uploadUserId) throws SQLException {
+    private int insertMusicToDatabase(String title, String artist, String album, String language, String tags, int duration, Integer uploadUserId) throws SQLException {
         int id;
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             // 验证提供的uploadUserId是否存在于users表中
@@ -470,16 +476,17 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
             
-            String sql = "INSERT INTO music (title, artist, album, language, duration, file_path, cover_path, upload_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            String sql = "INSERT INTO music (title, artist, album, language, tags, duration, file_path, cover_path, upload_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
             try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, title);
                 stmt.setString(2, artist);
                 stmt.setString(3, album != null ? album : "未知专辑");
                 stmt.setString(4, language != null ? language : "未知语言");
-                stmt.setInt(5, duration);
-                stmt.setString(6, ""); // 文件路径将在后续更新
-                stmt.setString(7, ""); // 封面路径将在后续更新
-                stmt.setObject(8, validUploadUserId); // 使用验证后的用户ID或null
+                stmt.setString(5, tags != null ? tags : "");
+                stmt.setInt(6, duration);
+                stmt.setString(7, ""); // 文件路径将在后续更新
+                stmt.setString(8, ""); // 封面路径将在后续更新
+                stmt.setObject(9, validUploadUserId); // 使用验证后的用户ID或null
                 
                 int affectedRows = stmt.executeUpdate();
                 
@@ -528,7 +535,7 @@ public class FileUploadHandler extends HttpServlet {
     }
     
     // 更新音乐信息到数据库
-    private void updateMusicInDatabase(int id, String title, String artist, String album, String language, int duration, 
+    private void updateMusicInDatabase(int id, String title, String artist, String album, String language, String tags, int duration, 
                                       String musicFilePath, String coverFilePath, Integer uploadUserId) throws SQLException {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             // 验证提供的uploadUserId是否存在于users表中
@@ -542,17 +549,18 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
             
-            String sql = "UPDATE music SET title = ?, artist = ?, album = ?, language = ?, duration = ?, file_path = ?, cover_path = ?, upload_user_id = ?, updated_at = NOW() WHERE id = ?";
+            String sql = "UPDATE music SET title = ?, artist = ?, album = ?, language = ?, tags = ?, duration = ?, file_path = ?, cover_path = ?, upload_user_id = ?, updated_at = NOW() WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, title);
                 stmt.setString(2, artist);
                 stmt.setString(3, album != null ? album : "未知专辑");
                 stmt.setString(4, language != null ? language : "未知语言");
-                stmt.setInt(5, duration);
-                stmt.setString(6, musicFilePath);
-                stmt.setString(7, coverFilePath);
-                stmt.setObject(8, validUploadUserId); // 使用验证后的用户ID或null
-                stmt.setInt(9, id);
+                stmt.setString(5, tags != null ? tags : "");
+                stmt.setInt(6, duration);
+                stmt.setString(7, musicFilePath);
+                stmt.setString(8, coverFilePath);
+                stmt.setObject(9, validUploadUserId); // 使用验证后的用户ID或null
+                stmt.setInt(10, id);
                 
                 int rowsUpdated = stmt.executeUpdate();
                 if (rowsUpdated == 0) {
@@ -567,7 +575,7 @@ public class FileUploadHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, language, duration, file_path, cover_path, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, language, tags, duration, file_path, cover_path, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
                 
@@ -580,6 +588,7 @@ public class FileUploadHandler extends HttpServlet {
                     music.setArtist(rs.getString("artist"));
                     music.setAlbum(rs.getString("album"));
                     music.setLanguage(rs.getString("language"));
+                    music.setTags(rs.getString("tags"));
                     music.setDuration(rs.getInt("duration"));
                     music.setFilePath(rs.getString("file_path"));
                     music.setCoverFilePath(rs.getString("cover_path"));
@@ -600,6 +609,7 @@ public class FileUploadHandler extends HttpServlet {
         private String artist;
         private String album;
         private String language; // 语言
+        private String tags; // 标签
         private int duration; // 时长，单位秒
         private String filePath;
         private String coverFilePath; // 封面路径
@@ -618,6 +628,8 @@ public class FileUploadHandler extends HttpServlet {
         public void setAlbum(String album) { this.album = album; }
         public String getLanguage() { return language; }
         public void setLanguage(String language) { this.language = language; }
+        public String getTags() { return tags; }
+        public void setTags(String tags) { this.tags = tags; }
         public int getDuration() { return duration; }
         public void setDuration(int duration) { this.duration = duration; }
         public String getFilePath() { return filePath; }
