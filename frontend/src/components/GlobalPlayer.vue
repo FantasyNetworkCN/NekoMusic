@@ -92,16 +92,73 @@ const currentAnimationIndex = ref(-1)
 let previousLyricIndex = -1
 
 // 播放/暂停控制
-const togglePlayPause = () => {
+const togglePlayPause = async () => {
   if (audioPlayer.value && currentMusic.value) {
     if (isPlaying.value) {
+      // 暂停：先淡出，然后暂停
+      await fadeOut(audioPlayer.value)
       audioPlayer.value.pause()
     } else {
-      audioPlayer.value.play().catch(e => console.log('播放被阻止:', e))
+      // 播放：先设置音量为0，然后播放，再淡入
+      audioPlayer.value.volume = 0
+      await audioPlayer.value.play().catch(e => console.log('播放被阻止:', e))
+      fadeIn(audioPlayer.value)
     }
     isPlaying.value = !isPlaying.value
     updateGlobalPlayerState()
   }
+}
+
+// 音量淡出效果
+const fadeOut = (audioElement) => {
+  return new Promise((resolve) => {
+    if (!audioElement) {
+      resolve()
+      return
+    }
+    
+    const fadeDuration = 300 // 毫秒
+    const initialVolume = audioElement.volume || 1
+    const fadeInterval = 50 // 毫秒
+    const decrement = (initialVolume * fadeInterval) / fadeDuration
+    
+    const fade = () => {
+      if (audioElement.volume > 0.1) { // 避免完全静音时的数值问题
+        audioElement.volume = Math.max(0, audioElement.volume - decrement)
+        setTimeout(fade, fadeInterval)
+      } else {
+        audioElement.volume = 0
+        resolve()
+      }
+    }
+    
+    fade()
+  })
+}
+
+// 音量淡入效果
+const fadeIn = (audioElement) => {
+  if (!audioElement) return
+  
+  const fadeDuration = 300 // 毫秒
+  const targetVolume = 1 // 可以根据需要调整
+  const fadeInterval = 50 // 毫秒
+  const increment = (targetVolume * fadeInterval) / fadeDuration
+  
+  let currentVolume = 0
+  audioElement.volume = currentVolume
+  
+  const fade = () => {
+    if (currentVolume < targetVolume) {
+      currentVolume = Math.min(targetVolume, currentVolume + increment)
+      audioElement.volume = currentVolume
+      setTimeout(fade, fadeInterval)
+    } else {
+      audioElement.volume = targetVolume
+    }
+  }
+  
+  fade()
 }
 
 // 音频结束事件
