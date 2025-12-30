@@ -3,6 +3,8 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -20,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class ChartDataHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(ChartDataHandler.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -60,8 +63,7 @@ public class ChartDataHandler extends HttpServlet {
             out.print(objectMapper.writeValueAsString(successResponse));
             out.flush();
         } catch (Exception e) {
-            System.err.println("获取图表数据错误: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("获取图表数据错误", e);
             sendErrorResponse(response, 500, "服务器内部错误");
         }
     }
@@ -114,8 +116,7 @@ public class ChartDataHandler extends HttpServlet {
                 chartData.put("visitTrendData", visitTrendData);
             }
         } catch (Exception e) {
-            System.err.println("查询图表数据时出错: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("查询图表数据时出错", e);
             // 出错时返回空数据
             chartData.put("userTrendData", new HashMap<>());
             chartData.put("musicTrendData", new HashMap<>());

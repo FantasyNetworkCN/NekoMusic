@@ -3,6 +3,8 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -18,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MusicManagementHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(MusicManagementHandler.class);
     private ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -128,7 +131,7 @@ public class MusicManagementHandler extends HttpServlet {
                 rowsDeleted = stmt.executeUpdate();
             }
         } catch (Exception e) {
-            System.err.println("删除音乐时出错: " + e.getMessage());
+            logger.error("删除音乐时出错", e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("删除音乐失败: " + e.getMessage());
@@ -186,7 +189,7 @@ public class MusicManagementHandler extends HttpServlet {
                 }
             }
         } catch (Exception e) {
-            System.err.println("获取音乐列表时出错: " + e.getMessage());
+            logger.error("获取音乐列表时出错", e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("获取音乐列表失败: " + e.getMessage());
@@ -237,7 +240,7 @@ public class MusicManagementHandler extends HttpServlet {
                 }
             }
         } catch (Exception e) {
-            System.err.println("获取音乐详情时出错: " + e.getMessage());
+            logger.error("获取音乐详情时出错", e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("获取音乐详情失败: " + e.getMessage());
@@ -473,7 +476,7 @@ public class MusicManagementHandler extends HttpServlet {
                 rowsDeleted = stmt.executeUpdate();
             }
         } catch (Exception e) {
-            System.err.println("删除音乐时出错: " + e.getMessage());
+            logger.error("删除音乐时出错", e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("删除音乐失败: " + e.getMessage());

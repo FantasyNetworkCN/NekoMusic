@@ -3,12 +3,15 @@ package com.neko.music.database;
 import com.neko.music.config.ConfigManager;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
 public class DatabaseManager {
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseManager.class);
     private HikariDataSource dataSource;
     private ConfigManager configManager;
 
@@ -69,9 +72,9 @@ public class DatabaseManager {
                 stmt.execute();
             }
             
-            System.out.println("数据库表初始化完成");
+            logger.info("数据库表初始化完成");
         } catch (SQLException e) {
-            System.err.println("数据库表初始化失败: " + e.getMessage());
+            logger.error("数据库表初始化失败", e);
         }
     }
 

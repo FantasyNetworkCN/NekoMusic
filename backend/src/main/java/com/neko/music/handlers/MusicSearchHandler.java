@@ -3,6 +3,8 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MusicSearchHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(MusicSearchHandler.class);
     private ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -87,7 +90,7 @@ public class MusicSearchHandler extends HttpServlet {
                 }
             }
         } catch (Exception e) {
-            System.err.println("搜索音乐时出错: " + e.getMessage());
+            logger.error("搜索音乐时出错", e);
         }
         
         return results;

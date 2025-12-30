@@ -3,6 +3,8 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -18,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class AdminStatsHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(AdminStatsHandler.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -58,8 +61,7 @@ public class AdminStatsHandler extends HttpServlet {
             out.print(objectMapper.writeValueAsString(successResponse));
             out.flush();
         } catch (Exception e) {
-            System.err.println("获取统计信息错误: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("获取统计信息错误", e);
             sendErrorResponse(response, 500, "服务器内部错误");
         }
     }
@@ -165,8 +167,7 @@ public class AdminStatsHandler extends HttpServlet {
                 stats.put("searchTrendData", searchTrendMap);
             }
         } catch (Exception e) {
-            System.err.println("查询统计数据时出错: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("查询统计数据时出错", e);
             // 出错时返回默认值
             stats.put("totalMusic", 0);
             stats.put("totalUsers", 0);
