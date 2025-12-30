@@ -43,7 +43,7 @@
                     </div>
                     <div class="form-group">
                       <label>⏱️ 时长(秒)</label>
-                      <input type="number" v-model="newMusic.duration" placeholder="音乐时长将自动读取" readonly />
+                      <input type="number" v-model="newMusic.duration" placeholder="音乐时长(秒)" />
                     </div>
                     <div class="form-group">
                       <label>🌐 语言 *</label>
@@ -104,17 +104,13 @@
                       <label>🎵 音乐图标</label>
                       <input type="file" @change="handleEditCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件" />
                       <div v-if="editingMusic.coverFileName" class="file-info">已选择: {{ editingMusic.coverFileName }}</div>
-                      <div v-if="editingMusic.coverFilePath && !editingMusic.coverFileName" class="file-info">当前图标: {{ editingMusic.coverFilePath.split('/').pop() }}</div>
+                      <div v-if="editingMusic.coverUrl && !editingMusic.coverFileName && !editingMusic.coverUrl.startsWith('data:image')" class="file-info">当前图标: {{ editingMusic.coverUrl.split('/').pop() }}</div>
                     </div>
                     <div class="form-group">
                       <label>🎵 音乐文件</label>
                       <input type="file" @change="handleEditMusicFileChange" accept=".mp3" placeholder="请选择MP3音乐文件" />
                       <div v-if="editingMusic.fileName" class="file-info">已选择: {{ editingMusic.fileName }}</div>
                       <div v-if="editingMusic.filePath && !editingMusic.fileName" class="file-info">当前文件: {{ editingMusic.filePath.split('/').pop() }}</div>
-                    </div>
-                    <div class="form-group">
-                      <label>⏱️ 时长(秒)</label>
-                      <input type="number" v-model="editingMusic.duration" placeholder="音乐时长将自动读取" readonly />
                     </div>
                     <div class="form-group">
                       <label>🌐 语言 *</label>
@@ -182,9 +178,11 @@
                 <thead>
                   <tr>
                     <th>ID</th>
+                    <th>封面</th>
                     <th>音乐名称</th>
                     <th>艺术家</th>
                     <th>专辑</th>
+                    <th>时长</th>
                     <th>上传时间</th>
                     <th>操作</th>
                   </tr>
@@ -192,9 +190,20 @@
                 <tbody>
                   <tr v-for="music in filteredMusicList" :key="music.id">
                     <td>{{ music.id }}</td>
+                    <td>
+                      <div class="cover-cell">
+                        <img 
+                          :src="getCoverUrl(music.id)" 
+                          :alt="music.title"
+                          class="music-cover-table"
+                          @error="handleImageError"
+                        />
+                      </div>
+                    </td>
                     <td>{{ music.title }}</td>
                     <td>{{ music.artist }}</td>
                     <td>{{ music.album }}</td>
+                    <td>{{ formatDuration(music.duration) }}</td>
                     <td>{{ formatDate(music.createdAt) }}</td>
                     <td>
                       <button class="action-btn edit-btn" @click="editMusic(music)">编辑</button>
@@ -625,6 +634,16 @@ const formatDate = (date) => {
   return new Date(date).toLocaleDateString('zh-CN')
 }
 
+// 格式化音乐时长为 xx分xx秒 格式
+const formatDuration = (duration) => {
+  if (!duration || duration < 0) return '0分0秒'
+  
+  const minutes = Math.floor(duration / 60)
+  const seconds = duration % 60
+  
+  return `${minutes}分${seconds}秒`
+}
+
 // 使用API搜索音乐
 const searchMusicAPI = async (query) => {
   try {
@@ -672,6 +691,18 @@ const updateSearchResults = async () => {
 // 监听搜索查询变化
 searchQuery.value = ''
 updateSearchResults()
+
+// 获取音乐封面URL
+const getCoverUrl = (musicId) => {
+  // 返回新的API端点，通过音乐ID获取封面
+  return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
+}
+
+// 处理封面图片加载错误
+const handleImageError = (event) => {
+  // 如果图片加载失败，使用默认图标base64数据
+  event.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA4ElEQVR42mNkYGD4z0ADwMjIyMjISDPgPwMNAigFkgBJ6P2HspsYcAHW//8Z/gEJxv8MDAzMDAz/GWDi/wE+BgYGlP8MjAwMjL8ZcAHG//8ZYOL/Gf7/B5n8n4GBgQEkDhJnZGBgQJX7/x+kwAEmB5L7DxIHqfzP8B8kDhIHqfwPUoESJ4mBQDqABJQDyQGSAGkwQoqTxEAgHUAiOgckB5IEaWjECgAA221UBf5t3xQAAAAASUVORK5CYII='
+}
 
 const logout = () => {
   localStorage.removeItem('adminToken')
@@ -1286,5 +1317,33 @@ const logout = () => {
 /* 当选择框获得焦点时旋转箭头 */
 .styled-select:focus + .select-wrapper::after {
   transform: translateY(-50%) rotate(180deg);
+}
+
+/* 封面单元格样式 */
+.cover-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+}
+
+.music-cover-table {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.no-cover-table {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  border-radius: 4px;
+  color: #999;
+  font-size: 1.2rem;
 }
 </style>
