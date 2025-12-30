@@ -178,13 +178,6 @@ const togglePlayPause = () => {
     // 设置当前播放的音乐到localStorage，触发全局播放器
     localStorage.setItem('currentPlayingMusic', JSON.stringify(currentMusic.value));
     
-    // 触发storage事件，确保全局播放器能响应变化
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: 'currentPlayingMusic',
-      newValue: JSON.stringify(currentMusic.value),
-      oldValue: localStorage.getItem('currentPlayingMusic')
-    }));
-    
     // 切换全局播放器的播放状态
     const currentState = JSON.parse(localStorage.getItem('globalPlayerState') || '{"isPlaying": false, "currentTime": 0, "duration": 0}');
     const newState = {
@@ -195,12 +188,16 @@ const togglePlayPause = () => {
     
     localStorage.setItem('globalPlayerState', JSON.stringify(newState));
     
-    // 触发storage事件，确保全局播放器能响应变化
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: 'globalPlayerState',
-      newValue: JSON.stringify(newState),
-      oldValue: localStorage.getItem('globalPlayerState')
-    }));
+    // 广播播放状态变化，让全局播放器组件更新
+    const event = new CustomEvent('playerStateChange', {
+      detail: {
+        isPlaying: newState.isPlaying,
+        currentTime: newState.currentTime,
+        duration: newState.duration,
+        currentMusic: currentMusic.value
+      }
+    });
+    window.dispatchEvent(event);
   }
 }
 
@@ -274,31 +271,16 @@ const onLoadedMetadata = () => {
 }
 
 // 监听全局播放器状态变化
-const handleStorageChange = (e) => {
-  if (e.key === 'globalPlayerState') {
-    if (e.newValue) {
-      const state = JSON.parse(e.newValue);
-      // 只有在当前音乐是正在播放的音乐时才更新本地状态
-      const currentPlayingMusic = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null');
-      if (currentPlayingMusic && currentMusic.value && currentPlayingMusic.id === currentMusic.value.id) {
-        isPlaying.value = state.isPlaying;
-        currentTime.value = state.currentTime;
-        
-        // 更新歌词位置
-        setTimeout(() => calculateLyricPositions(), 0) // 使用setTimeout确保DOM已更新
-      }
-    }
-  } else if (e.key === 'currentPlayingMusic') {
-    // 检查是否当前音乐被设置为正在播放的音乐
-    if (e.newValue) {
-      const playingMusic = JSON.parse(e.newValue);
-      if (currentMusic.value && currentMusic.value.id === playingMusic.id) {
-        // 当前音乐变为正在播放的音乐，更新状态
-        const globalState = JSON.parse(localStorage.getItem('globalPlayerState') || '{"isPlaying": false, "currentTime": 0, "duration": 0}');
-        isPlaying.value = globalState.isPlaying;
-        currentTime.value = globalState.currentTime;
-      }
-    }
+const handlePlayerStateChange = (e) => {
+  const state = e.detail;
+  // 只有在当前音乐是正在播放的音乐时才更新本地状态
+  const currentPlayingMusic = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null');
+  if (currentPlayingMusic && currentMusic.value && currentPlayingMusic.id === currentMusic.value.id) {
+    isPlaying.value = state.isPlaying;
+    currentTime.value = state.currentTime;
+    
+    // 更新歌词位置
+    setTimeout(() => calculateLyricPositions(), 0) // 使用setTimeout确保DOM已更新
   }
 }
 
@@ -425,13 +407,6 @@ const playMusic = async () => {
     // 设置当前播放的音乐到localStorage，触发全局播放器
     localStorage.setItem('currentPlayingMusic', JSON.stringify(currentMusic.value));
     
-    // 触发storage事件，确保全局播放器能响应变化
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: 'currentPlayingMusic',
-      newValue: JSON.stringify(currentMusic.value),
-      oldValue: localStorage.getItem('currentPlayingMusic')
-    }));
-    
     // 等待一会儿，让全局播放器加载音乐
     await new Promise(resolve => setTimeout(resolve, 100));
     
@@ -443,12 +418,16 @@ const playMusic = async () => {
     };
     localStorage.setItem('globalPlayerState', JSON.stringify(state));
     
-    // 触发storage事件，确保全局播放器能响应变化
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: 'globalPlayerState',
-      newValue: JSON.stringify(state),
-      oldValue: localStorage.getItem('globalPlayerState')
-    }));
+    // 广播播放状态变化，让全局播放器组件更新
+    const event = new CustomEvent('playerStateChange', {
+      detail: {
+        isPlaying: state.isPlaying,
+        currentTime: state.currentTime,
+        duration: state.duration,
+        currentMusic: currentMusic.value
+      }
+    });
+    window.dispatchEvent(event);
     
     // 同时更新本地播放状态
     if (audioPlayer.value) {
@@ -516,8 +495,8 @@ const handleImageError = (event) => {
 
 // 初始化
 onMounted(async () => {
-  // 监听storage事件，以响应全局播放器的状态变化
-  window.addEventListener('storage', handleStorageChange)
+  // 监听自定义事件，以响应全局播放器的状态变化
+  window.addEventListener('playerStateChange', handlePlayerStateChange)
   
   const musicId = route.params.id
   if (musicId) {
@@ -527,7 +506,7 @@ onMounted(async () => {
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
-  window.removeEventListener('storage', handleStorageChange)
+  window.removeEventListener('playerStateChange', handlePlayerStateChange)
 })
 </script>
 
