@@ -250,62 +250,12 @@ const getLyricLineClass = (index) => {
     return 'before'
   } else {
     // 其他歌词行
-    return 'lyric-line'
+    return ''
   }
 }
 
-// 计算歌词的top位置
-const calculateLyricTop = (index) => {
-  const currentIndex = getCurrentLyricIndex()
-  if (currentIndex === -1) return 250 // 默认位置
-
-  const positionOffset = index - currentIndex
-  const baseTop = 250 // 中间位置，根据容器高度调整
-  const verticalOffset = positionOffset * 60 // 每行垂直间距
-
-  return baseTop + verticalOffset
-}
-
-// 计算歌词行位置
-const calculateLyricPositions = () => {
-  if (!lyricsContent.value) return
-
-  const currentIndex = getCurrentLyricIndex()
-  if (currentIndex === -1) return
-
-  // 获取所有歌词元素并设置位置
-  const lyricElements = lyricsContent.value.children
-  const containerHeight = lyricsContent.value.clientHeight || 500
-
-  for (let i = 0; i < lyricElements.length; i++) {
-    const element = lyricElements[i]
-    if (!element || !element.classList.contains('lyric-line')) continue
-
-    const positionOffset = i - currentIndex
-    const baseTop = containerHeight / 2 // 中间位置
-
-    // 设置元素位置
-    if (positionOffset === 0) {
-      // 当前歌词在中间
-      element.style.top = `${baseTop}px`
-      element.classList.add('active')
-      element.classList.remove('before', 'after')
-    } else {
-      // 其他歌词根据位置设置样式和位置
-      const distance = Math.abs(positionOffset)
-      const verticalOffset = positionOffset * 60 // 每行垂直间距
-      
-      element.style.top = `${baseTop + verticalOffset}px`
-      
-      if (distance === 1) {
-        element.classList.add('before')
-        element.classList.remove('active', 'after')
-      } else {
-        element.classList.remove('active', 'before', 'after')
-      }
-    }
-  }
-}
+// 由于现在使用flex布局，移除原来的绝对定位计算函数
+// 现在主要依赖CSS和滚动来定位歌词
 
 // 滚动到当前歌词位置
 const scrollToActiveLyric = () => {
@@ -324,12 +274,14 @@ const scrollToActiveLyric = () => {
     const container = lyricsContent.value;
     const containerHeight = container.clientHeight;
     const elementHeight = activeElement.offsetHeight;
-    const elementOffsetTop = activeElement.offsetTop;
-    const scrollTop = elementOffsetTop - (containerHeight / 2) + (elementHeight / 2);
+    
+    // 计算容器的滚动高度，使元素居中显示
+    // 需要将容器滚动到一个位置，使得当前元素位于容器的垂直中心
+    const targetScrollTop = activeElement.offsetTop - (containerHeight / 2) + (elementHeight / 2);
     
     // 平滑滚动到目标位置
     container.scrollTo({
-      top: scrollTop,
+      top: targetScrollTop,
       behavior: 'smooth'
     })
   }
@@ -596,7 +548,7 @@ onUnmounted(() => {
 
 .lyrics-container {
   flex: 1;
-  height: 500px;
+  max-height: 500px; /* 限高 */
   padding: 20px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 15px;
@@ -604,31 +556,38 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow: hidden;
+  overflow-y: hidden;
+  overflow-x: hidden;
 }
 
 .lyrics-content {
   height: 100%;
   width: 100%;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  overflow-y: auto;
   position: relative;
+  gap: 20px;
+  padding: 20px 0;
 }
 
 .lyric-line {
   color: rgba(136, 136, 136, 0.7);
   font-size: 0.8rem;
-  padding: 5px 10px;
+  padding: 8px 10px;
   text-align: center;
-  transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  transition: all 0.3s ease;
   white-space: nowrap;
   z-index: 1;
   width: auto;
   max-width: 90%;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 0;
+  display: block;
+  line-height: 1.5;
 }
 
 .lyric-line.active {
@@ -637,17 +596,20 @@ onUnmounted(() => {
   font-size: 1.4rem;
   text-shadow: 0 0 10px rgba(106, 90, 205, 0.8), 0 0 20px rgba(106, 90, 205, 0.6);
   z-index: 10;
-  transform: translateX(-50%) scale(1.2);
+  transform: scale(1.3); /* 只放大，无其他变换 */
+  transition: all 0.3s ease;
 }
 
 .lyric-line.before {
-  transform: translateX(-50%) scale(0.9);
-  opacity: 0.6;
+  transform: scale(0.95); /* 轻微放大 */
+  opacity: 0.7;
+  transition: all 0.3s ease;
 }
 
 .lyric-line.after {
-  transform: translateX(-50%) scale(0.9);
-  opacity: 0.6;
+  transform: scale(0.95); /* 轻微放大 */
+  opacity: 0.7;
+  transition: all 0.3s ease;
 }
 
 .loading {
@@ -684,13 +646,7 @@ audio {
   .music-info {
     text-align: center;
   }
-  
-  .music-artist,
-  .music-album,
-  .music-duration {
-    text-align: center;
-  }
-  
+
   .action-buttons {
     flex-direction: column;
     align-items: center;
@@ -698,11 +654,6 @@ audio {
   
   .play-btn, .download-btn {
     width: 80%;
-  }
-  
-  .lyrics-container {
-    max-height: 300px;
-    padding: 10px;
   }
   
   .lyric-line {
