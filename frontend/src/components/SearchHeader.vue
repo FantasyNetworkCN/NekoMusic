@@ -73,31 +73,37 @@ const isLoading = ref(false)
 let debounceTimer = null
 
 // 用户信息响应式变量
-const isLoggedIn = computed(() => {
-  return localStorage.getItem('userToken') !== null;
-})
+const isLoggedIn = ref(false)
+const user = ref(null)
+const username = ref('')
 
-const user = computed(() => {
-  const userStr = localStorage.getItem('user');
+// 初始化用户状态
+const initializeUserState = () => {
+  const token = localStorage.getItem('userToken')
+  isLoggedIn.value = token !== null && token !== undefined
+  
+  const userStr = localStorage.getItem('user')
   if (!userStr || userStr === 'undefined' || userStr === 'null') {
-    return null;
+    user.value = null
+    username.value = ''
+  } else {
+    try {
+      user.value = JSON.parse(userStr)
+      username.value = user.value ? user.value.username : ''
+    } catch (e) {
+      console.error('解析用户信息失败:', e)
+      user.value = null
+      username.value = ''
+    }
   }
-  try {
-    return JSON.parse(userStr);
-  } catch (e) {
-    console.error('解析用户信息失败:', e);
-    return null;
+}
+
+// 监听storage事件，当localStorage变化时更新状态
+const handleStorageChange = (event) => {
+  if (event.key === 'userToken' || event.key === 'user') {
+    initializeUserState()
   }
-})
-
-const username = computed(() => {
-  return user.value ? user.value.username : '';
-})
-
-const userAvatar = computed(() => {
-  // 使用后端的默认头像
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`;
-})
+}
 
 // 跳转到登录页面
 const goToLogin = () => {
@@ -106,11 +112,22 @@ const goToLogin = () => {
 
 // 退出登录
 const logout = () => {
+  const previousToken = localStorage.getItem('userToken');
+  const previousUser = localStorage.getItem('user');
+  
   localStorage.removeItem('userToken');
   localStorage.removeItem('user');
+  
+  // 触发storage事件，确保其他标签页或组件能够检测到状态变化
+  if (previousToken) {
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'userToken',
+      oldValue: previousToken,
+      newValue: null
+    }));
+  }
+  
   router.push('/');
-  // 刷新页面以更新所有组件状态
-  window.location.reload();
 }
 
 // 处理头像加载错误
@@ -118,6 +135,11 @@ const handleAvatarError = (event) => {
   // 如果默认头像也加载失败，使用base64编码的简单头像
   event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%236a5acd"/><text x="20" y="25" font-family="Arial" font-size="16" fill="white" text-anchor="middle">U</text></svg>';
 }
+
+const userAvatar = computed(() => {
+  // 使用后端的默认头像
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`;
+})
 
 // 防抖搜索函数 - 只获取结果，不跳转页面
 const debouncedSearch = (query) => {
@@ -295,6 +317,8 @@ const handleClickOutside = (event) => {
 }
 
 onMounted(() => {
+  initializeUserState()
+  window.addEventListener('storage', handleStorageChange)
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -302,6 +326,7 @@ onUnmounted(() => {
   if (debounceTimer) {
     clearTimeout(debounceTimer)
   }
+  window.removeEventListener('storage', handleStorageChange)
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
