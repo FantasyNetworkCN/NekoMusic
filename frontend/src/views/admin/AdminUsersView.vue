@@ -109,6 +109,9 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminSidebar from '@/components/AdminSidebar.vue'
+import { useToast } from 'vue-toastification'
+
+const toast = useToast()
 
 const router = useRouter()
 
@@ -204,7 +207,7 @@ const changeUserRole = (userId, newRole) => {
   const user = users.value.find(u => u.id === userId)
   if (user) {
     user.role = newRole
-    alert(`用户 ${user.username} 的角色已更改为 ${newRole}`)
+    toast.success(`用户 ${user.username} 的角色已更改为 ${newRole}`)
   }
 }
 
@@ -221,7 +224,7 @@ const toggleUserStatus = (userId, currentStatus) => {
 
 // 编辑用户
 const editUser = (user) => {
-  alert(`编辑用户: ${user.username}`)
+  toast.info(`编辑用户: ${user.username}`)
   // 这里可以实现编辑功能
 }
 

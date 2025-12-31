@@ -229,6 +229,9 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminSidebar from '@/components/AdminSidebar.vue'
 import API_CONFIG from '@/config/apiConfig.js'
+import { useToast } from 'vue-toastification'
+
+const toast = useToast()
 
 const router = useRouter()
 
@@ -238,7 +241,7 @@ const handleMusicFileChange = (event) => {
   if (file) {
     // 检查文件类型是否为MP3
     if (file.type !== 'audio/mpeg' && !file.name.toLowerCase().endsWith('.mp3')) {
-      alert('请选择MP3格式的音乐文件')
+      toast.error('请选择MP3格式的音乐文件')
       event.target.value = '' // 清空选择
       return
     }
@@ -261,7 +264,7 @@ const handleCoverFileChange = (event) => {
   if (file) {
     // 检查文件类型是否为图片
     if (!file.type.startsWith('image/')) {
-      alert('请选择图片格式的图标文件')
+      toast.error('请选择图片格式的图标文件')
       event.target.value = '' // 清空选择
       return
     }
@@ -276,7 +279,7 @@ const handleEditMusicFileChange = (event) => {
   if (file) {
     // 检查文件类型是否为MP3
     if (file.type !== 'audio/mpeg' && !file.name.toLowerCase().endsWith('.mp3')) {
-      alert('请选择MP3格式的音乐文件')
+      toast.error('请选择MP3格式的音乐文件')
       event.target.value = '' // 清空选择
       return
     }
@@ -299,7 +302,7 @@ const handleEditCoverFileChange = (event) => {
   if (file) {
     // 检查文件类型是否为图片
     if (!file.type.startsWith('image/')) {
-      alert('请选择图片格式的图标文件')
+      toast.error('请选择图片格式的图标文件')
       event.target.value = '' // 清空选择
       return
     }
@@ -385,11 +388,11 @@ const fetchMusicList = async () => {
       filteredMusicList.value = [...musicList.value]
     } else {
       console.error('获取音乐列表失败:', data.message)
-      alert(data.message || '获取音乐列表失败')
+      toast.error(data.message || '获取音乐列表失败')
     }
   } catch (error) {
     console.error('获取音乐列表时出错:', error)
-    alert('获取音乐列表时出错')
+    toast.error('获取音乐列表时出错')
   } finally {
     isLoading.value = false
   }
@@ -398,12 +401,12 @@ const fetchMusicList = async () => {
 // 添加音乐
 const addMusic = async () => {
   if (!newMusic.value.title || !newMusic.value.artist || !newMusic.value.language) {
-    alert('请填写音乐名称、艺术家和语言')
+    toast.error('请填写音乐名称、艺术家和语言')
     return
   }
   
   if (!newMusic.value.file) {
-    alert('请选择音乐文件')
+    toast.error('请选择音乐文件')
     return
   }
   
@@ -441,14 +444,14 @@ const addMusic = async () => {
       })
       filteredMusicList.value = [...musicList.value]
       resetForm()
-      alert('添加音乐成功')
+      toast.success('添加音乐成功')
     } else {
       console.error('添加音乐失败:', data.message)
-      alert(data.message || '添加音乐失败')
+      toast.error(data.message || '添加音乐失败')
     }
   } catch (error) {
     console.error('添加音乐时出错:', error)
-    alert('添加音乐时出错')
+    toast.error('添加音乐时出错')
   }
 }
 
@@ -539,7 +542,7 @@ const stopDrag = () => {
 // 保存编辑
 const saveEdit = async () => {
   if (!editingMusic.value.title || !editingMusic.value.artist || !editingMusic.value.language) {
-    alert('请填写音乐名称、艺术家和语言')
+    toast.error('请填写音乐名称、艺术家和语言')
     return
   }
   
@@ -584,14 +587,14 @@ const saveEdit = async () => {
         filteredMusicList.value = [...musicList.value]
       }
       editingMusic.value = null
-      alert('编辑音乐成功')
+      toast.success('编辑音乐成功')
     } else {
       console.error('编辑音乐失败:', data.message)
-      alert(data.message || '编辑音乐失败')
+      toast.error(data.message || '编辑音乐失败')
     }
   } catch (error) {
     console.error('编辑音乐时出错:', error)
-    alert('编辑音乐时出错')
+    toast.error('编辑音乐时出错')
   }
 }
 
@@ -616,14 +619,14 @@ const deleteMusic = async (id) => {
       if (data.success) {
         musicList.value = musicList.value.filter(music => music.id !== id)
         filteredMusicList.value = [...musicList.value]
-        alert('删除音乐成功')
+        toast.success('删除音乐成功')
       } else {
         console.error('删除音乐失败:', data.message)
-        alert(data.message || '删除音乐失败')
+        toast.error(data.message || '删除音乐失败')
       }
     } catch (error) {
       console.error('删除音乐时出错:', error)
-      alert('删除音乐时出错')
+      toast.error('删除音乐时出错')
     }
   }
 }
