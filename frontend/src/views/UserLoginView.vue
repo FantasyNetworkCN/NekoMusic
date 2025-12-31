@@ -67,7 +67,7 @@ const handleLogin = async () => {
 
 // 跳转到注册页面
 const goToRegister = () => {
-  alert('注册功能将在后续版本中实现')
+  router.push('/register')
 }
 </script>
 
