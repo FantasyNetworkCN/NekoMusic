@@ -16,6 +16,7 @@ import com.neko.music.handlers.FileUploadHandler;
 import com.neko.music.handlers.SendVerificationHandler;
 import com.neko.music.handlers.UserLoginHandler;
 import com.neko.music.handlers.UserRegisterHandler;
+import com.neko.music.handlers.UserAvatarHandler;
 
 import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.EmailService;
@@ -147,17 +148,22 @@ public class Main {
         ServletHolder sendVerificationHolder = new ServletHolder(new SendVerificationHandler());
         context.addServlet(sendVerificationHolder, "/api/user/send-verification");
         
+        // 注册用户头像API处理器
+        ServletHolder userAvatarHolder = new ServletHolder(new UserAvatarHandler());
+        context.addServlet(userAvatarHolder, "/api/user/avatar/*");
+        
         // 启动服务器
         server.start();
         logger.info("NekoMusic服务器已在端口{}启动", configManager.getPort());
         logger.info("API端点:");
         logger.info("  POST /api/music/search - 搜索音乐");
+        logger.info("  GET /api/user/avatar/* - 获取用户头像");
         logger.info("  GET /api/music/list - 获取音乐列表 (需要管理员登录)");
         logger.info("  GET /api/music/{id} - 获取特定音乐 (需要管理员登录)");
-        logger.info("  GET /api/music/info/{id} - 获取音乐信息 (无需管理员登录)");
-        logger.info("  GET /api/music/file/{id} - 获取音乐文件 (无需管理员登录)");
-        logger.info("  GET /api/music/cover/{id} - 获取音乐封面 (无需管理员登录)");
-        logger.info("  GET /api/music/lyrics/{id} - 获取歌词 (无需管理员登录)");
+        logger.info("  GET /api/music/info/{id} - 获取音乐信息");
+        logger.info("  GET /api/music/file/{id} - 获取音乐文件");
+        logger.info("  GET /api/music/cover/{id} - 获取音乐封面");
+        logger.info("  GET /api/music/lyrics/{id} - 获取歌词");
         logger.info("  POST /api/music/lyrics/{id} - 更新歌词 (需要管理员登录)");
         logger.info("  POST /api/music/add - 添加音乐 (需要管理员登录)");
         logger.info("  PUT /api/music/edit - 编辑音乐 (需要管理员登录)");

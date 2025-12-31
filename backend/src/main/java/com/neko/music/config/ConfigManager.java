@@ -31,6 +31,10 @@ public class ConfigManager {
     private String redisHost = "localhost";
     private int redisPort = 6379;
     
+    // JWT配置
+    private String jwtSecret = "defaultSecretKeyForNekoMusic";
+    private int jwtExpiration = 86400; // 24小时（秒）
+    
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
@@ -102,6 +106,13 @@ public class ConfigManager {
                 if (redisNode != null) {
                     if (redisNode.has("host")) redisHost = redisNode.get("host").asText();
                     if (redisNode.has("port")) redisPort = redisNode.get("port").asInt();
+                }
+                
+                // 读取JWT配置
+                JsonNode jwtNode = configNode.get("jwt");
+                if (jwtNode != null) {
+                    if (jwtNode.has("secret")) jwtSecret = jwtNode.get("secret").asText();
+                    if (jwtNode.has("expiration")) jwtExpiration = jwtNode.get("expiration").asInt();
                 }
             }
             
@@ -213,5 +224,13 @@ public class ConfigManager {
     
     public int getRedisPort() {
         return redisPort;
+    }
+    
+    public String getJwtSecret() {
+        return jwtSecret;
+    }
+    
+    public int getJwtExpiration() {
+        return jwtExpiration;
     }
 }
