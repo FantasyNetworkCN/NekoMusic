@@ -661,10 +661,25 @@ const playNext = () => {
     
     // 加载新音频资源
     if (audioPlayer.value) {
-      // 确保音频元素在加载新资源前已重置
+      // 确保音频元素在加载新资源前已重置时间
       audioPlayer.value.currentTime = 0
+      
+      // 监听loadeddata事件以确保音频已加载后再操作
+      const onLoadedData = () => {
+        // 确保音频时间已重置为0
+        audioPlayer.value.currentTime = 0
+        currentTime.value = 0
+        progress.value = 0
+        updateGlobalPlayerState()
+        updateMediaSessionPositionState()
+        fadeIn(audioPlayer.value)
+        
+        // 移除事件监听器
+        audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
+      }
+      
+      audioPlayer.value.addEventListener('loadeddata', onLoadedData)
       audioPlayer.value.load()
-      fadeIn(audioPlayer.value)
     }
     
     // 更新媒体会话元数据
@@ -711,10 +726,25 @@ const playPrevious = () => {
     
     // 加载新音频资源
     if (audioPlayer.value) {
-      // 确保音频元素在加载新资源前已重置
+      // 确保音频元素在加载新资源前已重置时间
       audioPlayer.value.currentTime = 0
+      
+      // 监听loadeddata事件以确保音频已加载后再操作
+      const onLoadedData = () => {
+        // 确保音频时间已重置为0
+        audioPlayer.value.currentTime = 0
+        currentTime.value = 0
+        progress.value = 0
+        updateGlobalPlayerState()
+        updateMediaSessionPositionState()
+        fadeIn(audioPlayer.value)
+        
+        // 移除事件监听器
+        audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
+      }
+      
+      audioPlayer.value.addEventListener('loadeddata', onLoadedData)
       audioPlayer.value.load()
-      fadeIn(audioPlayer.value)
     }
     
     // 更新媒体会话元数据
@@ -767,10 +797,25 @@ const playNextInShuffle = () => {
     
     // 加载新音频资源
     if (audioPlayer.value) {
-      // 确保音频元素在加载新资源前已重置
+      // 确保音频元素在加载新资源前已重置时间
       audioPlayer.value.currentTime = 0
+      
+      // 监听loadeddata事件以确保音频已加载后再操作
+      const onLoadedData = () => {
+        // 确保音频时间已重置为0
+        audioPlayer.value.currentTime = 0
+        currentTime.value = 0
+        progress.value = 0
+        updateGlobalPlayerState()
+        updateMediaSessionPositionState()
+        fadeIn(audioPlayer.value)
+        
+        // 移除事件监听器
+        audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
+      }
+      
+      audioPlayer.value.addEventListener('loadeddata', onLoadedData)
       audioPlayer.value.load()
-      fadeIn(audioPlayer.value)
     }
     
     // 更新媒体会话元数据
