@@ -80,6 +80,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 const router = useRouter()
 const username = ref('')
@@ -104,18 +105,33 @@ const sendVerificationCode = async () => {
     return
   }
   
+  // 验证邮箱格式
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email.value)) {
+    alert('请输入有效的邮箱地址')
+    return
+  }
+  
   codeSending.value = true
   try {
-    // 这里可以添加实际的发送验证码逻辑
-    console.log('发送验证码到:', email.value)
-
-    // 模拟发送验证码成功
-    setTimeout(() => {
+    const response = await axios.post('http://localhost:8080/api/user/send-verification', {
+      email: email.value
+    })
+    
+    if (response.data.success) {
+      alert('验证码已发送至您的邮箱')
       startCountdown()
-      codeSending.value = false
-    }, 1000)
+    } else {
+      alert(response.data.message || '发送验证码失败')
+    }
   } catch (error) {
     console.error('发送验证码失败:', error)
+    if (error.response) {
+      alert(error.response.data.message || '发送验证码失败')
+    } else {
+      alert('网络错误，请检查服务器连接')
+    }
+  } finally {
     codeSending.value = false
   }
 }
@@ -140,23 +156,27 @@ const handleRegister = async () => {
   
   loading.value = true
   try {
-    // 这里可以添加实际的注册逻辑，包含验证码
-    console.log('注册信息:', { 
-      username: username.value, 
-      email: email.value, 
+    const response = await axios.post('http://localhost:8080/api/user/register', {
+      username: username.value,
+      email: email.value,
       password: password.value,
       verificationCode: verificationCode.value
     })
     
-    // 模拟注册成功
-    setTimeout(() => {
+    if (response.data.success) {
       alert('注册成功！请登录您的账户。')
       router.push('/login')
-      loading.value = false
-    }, 1000)
+    } else {
+      alert(response.data.message || '注册失败')
+    }
   } catch (error) {
     console.error('注册失败:', error)
-    alert('注册失败，请稍后重试')
+    if (error.response) {
+      alert(error.response.data.message || '注册失败')
+    } else {
+      alert('网络错误，请检查服务器连接')
+    }
+  } finally {
     loading.value = false
   }
 }

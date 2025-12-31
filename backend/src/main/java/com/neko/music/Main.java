@@ -13,8 +13,14 @@ import com.neko.music.handlers.AdminLoginHandler;
 import com.neko.music.handlers.AdminStatsHandler;
 import com.neko.music.handlers.ChartDataHandler;
 import com.neko.music.handlers.FileUploadHandler;
+import com.neko.music.handlers.SendVerificationHandler;
+import com.neko.music.handlers.UserLoginHandler;
+import com.neko.music.handlers.UserRegisterHandler;
 
 import com.neko.music.service.AdminAuthService;
+import com.neko.music.service.EmailService;
+import com.neko.music.service.RedisService;
+import com.neko.music.service.UserAuthService;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -41,6 +47,9 @@ public class Main {
     private static ConfigManager configManager;
     private static AdminDatabaseManager adminDatabaseManager;
     private static AdminAuthService adminAuthService;
+    private static UserAuthService userAuthService;
+    private static EmailService emailService;
+    private static RedisService redisService;
 
     public static void main(String[] args) throws Exception {
         // 重新设置System.out和System.err的编码
@@ -60,6 +69,15 @@ public class Main {
         // 初始化管理员数据库管理器和认证服务
         adminDatabaseManager = new AdminDatabaseManager(databaseManager);
         adminAuthService = new AdminAuthService(adminDatabaseManager);
+        
+        // 初始化邮件服务
+        emailService = new EmailService(configManager);
+        
+        // 初始化Redis服务
+        redisService = new RedisService(configManager);
+        
+        // 初始化用户认证服务
+        userAuthService = new UserAuthService(databaseManager, configManager, emailService, redisService);
         
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();
@@ -116,6 +134,18 @@ public class Main {
         // 注册歌词API处理器（无需管理员权限）
         ServletHolder musicLyricsHolder = new ServletHolder(new MusicLyricsHandler());
         context.addServlet(musicLyricsHolder, "/api/music/lyrics/*");
+        
+        // 注册用户登录API处理器
+        ServletHolder userLoginHolder = new ServletHolder(new UserLoginHandler());
+        context.addServlet(userLoginHolder, "/api/user/login");
+        
+        // 注册用户注册API处理器
+        ServletHolder userRegisterHolder = new ServletHolder(new UserRegisterHandler());
+        context.addServlet(userRegisterHolder, "/api/user/register");
+        
+        // 注册发送验证码API处理器
+        ServletHolder sendVerificationHolder = new ServletHolder(new SendVerificationHandler());
+        context.addServlet(sendVerificationHolder, "/api/user/send-verification");
         
         // 启动服务器
         server.start();
@@ -177,5 +207,17 @@ public class Main {
     
     public static AdminAuthService getAdminAuthService() {
         return adminAuthService;
+    }
+    
+    public static UserAuthService getUserAuthService() {
+        return userAuthService;
+    }
+    
+    public static EmailService getEmailService() {
+        return emailService;
+    }
+    
+    public static RedisService getRedisService() {
+        return redisService;
     }
 }

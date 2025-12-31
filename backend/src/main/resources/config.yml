@@ -1,5 +1,4 @@
-port: 8080
-
+# MySQL数据库配置
 mysql:
   host: 10.0.5.2
   port: 3306
@@ -7,6 +6,12 @@ mysql:
   username: root
   password: wcjs123
 
+# Redis配置
+redis:
+  host: 10.0.5.2
+  port: 6379
+
+# 邮件服务器
 smtp:
   host: smtp.exmail.qq.com
   port: 465
@@ -14,6 +19,8 @@ smtp:
   password: qTHWV9pU4fR52rGf
   ssl: true
   tls: false
+
+# 白名单邮箱
 blacklist_email:
   - 10minutemail.com
   - mailinator.com

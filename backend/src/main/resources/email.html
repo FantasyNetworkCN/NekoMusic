@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>验证码</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #6a5acd, #84ffff);
+            color: white;
+            text-align: center;
+            padding: 30px 20px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            padding: 30px;
+            color: #333;
+        }
+        .code {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            margin: 20px 0;
+            color: #6a5acd;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>NekoMusic 验证码</h1>
+        </div>
+        <div class="content">
+            <h2>您好，</h2>
+            <p>感谢您注册 NekoMusic！</p>
+            <p>您的验证码是：</p>
+            <div class="code">{{verificationCode}}</div>
+            <p>此验证码将在5分钟内有效，请尽快使用。</p>
+            <p>如果您没有注册 NekoMusic 账户，请忽略此邮件。</p>
+            <br>
+            <p>此致，</p>
+            <p><strong>Fantasy Network「梦幻网络」团队</strong></p>
+        </div>
+        <div class="footer">
+            <p>这是一封系统自动发送的邮件，请勿回复。</p>
+            <p>&copy; 2025 梦幻网络. 保留所有权利。</p>
+        </div>
+    </div>
+</body>
+</html>
