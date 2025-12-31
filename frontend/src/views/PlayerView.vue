@@ -269,6 +269,14 @@ const playMusic = () => {
       playlist.push(currentMusic.value);
       // 保存更新后的播放列表
       localStorage.setItem('globalPlaylist', JSON.stringify(playlist));
+      
+      // 立即广播播放列表更新事件，确保 GlobalPlayer 组件收到通知
+      const playlistEvent = new CustomEvent('playlistUpdated', {
+        detail: {
+          playlist: playlist
+        }
+      });
+      window.dispatchEvent(playlistEvent);
     }
     
     // 设置当前播放的音乐到localStorage，触发全局播放器
