@@ -179,6 +179,8 @@ const togglePlayPause = () => {
         audioPlayer.value.volume = 0;
         audioPlayer.value.pause();
       }
+      // 更新媒体会话播放状态
+      updateMediaSessionPlaybackState()
     } else {
       // 播放：立即更新状态，然后淡入播放
       isPlaying.value = true
@@ -186,6 +188,8 @@ const togglePlayPause = () => {
       // 广播播放状态变化
       broadcastPlayerStateChange()
       fadeIn(audioPlayer.value)
+      // 更新媒体会话播放状态
+      updateMediaSessionPlaybackState()
     }
   }
 }
@@ -240,6 +244,8 @@ const onAudioEnded = () => {
       audioPlayer.value.currentTime = 0
       currentTime.value = 0
       fadeIn(audioPlayer.value)
+      // 更新媒体会话播放状态
+      updateMediaSessionPlaybackState()
     }
   } else if (playbackMode.value === 'shuffle' && playlist.value.length > 1) {
     // 随机播放：播放列表中的随机歌曲
@@ -264,6 +270,9 @@ const onTimeUpdate = () => {
     currentTime.value = audioPlayer.value.currentTime
     progress.value = currentTime.value
     updateGlobalPlayerState()
+    
+    // 更新媒体会话播放位置
+    updateMediaSessionPositionState()
     
     // 检测当前歌词是否发生变化，如果是，则触发动画
     if (parsedLyrics.value.length > 0) {
@@ -304,6 +313,9 @@ const onLoadedMetadata = () => {
     if (currentMusic.value) {
       loadLyrics(currentMusic.value.id)
     }
+    
+    // 更新媒体会话播放位置
+    updateMediaSessionPositionState()
   }
 }
 
@@ -316,6 +328,8 @@ const onProgressChange = (event) => {
     updateGlobalPlayerState()
     // 广播播放状态变化
     broadcastPlayerStateChange()
+    // 更新媒体会话播放位置
+    updateMediaSessionPositionState()
   }
 }
 
@@ -559,21 +573,40 @@ const togglePlaylist = () => {
 // 从播放列表播放
 const playFromPlaylist = (index) => {
   if (playlist.value[index]) {
-    // 重置播放时间
+    // 先暂停当前音频
+    if (audioPlayer.value && !audioPlayer.value.paused) {
+      audioPlayer.value.pause();
+    }
+    
+    // 重置播放时间并立即更新UI
     currentTime.value = 0
     duration.value = 0
     progress.value = 0
+    updateGlobalPlayerState()
+    
+    // 更新媒体会话播放位置
+    updateMediaSessionPositionState()
+    
     // 设置为当前播放的音乐
     localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[index]))
     currentMusic.value = playlist.value[index]
     isPlaying.value = true
+    
     // 重新加载歌词
     loadLyrics(playlist.value[index].id)
+    
     // 确保音频元素重新加载资源
     if (audioPlayer.value) {
+      // 确保音频元素在加载新资源前已重置
+      audioPlayer.value.currentTime = 0
       audioPlayer.value.load()
       fadeIn(audioPlayer.value)
     }
+    
+    // 更新媒体会话元数据
+    updateMediaSessionMetadata(playlist.value[index])
+    // 更新播放状态
+    updateMediaSessionPlaybackState()
   }
   // 关闭播放列表
   showPlaylist.value = false
@@ -605,17 +638,39 @@ const playNext = () => {
   }
   
   if (nextIndex !== -1 && playlist.value[nextIndex]) {
-    // 重置播放时间
+    // 先暂停当前音频
+    if (audioPlayer.value && !audioPlayer.value.paused) {
+      audioPlayer.value.pause();
+    }
+    
+    // 重置播放时间并立即更新UI
     currentTime.value = 0
     duration.value = 0
     progress.value = 0
+    updateGlobalPlayerState()
+    
+    // 更新媒体会话播放位置
+    updateMediaSessionPositionState()
+    
+    // 设置新音乐到localStorage
     localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[nextIndex]))
     currentMusic.value = playlist.value[nextIndex]
+    
+    // 加载新音乐的歌词
     loadLyrics(playlist.value[nextIndex].id)
+    
+    // 加载新音频资源
     if (audioPlayer.value) {
+      // 确保音频元素在加载新资源前已重置
+      audioPlayer.value.currentTime = 0
       audioPlayer.value.load()
       fadeIn(audioPlayer.value)
     }
+    
+    // 更新媒体会话元数据
+    updateMediaSessionMetadata(playlist.value[nextIndex])
+    // 更新播放状态
+    updateMediaSessionPlaybackState()
   }
 }
 
@@ -633,17 +688,39 @@ const playPrevious = () => {
   }
   
   if (prevIndex !== -1 && playlist.value[prevIndex]) {
-    // 重置播放时间
+    // 先暂停当前音频
+    if (audioPlayer.value && !audioPlayer.value.paused) {
+      audioPlayer.value.pause();
+    }
+    
+    // 重置播放时间并立即更新UI
     currentTime.value = 0
     duration.value = 0
     progress.value = 0
+    updateGlobalPlayerState()
+    
+    // 更新媒体会话播放位置
+    updateMediaSessionPositionState()
+    
+    // 设置新音乐到localStorage
     localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[prevIndex]))
     currentMusic.value = playlist.value[prevIndex]
+    
+    // 加载新音乐的歌词
     loadLyrics(playlist.value[prevIndex].id)
+    
+    // 加载新音频资源
     if (audioPlayer.value) {
+      // 确保音频元素在加载新资源前已重置
+      audioPlayer.value.currentTime = 0
       audioPlayer.value.load()
       fadeIn(audioPlayer.value)
     }
+    
+    // 更新媒体会话元数据
+    updateMediaSessionMetadata(playlist.value[prevIndex])
+    // 更新播放状态
+    updateMediaSessionPlaybackState()
   }
 }
 
@@ -667,17 +744,39 @@ const playNextInShuffle = () => {
   const nextIndex = getRandomIndex(currentIndex)
   
   if (nextIndex !== -1 && playlist.value[nextIndex]) {
-    // 重置播放时间
+    // 先暂停当前音频
+    if (audioPlayer.value && !audioPlayer.value.paused) {
+      audioPlayer.value.pause();
+    }
+    
+    // 重置播放时间并立即更新UI
     currentTime.value = 0
     duration.value = 0
     progress.value = 0
+    updateGlobalPlayerState()
+    
+    // 更新媒体会话播放位置
+    updateMediaSessionPositionState()
+    
+    // 设置新音乐到localStorage
     localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[nextIndex]))
     currentMusic.value = playlist.value[nextIndex]
+    
+    // 加载新音乐的歌词
     loadLyrics(playlist.value[nextIndex].id)
+    
+    // 加载新音频资源
     if (audioPlayer.value) {
+      // 确保音频元素在加载新资源前已重置
+      audioPlayer.value.currentTime = 0
       audioPlayer.value.load()
       fadeIn(audioPlayer.value)
     }
+    
+    // 更新媒体会话元数据
+    updateMediaSessionMetadata(playlist.value[nextIndex])
+    // 更新播放状态
+    updateMediaSessionPlaybackState()
   }
 }
 
@@ -689,6 +788,8 @@ watch(audioPlayer, (newPlayer) => {
       updateGlobalPlayerState();
       // 广播播放状态变化
       broadcastPlayerStateChange();
+      // 更新媒体会话播放状态
+      updateMediaSessionPlaybackState();
     })
     
     newPlayer.addEventListener('pause', () => {
@@ -696,6 +797,8 @@ watch(audioPlayer, (newPlayer) => {
       updateGlobalPlayerState();
       // 广播播放状态变化
       broadcastPlayerStateChange();
+      // 更新媒体会话播放状态
+      updateMediaSessionPlaybackState();
     })
   }
 }, { immediate: true })
@@ -706,28 +809,54 @@ const handleStorageChange = (e) => {
     // 只有在音乐实际改变时才重置播放器
     const newMusic = e.newValue ? JSON.parse(e.newValue) : null;
     if (newMusic && (!currentMusic.value || newMusic.id !== currentMusic.value.id)) {
+      // 先暂停当前音频
+      if (audioPlayer.value && !audioPlayer.value.paused) {
+        audioPlayer.value.pause();
+      }
+      
       // 音乐改变了，更新当前音乐并重置播放器
       currentMusic.value = newMusic;
+      
+      // 重置播放时间并立即更新UI
+      currentTime.value = 0
+      duration.value = 0
+      progress.value = 0
+      updateGlobalPlayerState()
+      
+      // 更新媒体会话播放位置
+      updateMediaSessionPositionState()
+      
       if (audioPlayer.value) {
+        // 重置音频元素的播放时间
+        audioPlayer.value.currentTime = 0
         audioPlayer.value.load();
         // 重置播放状态
         isPlaying.value = false;
-        currentTime.value = 0;
-        progress.value = 0;
-        duration.value = 0;
       }
+      
       // 加载新音乐的歌词
       if (newMusic) {
         loadLyrics(newMusic.id)
+        // 更新媒体会话元数据
+        updateMediaSessionMetadata(newMusic)
+        // 更新媒体会话播放位置
+        updateMediaSessionPositionState()
       } else {
         lyrics.value = ''
         parsedLyrics.value = []
+        // 清除媒体会话元数据
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = null
+        }
+        // 更新媒体会话播放位置
+        updateMediaSessionPositionState()
       }
     } else if (!e.newValue) {
       // 没有音乐了，暂停播放器
       currentMusic.value = null;
       if (audioPlayer.value) {
         audioPlayer.value.pause();
+        // 重置播放时间
         currentTime.value = 0;
         progress.value = 0;
         isPlaying.value = false;
@@ -735,10 +864,18 @@ const handleStorageChange = (e) => {
         updateGlobalPlayerState();
         // 广播播放状态变化
         broadcastPlayerStateChange();
+        // 更新媒体会话播放状态
+        updateMediaSessionPlaybackState();
+        // 更新媒体会话播放位置
+        updateMediaSessionPositionState()
       }
       // 清空歌词
       lyrics.value = ''
       parsedLyrics.value = []
+      // 清除媒体会话元数据
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = null
+      }
     }
   } else if (e.key === 'globalPlayerState') {
     // 从播放页面接收状态更新
@@ -770,6 +907,8 @@ const handleStorageChange = (e) => {
           audioPlayer.value.addEventListener('loadeddata', playWhenReady, { once: true });
         }
         updateGlobalPlayerState();
+        // 更新媒体会话播放状态
+        updateMediaSessionPlaybackState();
       } else if (currentMusic.value) {
         // 如果audio元素还没准备好，等待并执行操作
         const handleMetadata = () => {
@@ -785,6 +924,8 @@ const handleStorageChange = (e) => {
         
         audioPlayer.value?.addEventListener('loadedmetadata', handleMetadata, { once: true });
       }
+      // 更新媒体会话播放位置
+      updateMediaSessionPositionState()
     }
   }
 }
@@ -792,10 +933,21 @@ const handleStorageChange = (e) => {
 // 处理自定义播放状态变化事件
 const handlePlayerStateChange = (e) => {
   const state = e.detail;
-  // 更新播放器状态，无论audio元素是否准备好
-  currentTime.value = state.currentTime;
-  duration.value = state.duration;
-  progress.value = state.currentTime;
+  
+  // 检查是否正在切换到新音乐
+  if (currentMusic.value && state.currentMusic && currentMusic.value.id !== state.currentMusic.id) {
+    // 如果是切换到新音乐，重置播放时间
+    currentTime.value = 0;
+    duration.value = 0;
+    progress.value = 0;
+    updateGlobalPlayerState();
+    updateMediaSessionPositionState();
+  } else {
+    // 否则是同一首音乐的时间更新
+    currentTime.value = state.currentTime;
+    duration.value = state.duration;
+    progress.value = state.currentTime;
+  }
 
   // 如果有audio元素则同步操作
   if (audioPlayer.value && currentMusic.value && currentMusic.value.id === state.currentMusic?.id) {
@@ -808,6 +960,8 @@ const handlePlayerStateChange = (e) => {
           isPlaying.value = true;
           updateGlobalPlayerState();
           fadeIn(audioPlayer.value);
+          // 更新媒体会话播放状态
+          updateMediaSessionPlaybackState();
         } else {
           // 如果是暂停状态，立即暂停并静音，避免重音
           isPlaying.value = false;
@@ -816,8 +970,12 @@ const handlePlayerStateChange = (e) => {
             audioPlayer.value.pause();
           }
           updateGlobalPlayerState();
+          // 更新媒体会话播放状态
+          updateMediaSessionPlaybackState();
         }
       }
+      // 更新媒体会话播放位置
+      updateMediaSessionPositionState();
     };
 
     if (audioPlayer.value.readyState >= 2) { // HAVE_CURRENT_DATA
@@ -835,6 +993,8 @@ const handlePlayerStateChange = (e) => {
           isPlaying.value = true;
           updateGlobalPlayerState();
           fadeIn(audioPlayer.value);
+          // 更新媒体会话播放状态
+          updateMediaSessionPlaybackState();
         } else {
           // 如果是暂停状态，立即暂停并静音，避免重音
           isPlaying.value = false;
@@ -843,8 +1003,12 @@ const handlePlayerStateChange = (e) => {
             audioPlayer.value.pause();
           }
           updateGlobalPlayerState();
+          // 更新媒体会话播放状态
+          updateMediaSessionPlaybackState();
         }
       }
+      // 更新媒体会话播放位置
+      updateMediaSessionPositionState();
     };
 
     audioPlayer.value?.addEventListener('loadedmetadata', handleMetadata, { once: true });
@@ -865,6 +1029,8 @@ onMounted(() => {
     // 初始化时加载歌词
     if (currentMusic.value) {
       loadLyrics(currentMusic.value.id)
+      // 初始化媒体会话
+      initializeMediaSession(currentMusic.value)
     }
   }
   
@@ -888,6 +1054,9 @@ onMounted(() => {
   
   // 加载播放列表
   loadPlaylist()
+  
+  // 初始化媒体会话API
+  initializeMediaSession()
 })
 
 // 加载播放列表
@@ -912,10 +1081,125 @@ const loadPlaylist = async () => {
   }
 }
 
+// 初始化媒体会话API
+const initializeMediaSession = (music = null) => {
+  if ('mediaSession' in navigator) {
+    try {
+      // 设置媒体操作处理程序
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (audioPlayer.value && currentMusic.value) {
+          isPlaying.value = true
+          updateGlobalPlayerState()
+          fadeIn(audioPlayer.value)
+        }
+      })
+      
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (audioPlayer.value && currentMusic.value) {
+          isPlaying.value = false
+          updateGlobalPlayerState()
+          // 立即暂停音频并静音，避免重音
+          if (audioPlayer.value) {
+            audioPlayer.value.volume = 0;
+            audioPlayer.value.pause();
+          }
+        }
+      })
+      
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        playPrevious()
+      })
+      
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        playNext()
+      })
+      
+      navigator.mediaSession.setActionHandler('seekbackward', () => {
+        if (audioPlayer.value) {
+          audioPlayer.value.currentTime = Math.max(audioPlayer.value.currentTime - 10, 0);
+        }
+      })
+      
+      navigator.mediaSession.setActionHandler('seekforward', () => {
+        if (audioPlayer.value) {
+          audioPlayer.value.currentTime = Math.min(audioPlayer.value.currentTime + 10, audioPlayer.value.duration);
+        }
+      })
+      
+      // 设置当前播放的音乐元数据
+      if (music || currentMusic.value) {
+        updateMediaSessionMetadata(music || currentMusic.value)
+      }
+    } catch (error) {
+      console.log('媒体会话API初始化失败:', error)
+    }
+  }
+}
+
+// 更新媒体会话元数据
+const updateMediaSessionMetadata = (music) => {
+  if ('mediaSession' in navigator && music) {
+    try {
+      const artwork = [
+        { src: getCoverUrl(music.id), sizes: '96x96', type: 'image/jpeg' },
+        { src: getCoverUrl(music.id), sizes: '128x128', type: 'image/jpeg' },
+        { src: getCoverUrl(music.id), sizes: '192x192', type: 'image/jpeg' },
+        { src: getCoverUrl(music.id), sizes: '256x256', type: 'image/jpeg' },
+        { src: getCoverUrl(music.id), sizes: '384x384', type: 'image/jpeg' },
+        { src: getCoverUrl(music.id), sizes: '512x512', type: 'image/jpeg' }
+      ]
+      
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: music.title || '未知标题',
+        artist: music.artist || '未知艺术家',
+        album: music.album || '未知专辑',
+        artwork: artwork
+      })
+      
+      // 更新播放状态
+      navigator.mediaSession.playbackState = isPlaying.value ? 'playing' : 'paused'
+    } catch (error) {
+      console.log('更新媒体会话元数据失败:', error)
+    }
+  }
+}
+
+// 更新媒体会话播放状态
+const updateMediaSessionPlaybackState = () => {
+  if ('mediaSession' in navigator) {
+    try {
+      navigator.mediaSession.playbackState = isPlaying.value ? 'playing' : 'paused'
+    } catch (error) {
+      console.log('更新媒体会话播放状态失败:', error)
+    }
+  }
+}
+
+// 更新媒体会话播放位置
+const updateMediaSessionPositionState = () => {
+  if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: duration.value,
+        playbackRate: 1.0,
+        position: currentTime.value
+      });
+    } catch (error) {
+      console.log('更新媒体会话播放位置失败:', error)
+    }
+  }
+}
+
 // 组件卸载时移除事件监听
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorageChange)
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
+  
+  // 清除媒体会话
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = null
+    navigator.mediaSession.playbackState = 'none'
+  }
 })
 </script>
 
