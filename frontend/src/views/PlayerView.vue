@@ -23,9 +23,7 @@
           
           <!-- 操作按钮 -->
           <div class="action-buttons">
-            <button @click="togglePlayPause" class="play-btn">
-              {{ isPlaying ? '暂停音乐' : '播放音乐' }}
-            </button>
+            <button @click="playMusic" class="play-btn">播放音乐</button>
             <button @click="downloadMusic" class="download-btn">
               下载音乐
             </button>
@@ -166,37 +164,6 @@ const parseLrcLyrics = (lrcText) => {
   parsed.sort((a, b) => a.time - b.time)
   parsedLyrics.value = parsed
 }
-
-// 控制全局播放器播放/暂停
-const togglePlayPause = () => {
-  if (currentMusic.value) {
-    // 设置当前播放的音乐到localStorage，触发全局播放器
-    localStorage.setItem('currentPlayingMusic', JSON.stringify(currentMusic.value));
-    
-    // 切换全局播放器的播放状态
-    const currentState = JSON.parse(localStorage.getItem('globalPlayerState') || '{"isPlaying": false, "currentTime": 0, "duration": 0}');
-    const newState = {
-      isPlaying: !currentState.isPlaying,  // 切换播放/暂停状态
-      currentTime: currentState.currentTime,
-      duration: currentState.duration
-    };
-    
-    localStorage.setItem('globalPlayerState', JSON.stringify(newState));
-    
-    // 广播播放状态变化，让全局播放器组件更新
-    const event = new CustomEvent('playerStateChange', {
-      detail: {
-        isPlaying: newState.isPlaying,
-        currentTime: newState.currentTime,
-        duration: newState.duration,
-        currentMusic: currentMusic.value
-      }
-    });
-    window.dispatchEvent(event);
-  }
-}
-
-
 
 // 监听全局播放器状态变化
 const handlePlayerStateChange = (e) => {
