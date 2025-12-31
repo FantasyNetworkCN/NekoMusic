@@ -1224,6 +1224,15 @@ const handlePlayerStateChange = (e) => {
   }
 }
 
+// 处理播放列表更新事件
+const handlePlaylistUpdated = (e) => {
+  if (e.detail && e.detail.playlist) {
+    playlist.value = e.detail.playlist;
+    // 同时保存到 localStorage 以确保持久化
+    localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value));
+  }
+}
+
 onMounted(() => {
   // 加载播放列表
   loadPlaylist()
@@ -1234,6 +1243,8 @@ onMounted(() => {
   window.addEventListener('playerStateChange', handlePlayerStateChange)
   // 监听强制播放事件
   window.addEventListener('forcePlay', handleForcePlay)
+  // 监听播放列表更新事件
+  window.addEventListener('playlistUpdated', handlePlaylistUpdated)
   
   // 初始化当前播放音乐
   const storedMusic = localStorage.getItem('currentPlayingMusic')
@@ -1441,6 +1452,7 @@ onUnmounted(() => {
   window.removeEventListener('storage', handleStorageChange)
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
   window.removeEventListener('forcePlay', handleForcePlay)
+  window.removeEventListener('playlistUpdated', handlePlaylistUpdated)
   
   // 清除媒体会话
   if ('mediaSession' in navigator) {
