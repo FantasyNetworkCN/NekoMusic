@@ -81,7 +81,9 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { useToast } from 'vue-toastification'
 
+const toast = useToast()
 const router = useRouter()
 const username = ref('')
 const email = ref('')
@@ -101,14 +103,14 @@ const codeBtnText = computed(() => {
 // 发送验证码
 const sendVerificationCode = async () => {
   if (!email.value) {
-    alert('请先输入邮箱地址')
+    toast.error('请先输入邮箱地址')
     return
   }
   
   // 验证邮箱格式
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(email.value)) {
-    alert('请输入有效的邮箱地址')
+    toast.error('请输入有效的邮箱地址')
     return
   }
   
@@ -119,17 +121,17 @@ const sendVerificationCode = async () => {
     })
     
     if (response.data.success) {
-      alert('验证码已发送至您的邮箱')
+      toast.success('验证码已发送至您的邮箱')
       startCountdown()
     } else {
-      alert(response.data.message || '发送验证码失败')
+      toast.error(response.data.message || '发送验证码失败')
     }
   } catch (error) {
     console.error('发送验证码失败:', error)
     if (error.response) {
-      alert(error.response.data.message || '发送验证码失败')
+      toast.error(error.response.data.message || '发送验证码失败')
     } else {
-      alert('网络错误，请检查服务器连接')
+      toast.error('网络错误，请检查服务器连接')
     }
   } finally {
     codeSending.value = false
@@ -150,7 +152,7 @@ const startCountdown = () => {
 // 处理注册逻辑
 const handleRegister = async () => {
   if (password.value !== confirmPassword.value) {
-    alert('两次输入的密码不一致')
+    toast.error('两次输入的密码不一致')
     return
   }
   
@@ -164,17 +166,17 @@ const handleRegister = async () => {
     })
     
     if (response.data.success) {
-      alert('注册成功！请登录您的账户。')
+      toast.success('注册成功！请登录您的账户。')
       router.push('/login')
     } else {
-      alert(response.data.message || '注册失败')
+      toast.error(response.data.message || '注册失败')
     }
   } catch (error) {
     console.error('注册失败:', error)
     if (error.response) {
-      alert(error.response.data.message || '注册失败')
+      toast.error(error.response.data.message || '注册失败')
     } else {
-      alert('网络错误，请检查服务器连接')
+      toast.error('网络错误，请检查服务器连接')
     }
   } finally {
     loading.value = false

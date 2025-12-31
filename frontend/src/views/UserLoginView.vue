@@ -40,7 +40,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { useToast } from 'vue-toastification'
 
+const toast = useToast()
 const router = useRouter()
 const username = ref('')
 const password = ref('')
@@ -56,20 +58,20 @@ const handleLogin = async () => {
     })
     
     if (response.data.success) {
-      alert('登录成功！')
+      toast.success('登录成功！')
       // 存储用户信息和token到localStorage
       localStorage.setItem('userToken', response.data.data.token)
       localStorage.setItem('user', JSON.stringify(response.data.data.user))
       router.push('/')
     } else {
-      alert(response.data.message || '登录失败')
+      toast.error(response.data.message || '登录失败')
     }
   } catch (error) {
     console.error('登录失败:', error)
     if (error.response) {
-      alert(error.response.data.message || '登录失败')
+      toast.error(error.response.data.message || '登录失败')
     } else {
-      alert('网络错误，请检查服务器连接')
+      toast.error('网络错误，请检查服务器连接')
     }
   } finally {
     loading.value = false
