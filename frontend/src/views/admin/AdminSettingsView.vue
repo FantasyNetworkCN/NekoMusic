@@ -156,6 +156,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
+
+const toast = useToast()
 
 const router = useRouter()
 
@@ -199,7 +202,7 @@ const settings = ref({
 
 // 保存设置
 const saveSettings = (tab) => {
-  alert(`${settingsTabs.value.find(t => t.key === tab).title} 已保存！`)
+  toast.success(`${settingsTabs.value.find(t => t.key === tab).title} 已保存！`)
   // 这里可以实现实际的保存逻辑
   console.log('保存设置:', settings.value[tab])
 }
