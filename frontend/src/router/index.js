@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import SearchResultsView from '@/views/SearchResultsView.vue'
 import PlayerView from '@/views/PlayerView.vue'
+import UserLoginView from '@/views/UserLoginView.vue'
 import AdminLoginView from '@/views/admin/AdminLoginView.vue'
 import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
@@ -45,6 +46,11 @@ const router = createRouter({
       name: 'search-query',
       component: SearchResultsView,
       props: true
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: UserLoginView
     },
     {
       path: '/admin/login',

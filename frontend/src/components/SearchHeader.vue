@@ -43,6 +43,9 @@
           </div>
         </div>
       </div>
+      <div class="auth-container">
+        <button @click="goToLogin" class="login-btn">登录</button>
+      </div>
     </div>
     <div class="header-decoration">
       <div class="decoration-dot"></div>
@@ -63,6 +66,11 @@ const searchResults = ref(null)
 const showResults = ref(false)
 const isLoading = ref(false)
 let debounceTimer = null
+
+// 跳转到登录页面
+const goToLogin = () => {
+  router.push('/login')
+}
 
 // 防抖搜索函数 - 只获取结果，不跳转页面
 const debouncedSearch = (query) => {
@@ -284,6 +292,35 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.auth-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-btn {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.9), rgba(138, 43, 226, 0.9));
+  color: white;
+  border: none;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  min-width: 60px;
+  text-align: center;
+}
+
+.login-btn:hover {
+  background: linear-gradient(135deg, rgba(92, 75, 123, 0.95), rgba(122, 91, 192, 0.95));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
 }
 
 .logo {
