@@ -44,7 +44,12 @@
         </div>
       </div>
       <div class="auth-container">
-        <button @click="goToLogin" class="login-btn">登录</button>
+        <div v-if="isLoggedIn" class="user-info">
+          <img :src="userAvatar" alt="用户头像" class="user-avatar" @error="handleAvatarError" />
+          <span class="username">{{ username }}</span>
+          <button @click="logout" class="logout-btn">退出</button>
+        </div>
+        <button v-else @click="goToLogin" class="login-btn">登录</button>
       </div>
     </div>
     <div class="header-decoration">
@@ -56,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 
@@ -67,9 +72,51 @@ const showResults = ref(false)
 const isLoading = ref(false)
 let debounceTimer = null
 
+// 用户信息响应式变量
+const isLoggedIn = computed(() => {
+  return localStorage.getItem('userToken') !== null;
+})
+
+const user = computed(() => {
+  const userStr = localStorage.getItem('user');
+  if (!userStr || userStr === 'undefined' || userStr === 'null') {
+    return null;
+  }
+  try {
+    return JSON.parse(userStr);
+  } catch (e) {
+    console.error('解析用户信息失败:', e);
+    return null;
+  }
+})
+
+const username = computed(() => {
+  return user.value ? user.value.username : '';
+})
+
+const userAvatar = computed(() => {
+  // 使用后端的默认头像
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`;
+})
+
 // 跳转到登录页面
 const goToLogin = () => {
   router.push('/login')
+}
+
+// 退出登录
+const logout = () => {
+  localStorage.removeItem('userToken');
+  localStorage.removeItem('user');
+  router.push('/');
+  // 刷新页面以更新所有组件状态
+  window.location.reload();
+}
+
+// 处理头像加载错误
+const handleAvatarError = (event) => {
+  // 如果默认头像也加载失败，使用base64编码的简单头像
+  event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%236a5acd"/><text x="20" y="25" font-family="Arial" font-size="16" fill="white" text-anchor="middle">U</text></svg>';
 }
 
 // 防抖搜索函数 - 只获取结果，不跳转页面
@@ -321,6 +368,56 @@ onUnmounted(() => {
   background: linear-gradient(135deg, rgba(92, 75, 123, 0.95), rgba(122, 91, 192, 0.95));
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.username {
+  color: #5c4b7b;
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-btn {
+  padding: 6px 12px;
+  background: rgba(255, 99, 71, 0.8);
+  color: white;
+  border: none;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 99, 71, 0.4);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.logout-btn:hover {
+  background: rgba(220, 60, 51, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 99, 71, 0.6);
 }
 
 .logo {

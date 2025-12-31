@@ -11,6 +11,11 @@ redis:
   host: 10.0.5.2
   port: 6379
 
+# JWT配置
+jwt:
+  secret: defaultSecretKeyForNekoMusic
+  expiration: 86400  # 24小时（秒）
+
 # 邮件服务器
 smtp:
   host: smtp.exmail.qq.com

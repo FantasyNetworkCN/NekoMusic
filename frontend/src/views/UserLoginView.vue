@@ -57,8 +57,9 @@ const handleLogin = async () => {
     
     if (response.data.success) {
       alert('登录成功！')
-      // 存储用户信息到localStorage（如果需要）
-      localStorage.setItem('user', JSON.stringify(response.data.data))
+      // 存储用户信息和token到localStorage
+      localStorage.setItem('userToken', response.data.data.token)
+      localStorage.setItem('user', JSON.stringify(response.data.data.user))
       router.push('/')
     } else {
       alert(response.data.message || '登录失败')
