@@ -18,6 +18,19 @@ public class ConfigManager {
     private String mysqlPassword = "";
     private int port = 8080; // 默认端口
     
+    // SMTP邮件服务器配置
+    private String smtpHost = "smtp.gmail.com";
+    private int smtpPort = 587;
+    private String smtpUsername = "";
+    private String smtpPassword = "";
+    private boolean smtpSsl = false;
+    private boolean smtpTls = true;
+    private String emailBlacklist = "tempmail.com,guerrillamail.com";
+    
+    // Redis配置
+    private String redisHost = "localhost";
+    private int redisPort = 6379;
+    
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
@@ -57,6 +70,39 @@ public class ConfigManager {
                 if (configNode.has("port")) {
                     port = configNode.get("port").asInt();
                 }
+                
+                // 读取SMTP服务器配置
+                JsonNode smtpNode = configNode.get("smtp");
+                if (smtpNode != null) {
+                    if (smtpNode.has("host")) smtpHost = smtpNode.get("host").asText();
+                    if (smtpNode.has("port")) smtpPort = smtpNode.get("port").asInt();
+                    if (smtpNode.has("username")) smtpUsername = smtpNode.get("username").asText();
+                    if (smtpNode.has("password")) smtpPassword = smtpNode.get("password").asText();
+                    if (smtpNode.has("ssl")) smtpSsl = smtpNode.get("ssl").asBoolean();
+                    if (smtpNode.has("tls")) smtpTls = smtpNode.get("tls").asBoolean();
+                }
+                
+                // 读取邮箱黑名单配置
+                if (configNode.has("blacklist_email")) {
+                    JsonNode blacklistNode = configNode.get("blacklist_email");
+                    if (blacklistNode.isArray()) {
+                        StringBuilder blacklistBuilder = new StringBuilder();
+                        for (JsonNode node : blacklistNode) {
+                            if (blacklistBuilder.length() > 0) {
+                                blacklistBuilder.append(",");
+                            }
+                            blacklistBuilder.append(node.asText().trim());
+                        }
+                        emailBlacklist = blacklistBuilder.toString();
+                    }
+                }
+                
+                // 读取Redis配置
+                JsonNode redisNode = configNode.get("redis");
+                if (redisNode != null) {
+                    if (redisNode.has("host")) redisHost = redisNode.get("host").asText();
+                    if (redisNode.has("port")) redisPort = redisNode.get("port").asInt();
+                }
             }
             
             logger.info("配置加载完成:");
@@ -65,6 +111,11 @@ public class ConfigManager {
             logger.info("  MySQL Database: {}", mysqlDatabase);
             logger.info("  MySQL Username: {}", mysqlUsername);
             logger.info("  Port: {}", port);
+            logger.info("  SMTP Host: {}", smtpHost);
+            logger.info("  SMTP Port: {}", smtpPort);
+            logger.info("  SMTP Username: {}", smtpUsername);
+            logger.info("  SMTP SSL: {}", smtpSsl);
+            logger.info("  SMTP TLS: {}", smtpTls);
         } catch (Exception e) {
             logger.error("加载配置时出错", e);
             // 使用默认值
@@ -126,5 +177,41 @@ public class ConfigManager {
     
     public int getPort() {
         return port;
+    }
+    
+    public String getSmtpHost() {
+        return smtpHost;
+    }
+    
+    public int getSmtpPort() {
+        return smtpPort;
+    }
+    
+    public String getSmtpUsername() {
+        return smtpUsername;
+    }
+    
+    public String getSmtpPassword() {
+        return smtpPassword;
+    }
+    
+    public boolean isSmtpSsl() {
+        return smtpSsl;
+    }
+    
+    public boolean isSmtpTls() {
+        return smtpTls;
+    }
+    
+    public String getEmailBlacklist() {
+        return emailBlacklist;
+    }
+    
+    public String getRedisHost() {
+        return redisHost;
+    }
+    
+    public int getRedisPort() {
+        return redisPort;
     }
 }

@@ -39,6 +39,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 const router = useRouter()
 const username = ref('')
@@ -49,18 +50,27 @@ const loading = ref(false)
 const handleLogin = async () => {
   loading.value = true
   try {
-    // 这里可以添加实际的登录逻辑
-    console.log('登录信息:', { username: username.value, password: password.value })
+    const response = await axios.post('http://localhost:8080/api/user/login', {
+      username: username.value,
+      password: password.value
+    })
     
-    // 模拟登录成功
-    setTimeout(() => {
-      alert('登录功能将在后续版本中实现')
+    if (response.data.success) {
+      alert('登录成功！')
+      // 存储用户信息到localStorage（如果需要）
+      localStorage.setItem('user', JSON.stringify(response.data.data))
       router.push('/')
-      loading.value = false
-    }, 1000)
+    } else {
+      alert(response.data.message || '登录失败')
+    }
   } catch (error) {
     console.error('登录失败:', error)
-    alert('登录失败，请检查用户名和密码')
+    if (error.response) {
+      alert(error.response.data.message || '登录失败')
+    } else {
+      alert('网络错误，请检查服务器连接')
+    }
+  } finally {
     loading.value = false
   }
 }
