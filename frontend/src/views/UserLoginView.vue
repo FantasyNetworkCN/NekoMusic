@@ -60,8 +60,22 @@ const handleLogin = async () => {
     if (response.data.success) {
       toast.success('登录成功！')
       // 存储用户信息和token到localStorage
+      const previousToken = localStorage.getItem('userToken')
+      const previousUser = localStorage.getItem('user')
+      
       localStorage.setItem('userToken', response.data.data.token)
       localStorage.setItem('user', JSON.stringify(response.data.data.user))
+      
+      // 触发storage事件，确保其他标签页或组件能够检测到状态变化
+      if (!previousToken) {
+        // 只有在之前没有登录的情况下才触发storage事件
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'userToken',
+          oldValue: null,
+          newValue: response.data.data.token
+        }));
+      }
+      
       router.push('/')
     } else {
       toast.error(response.data.message || '登录失败')
