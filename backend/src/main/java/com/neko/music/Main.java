@@ -12,6 +12,7 @@ import com.neko.music.handlers.MusicFileHandler;
 import com.neko.music.handlers.MusicLyricsHandler;
 import com.neko.music.handlers.AdminLoginHandler;
 import com.neko.music.handlers.AdminStatsHandler;
+import com.neko.music.handlers.AdminUserManagementHandler;
 import com.neko.music.handlers.ChartDataHandler;
 import com.neko.music.handlers.FileUploadHandler;
 import com.neko.music.handlers.SendVerificationHandler;
@@ -19,6 +20,7 @@ import com.neko.music.handlers.UserLoginHandler;
 import com.neko.music.handlers.UserRegisterHandler;
 import com.neko.music.handlers.UserAvatarHandler;
 import com.neko.music.handlers.UserFavoriteHandler;
+import com.neko.music.handlers.UserManagementHandler;
 
 import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.EmailService;
@@ -115,6 +117,10 @@ public class Main {
         ServletHolder adminStatsHolder = new ServletHolder(new AdminStatsHandler());
         context.addServlet(adminStatsHolder, "/api/admin/stats");
         
+        // 注册管理员用户管理API处理器
+        ServletHolder adminUserManagementHolder = new ServletHolder(new AdminUserManagementHandler());
+        context.addServlet(adminUserManagementHolder, "/api/admin/users/*");
+        
         // 注册图表数据API处理器
         ServletHolder chartDataHolder = new ServletHolder(new ChartDataHandler());
         context.addServlet(chartDataHolder, "/api/admin/chart-data");
@@ -160,6 +166,10 @@ public class Main {
         // 注册用户收藏API处理器
         ServletHolder userFavoriteHolder = new ServletHolder(new UserFavoriteHandler());
         context.addServlet(userFavoriteHolder, "/api/user/favorites/*");
+        
+        // 注册用户管理API处理器（管理员权限）
+        ServletHolder userManagementHolder = new ServletHolder(new UserManagementHandler());
+        context.addServlet(userManagementHolder, "/api/users/*");
         
         // 启动服务器
         server.start();
