@@ -41,6 +41,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useToast } from 'vue-toastification'
+import API_CONFIG from "@/config/apiConfig.js";
 
 const toast = useToast()
 const router = useRouter()
@@ -52,7 +53,7 @@ const loading = ref(false)
 const handleLogin = async () => {
   loading.value = true
   try {
-    const response = await axios.post('http://localhost:8080/api/user/login', {
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/login`, {
       username: username.value,
       password: password.value
     })

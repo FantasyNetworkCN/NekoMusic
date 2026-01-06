@@ -82,6 +82,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useToast } from 'vue-toastification'
+import API_CONFIG from "@/config/apiConfig.js";
 
 const toast = useToast()
 const router = useRouter()
@@ -116,7 +117,7 @@ const sendVerificationCode = async () => {
   
   codeSending.value = true
   try {
-    const response = await axios.post('http://localhost:8080/api/user/send-verification', {
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/send-verification`, {
       email: email.value
     })
     
@@ -158,7 +159,7 @@ const handleRegister = async () => {
   
   loading.value = true
   try {
-    const response = await axios.post('http://localhost:8080/api/user/register', {
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/register`, {
       username: username.value,
       email: email.value,
       password: password.value,
