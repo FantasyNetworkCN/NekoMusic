@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.sql.*;
 import java.util.Optional;
 
@@ -17,9 +18,11 @@ public class UserAuthService {
     private final ConfigManager configManager;
     private final EmailService emailService;
     private final RedisService redisService;
+    private static final SecureRandom secureRandom = new SecureRandom();
     
     private static final String VERIFICATION_CODE_PREFIX = "verification_code:";
     private static final int VERIFICATION_CODE_EXPIRY = 300; // 5分钟过期
+    private static final int TOKEN_EXPIRY_DAYS = 30; // Token有效期30天
 
     public UserAuthService(DatabaseManager databaseManager, ConfigManager configManager, EmailService emailService, RedisService redisService) {
         this.databaseManager = databaseManager;
@@ -208,6 +211,110 @@ public class UserAuthService {
         } catch (NoSuchAlgorithmException e) {
             logger.error("密码哈希失败: {}", e.getMessage(), e);
             return null;
+        }
+    }
+    
+    /**
+     * 生成随机token
+     */
+    public String generateToken() {
+        byte[] tokenBytes = new byte[32];
+        secureRandom.nextBytes(tokenBytes);
+        StringBuilder sb = new StringBuilder();
+        for (byte b : tokenBytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+    
+    /**
+     * 为用户创建并保存token
+     */
+    public String createTokenForUser(int userId) {
+        String token = generateToken();
+        String sql = "INSERT INTO user_tokens (user_id, token, created_at, expires_at) VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY))";
+        
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, userId);
+            stmt.setString(2, token);
+            stmt.setInt(3, TOKEN_EXPIRY_DAYS);
+            
+            int affectedRows = stmt.executeUpdate();
+            if (affectedRows > 0) {
+                logger.info("Token创建成功，用户ID: {}", userId);
+                return token;
+            }
+        } catch (SQLException e) {
+            logger.error("创建token失败: {}", e.getMessage(), e);
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 验证token并返回用户ID
+     */
+    public Optional<Integer> validateToken(String token) {
+        String sql = "SELECT user_id FROM user_tokens WHERE token = ? AND expires_at > NOW()";
+        
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, token);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                int userId = rs.getInt("user_id");
+                logger.info("Token验证成功，用户ID: {}", userId);
+                return Optional.of(userId);
+            }
+        } catch (SQLException e) {
+            logger.error("验证token失败: {}", e.getMessage(), e);
+        }
+        
+        return Optional.empty();
+    }
+    
+    /**
+     * 注销token
+     */
+    public boolean revokeToken(String token) {
+        String sql = "DELETE FROM user_tokens WHERE token = ?";
+        
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, token);
+            int affectedRows = stmt.executeUpdate();
+            
+            if (affectedRows > 0) {
+                logger.info("Token已注销");
+                return true;
+            }
+        } catch (SQLException e) {
+            logger.error("注销token失败: {}", e.getMessage(), e);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 清理过期token
+     */
+    public void cleanupExpiredTokens() {
+        String sql = "DELETE FROM user_tokens WHERE expires_at < NOW()";
+        
+        try (Connection conn = databaseManager.getConnection();
+             Statement stmt = conn.createStatement()) {
+            
+            int deletedCount = stmt.executeUpdate(sql);
+            if (deletedCount > 0) {
+                logger.info("清理了 {} 个过期token", deletedCount);
+            }
+        } catch (SQLException e) {
+            logger.error("清理过期token失败: {}", e.getMessage(), e);
         }
     }
 }

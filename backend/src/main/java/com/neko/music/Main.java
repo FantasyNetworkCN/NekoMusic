@@ -3,6 +3,7 @@ package com.neko.music;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
+import com.neko.music.database.DatabaseInitializer;
 import com.neko.music.handlers.MusicSearchHandler;
 import com.neko.music.handlers.MusicManagementHandler;
 import com.neko.music.handlers.MusicCoverHandler;
@@ -17,6 +18,7 @@ import com.neko.music.handlers.SendVerificationHandler;
 import com.neko.music.handlers.UserLoginHandler;
 import com.neko.music.handlers.UserRegisterHandler;
 import com.neko.music.handlers.UserAvatarHandler;
+import com.neko.music.handlers.UserFavoriteHandler;
 
 import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.EmailService;
@@ -66,6 +68,9 @@ public class Main {
         // 初始化数据库管理器
         databaseManager = new DatabaseManager(configManager);
         databaseManager.init();
+        
+        // 初始化数据库表
+        DatabaseInitializer.initializeTables(databaseManager);
         
         // 初始化管理员数据库管理器和认证服务
         adminDatabaseManager = new AdminDatabaseManager(databaseManager);
@@ -152,12 +157,19 @@ public class Main {
         ServletHolder userAvatarHolder = new ServletHolder(new UserAvatarHandler());
         context.addServlet(userAvatarHolder, "/api/user/avatar/*");
         
+        // 注册用户收藏API处理器
+        ServletHolder userFavoriteHolder = new ServletHolder(new UserFavoriteHandler());
+        context.addServlet(userFavoriteHolder, "/api/user/favorites/*");
+        
         // 启动服务器
         server.start();
         logger.info("NekoMusic服务器已在端口{}启动", configManager.getPort());
         logger.info("API端点:");
         logger.info("  POST /api/music/search - 搜索音乐");
         logger.info("  GET /api/user/avatar/* - 获取用户头像");
+        logger.info("  GET /api/user/favorites - 获取用户收藏列表 (需要用户登录)");
+        logger.info("  POST /api/user/favorites - 添加收藏 (需要用户登录)");
+        logger.info("  DELETE /api/user/favorites/{id} - 删除收藏 (需要用户登录)");
         logger.info("  GET /api/music/list - 获取音乐列表 (需要管理员登录)");
         logger.info("  GET /api/music/{id} - 获取特定音乐 (需要管理员登录)");
         logger.info("  GET /api/music/info/{id} - 获取音乐信息");
