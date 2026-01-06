@@ -102,26 +102,57 @@ const selectResult = (result) => {
 
 // 播放音乐 - 通过全局播放器播放
 const playMusic = async (result) => {
+  // 先获取当前播放列表，如果没有则从后端获取
+  let playlist = JSON.parse(localStorage.getItem('globalPlaylist') || '[]');
+  
+  // 检查当前音乐是否已经在播放列表中
+  const existingIndex = playlist.findIndex(item => item.id === result.id);
+  if (existingIndex === -1) {
+    // 如果当前音乐不在播放列表中，则添加到列表中
+    playlist.push(result);
+    // 保存更新后的播放列表
+    localStorage.setItem('globalPlaylist', JSON.stringify(playlist));
+    
+    // 立即广播播放列表更新事件，确保 GlobalPlayer 组件收到通知
+    const playlistEvent = new CustomEvent('playlistUpdated', {
+      detail: {
+        playlist: playlist
+      }
+    });
+    window.dispatchEvent(playlistEvent);
+  }
+  
   // 设置当前播放的音乐到localStorage，触发全局播放器
   localStorage.setItem('currentPlayingMusic', JSON.stringify(result));
   
-  // 等待一会儿，让全局播放器加载音乐
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  // 更新全局播放器状态为播放
+  // 立即更新播放状态为播放，并清零时间（从0.1开始）
   const state = {
     isPlaying: true,
-    currentTime: 0,
+    currentTime: 0.1,  // 确保进度条从0.1开始
     duration: result.duration || 0
   };
   localStorage.setItem('globalPlayerState', JSON.stringify(state));
   
-  // 触发storage事件，确保全局播放器能响应变化
-  window.dispatchEvent(new StorageEvent('storage', {
-    key: 'globalPlayerState',
-    newValue: JSON.stringify(state),
-    oldValue: localStorage.getItem('globalPlayerState')
-  }));
+  // 立即广播播放状态变化
+  const event = new CustomEvent('playerStateChange', {
+    detail: {
+      isPlaying: state.isPlaying,
+      currentTime: state.currentTime,
+      duration: state.duration,
+      currentMusic: result
+    }
+  });
+  window.dispatchEvent(event);
+  
+  // 立即触发强制播放
+  setTimeout(() => {
+    window.dispatchEvent(new Event('forcePlay'));
+  }, 10);
+  
+  // 再次确保播放器状态同步
+  setTimeout(() => {
+    window.dispatchEvent(new Event('forcePlay'));
+  }, 100);
 }
 
 // 下载音乐
