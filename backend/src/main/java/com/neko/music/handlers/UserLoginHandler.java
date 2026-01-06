@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.UserAuthService;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import jakarta.servlet.annotation.WebServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +16,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -28,28 +25,10 @@ public class UserLoginHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserLoginHandler.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private UserAuthService userAuthService;
-    private com.neko.music.config.ConfigManager configManager;
 
     @Override
     public void init() throws ServletException {
         userAuthService = Main.getUserAuthService();
-        configManager = Main.getConfigManager();
-    }
-
-    // 生成JWT token
-    private String generateToken(User user) {
-        long expirationTime = configManager.getJwtExpiration() * 1000; // 转换为毫秒
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + expirationTime);
-        
-        return Jwts.builder()
-                .setSubject(user.getUsername())
-                .claim("id", user.getId())
-                .claim("email", user.getEmail())
-                .setIssuedAt(now)
-                .setExpiration(expiryDate)
-                .signWith(SignatureAlgorithm.HS512, configManager.getJwtSecret())
-                .compact();
     }
 
     @Override
@@ -108,8 +87,14 @@ public class UserLoginHandler extends HttpServlet {
                 User user = userOpt.get();
                 logger.info("用户登录成功: {}", user.getUsername());
                 
-                // 生成JWT token
-                String token = generateToken(user);
+                // 生成token并保存到数据库
+                String token = userAuthService.createTokenForUser(user.getId());
+                
+                if (token == null) {
+                    logger.error("生成token失败: {}", user.getUsername());
+                    sendResponse(response, false, "登录失败，请稍后重试", null);
+                    return;
+                }
                 
                 // 返回用户信息（不包含密码）和token
                 Map<String, Object> userData = new HashMap<>();

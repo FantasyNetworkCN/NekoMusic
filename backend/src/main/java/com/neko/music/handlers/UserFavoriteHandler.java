@@ -1,0 +1,259 @@
+package com.neko.music.handlers;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.neko.music.Main;
+import com.neko.music.service.UserAuthService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class UserFavoriteHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(UserFavoriteHandler.class);
+    private final Gson gson = new Gson();
+    
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        // 获取收藏列表
+        String token = req.getHeader("Authorization");
+        
+        if (token == null || token.isEmpty()) {
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            return;
+        }
+        
+        // 验证token并获取用户ID
+        Integer userId = validateToken(token);
+        if (userId == null) {
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            return;
+        }
+        
+        try {
+            List<JsonObject> favorites = getUserFavorites(userId);
+            JsonObject response = new JsonObject();
+            response.addProperty("success", true);
+            response.add("favorites", gson.toJsonTree(favorites));
+            
+            sendSuccessResponse(resp, response);
+        } catch (Exception e) {
+            logger.error("获取收藏列表失败: {}", e.getMessage(), e);
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取收藏列表失败");
+        }
+    }
+    
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        // 添加收藏
+        String token = req.getHeader("Authorization");
+        
+        if (token == null || token.isEmpty()) {
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            return;
+        }
+        
+        // 验证token并获取用户ID
+        Integer userId = validateToken(token);
+        if (userId == null) {
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            return;
+        }
+        
+        // 读取请求体
+        StringBuilder sb = new StringBuilder();
+        String line;
+        try (BufferedReader reader = req.getReader()) {
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+        }
+        
+        JsonObject requestBody = gson.fromJson(sb.toString(), JsonObject.class);
+        int musicId = requestBody.get("musicId").getAsInt();
+        
+        try {
+            boolean success = addFavorite(userId, musicId);
+            if (success) {
+                JsonObject response = new JsonObject();
+                response.addProperty("success", true);
+                response.addProperty("message", "收藏成功");
+                sendSuccessResponse(resp, response);
+            } else {
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "收藏失败或已存在");
+            }
+        } catch (Exception e) {
+            logger.error("添加收藏失败: {}", e.getMessage(), e);
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "添加收藏失败");
+        }
+    }
+    
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        // 删除收藏
+        String token = req.getHeader("Authorization");
+        
+        if (token == null || token.isEmpty()) {
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            return;
+        }
+        
+        // 验证token并获取用户ID
+        Integer userId = validateToken(token);
+        if (userId == null) {
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            return;
+        }
+        
+        // 从路径中获取音乐ID
+        String pathInfo = req.getPathInfo();
+        if (pathInfo == null || pathInfo.equals("/")) {
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少音乐ID");
+            return;
+        }
+        
+        try {
+            int musicId = Integer.parseInt(pathInfo.substring(1));
+            boolean success = removeFavorite(userId, musicId);
+            
+            if (success) {
+                JsonObject response = new JsonObject();
+                response.addProperty("success", true);
+                response.addProperty("message", "取消收藏成功");
+                sendSuccessResponse(resp, response);
+            } else {
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "取消收藏失败");
+            }
+        } catch (NumberFormatException e) {
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的音乐ID");
+        } catch (Exception e) {
+            logger.error("删除收藏失败: {}", e.getMessage(), e);
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "删除收藏失败");
+        }
+    }
+    
+    private Integer validateToken(String token) {
+        String sql = "SELECT user_id FROM user_tokens WHERE token = ? AND expires_at > NOW()";
+        
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, token);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getInt("user_id");
+            }
+        } catch (SQLException e) {
+            logger.error("验证token失败: {}", e.getMessage(), e);
+        }
+        
+        return null;
+    }
+    
+    private List<JsonObject> getUserFavorites(int userId) throws SQLException {
+        List<JsonObject> favorites = new ArrayList<>();
+        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.filename " +
+                     "FROM user_favorites uf " +
+                     "JOIN music m ON uf.music_id = m.id " +
+                     "WHERE uf.user_id = ? " +
+                     "ORDER BY uf.created_at DESC";
+        
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, userId);
+            ResultSet rs = stmt.executeQuery();
+            
+            while (rs.next()) {
+                JsonObject music = new JsonObject();
+                music.addProperty("id", rs.getInt("id"));
+                music.addProperty("title", rs.getString("title"));
+                music.addProperty("artist", rs.getString("artist"));
+                music.addProperty("album", rs.getString("album"));
+                music.addProperty("duration", rs.getInt("duration"));
+                music.addProperty("filename", rs.getString("filename"));
+                favorites.add(music);
+            }
+        }
+        
+        return favorites;
+    }
+    
+    private boolean addFavorite(int userId, int musicId) throws SQLException {
+        // 检查是否已经收藏
+        String checkSql = "SELECT COUNT(*) FROM user_favorites WHERE user_id = ? AND music_id = ?";
+        
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+            
+            checkStmt.setInt(1, userId);
+            checkStmt.setInt(2, musicId);
+            ResultSet rs = checkStmt.executeQuery();
+            
+            if (rs.next() && rs.getInt(1) > 0) {
+                return false; // 已经收藏
+            }
+        }
+        
+        // 添加收藏
+        String sql = "INSERT INTO user_favorites (user_id, music_id, created_at) VALUES (?, ?, NOW())";
+        
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, userId);
+            stmt.setInt(2, musicId);
+            
+            return stmt.executeUpdate() > 0;
+        }
+    }
+    
+    private boolean removeFavorite(int userId, int musicId) throws SQLException {
+        String sql = "DELETE FROM user_favorites WHERE user_id = ? AND music_id = ?";
+        
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, userId);
+            stmt.setInt(2, musicId);
+            
+            return stmt.executeUpdate() > 0;
+        }
+    }
+    
+    private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
+        resp.setContentType("application/json");
+        resp.setCharacterEncoding("UTF-8");
+        resp.setStatus(HttpServletResponse.SC_OK);
+        
+        try (PrintWriter writer = resp.getWriter()) {
+            writer.print(response.toString());
+            writer.flush();
+        }
+    }
+    
+    private void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
+        JsonObject response = new JsonObject();
+        response.addProperty("success", false);
+        response.addProperty("message", message);
+        
+        resp.setContentType("application/json");
+        resp.setCharacterEncoding("UTF-8");
+        resp.setStatus(statusCode);
+        
+        try (PrintWriter writer = resp.getWriter()) {
+            writer.print(response.toString());
+            writer.flush();
+        }
+    }
+}
