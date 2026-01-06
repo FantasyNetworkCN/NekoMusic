@@ -15,10 +15,46 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  build: {
+    // 生产环境构建优化
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // 生产环境移除 console
+        drop_debugger: true,
+      },
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router'],
+          'ui-vendor': ['vue-toastification'],
+        },
+        // 文件名哈希，利于缓存
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+      },
+    },
+    // 文件大小警告阈值
+    chunkSizeWarningLimit: 500,
+  },
   server: {
     host: true,
     port: 5173,
     strictPort: false,
-    allowedHosts: ['music.cnmsb.xin']
-  }
+    allowedHosts: ['music.cnmsb.xin', 'localhost'],
+    // 开发环境也启用生产级别的优化
+    hmr: true,
+  },
+  // 确保开发和生产环境行为一致
+  define: {
+    __VUE_OPTIONS_API__: true,
+    __VUE_PROD_DEVTOOLS__: false,
+    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
+  },
+  // 优化依赖预构建
+  optimizeDeps: {
+    include: ['vue', 'vue-router', 'vue-toastification'],
+  },
 })
