@@ -17,10 +17,10 @@
           
           <div class="admin-controls">
             <div class="filter-section">
-              <select v-model="filterRole" class="filter-select">
-                <option value="">所有角色</option>
-                <option value="admin">管理员</option>
-                <option value="user">普通用户</option>
+              <select v-model="accountType" class="filter-select">
+                <option value="">所有账户</option>
+                <option value="admin">管理员账户</option>
+                <option value="user">用户账户</option>
               </select>
               <input 
                 type="text" 
@@ -36,44 +36,21 @@
               <table class="users-table">
                 <thead>
                   <tr>
+                    <th>ID</th>
                     <th>用户名</th>
                     <th>邮箱</th>
-                    <th>角色</th>
                     <th>注册时间</th>
-                    <th>最后登录</th>
-                    <th>状态</th>
                     <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="user in filteredUsers" :key="user.id">
+                    <td>{{ user.id }}</td>
                     <td>{{ user.username }}</td>
                     <td>{{ user.email }}</td>
-                    <td>
-                      <select 
-                        :value="user.role" 
-                        @change="changeUserRole(user.id, $event.target.value)"
-                        class="role-select"
-                      >
-                        <option value="user">普通用户</option>
-                        <option value="admin">管理员</option>
-                      </select>
-                    </td>
                     <td>{{ formatDate(user.registerTime) }}</td>
-                    <td>{{ user.lastLogin ? formatDate(user.lastLogin) : '从未登录' }}</td>
-                    <td>
-                      <span :class="['status-badge', user.status]">
-                        {{ user.status === 'active' ? '活跃' : '禁用' }}
-                      </span>
-                    </td>
                     <td>
                       <button class="action-btn edit-btn" @click="editUser(user)">编辑</button>
-                      <button 
-                        :class="['action-btn', user.status === 'active' ? 'disable-btn' : 'enable-btn']" 
-                        @click="toggleUserStatus(user.id, user.status)"
-                      >
-                        {{ user.status === 'active' ? '禁用' : '启用' }}
-                      </button>
                       <button class="action-btn delete-btn" @click="deleteUser(user.id)">删除</button>
                     </td>
                   </tr>
@@ -102,6 +79,40 @@
         </div>
       </div>
     </div>
+    
+    <!-- 编辑用户模态框 -->
+    <Transition name="modal">
+      <div v-if="editingUser" class="edit-modal-overlay" @click="closeEditModal">
+        <div class="edit-modal" @click.stop>
+          <div class="modal-header">
+            <h3>编辑用户</h3>
+            <button class="close-btn" @click="closeEditModal">&times;</button>
+          </div>
+          <div class="modal-content">
+            <div class="form-group">
+              <label>用户名</label>
+              <input type="text" v-model="editingUser.username" disabled class="disabled-input" />
+            </div>
+            <div class="form-group">
+              <label>邮箱</label>
+              <input type="email" v-model="editingUser.email" disabled class="disabled-input" />
+            </div>
+            <div class="form-group">
+              <label>新密码</label>
+              <input type="password" v-model="editingUser.newPassword" placeholder="如果不修改密码请留空" />
+            </div>
+            <div class="form-group">
+              <label>确认新密码</label>
+              <input type="password" v-model="editingUser.confirmPassword" placeholder="如果不修改密码请留空" />
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="secondary-btn" @click="closeEditModal">取消</button>
+            <button class="primary-btn" @click="saveUserEdit">保存</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -110,6 +121,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminSidebar from '@/components/AdminSidebar.vue'
 import { useToast } from 'vue-toastification'
+import API_CONFIG from '@/config/apiConfig.js'
 
 const toast = useToast()
 
@@ -117,6 +129,13 @@ const router = useRouter()
 
 // 管理员信息
 const adminInfo = ref({})
+const searchQuery = ref('')
+const accountType = ref('')
+const currentPage = ref(1)
+const usersPerPage = 10
+
+// 编辑用户
+const editingUser = ref(null)
 
 // 检查管理员登录状态
 onMounted(() => {
@@ -127,6 +146,8 @@ onMounted(() => {
     try {
       const parsedInfo = JSON.parse(storedAdminInfo)
       adminInfo.value = parsedInfo
+      // 加载用户数据
+      loadAllUsers()
     } catch (e) {
       console.error('解析管理员信息失败:', e)
       router.push('/admin/login')
@@ -137,23 +158,66 @@ onMounted(() => {
 })
 
 // 用户数据
-const users = ref([
-  { id: 1, username: 'admin', email: 'admin@example.com', role: 'admin', registerTime: new Date(), lastLogin: new Date(), status: 'active' },
-  { id: 2, username: 'user1', email: 'user1@example.com', role: 'user', registerTime: new Date(Date.now() - 86400000), lastLogin: new Date(Date.now() - 3600000), status: 'active' },
-  { id: 3, username: 'user2', email: 'user2@example.com', role: 'user', registerTime: new Date(Date.now() - 172800000), lastLogin: null, status: 'inactive' },
-  { id: 4, username: 'user3', email: 'user3@example.com', role: 'user', registerTime: new Date(Date.now() - 259200000), lastLogin: new Date(Date.now() - 86400000), status: 'active' },
-  { id: 5, username: 'moderator', email: 'moderator@example.com', role: 'admin', registerTime: new Date(Date.now() - 345600000), lastLogin: new Date(Date.now() - 1800000), status: 'active' }
-])
+const adminUsers = ref([])
+const regularUsers = ref([])
 
-// 过滤和搜索
-const searchQuery = ref('')
-const filterRole = ref('')
-const currentPage = ref(1)
-const usersPerPage = 5
+// 获取管理员用户列表
+const fetchAdminUsers = async () => {
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/users`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+      }
+    })
+    const data = await response.json()
+    console.log('管理员用户数据:', data)
+    if (data.success) {
+      adminUsers.value = data.data.map(user => ({
+        ...user,
+        accountType: 'admin'
+      }))
+      console.log('处理后的管理员用户:', adminUsers.value)
+    } else {
+      console.error('获取管理员用户失败:', data.message)
+    }
+  } catch (error) {
+    console.error('获取管理员用户失败:', error)
+  }
+}
+
+// 获取普通用户列表
+const fetchRegularUsers = async () => {
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/users`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+      }
+    })
+    const data = await response.json()
+    if (data.success) {
+      regularUsers.value = data.data.map(user => ({
+        ...user,
+        accountType: 'user'
+      }))
+    }
+  } catch (error) {
+    console.error('获取普通用户失败:', error)
+  }
+}
+
+// 合并所有用户
+const allUsers = computed(() => {
+  return [...adminUsers.value, ...regularUsers.value]
+})
 
 // 计算过滤后的用户列表
 const filteredUsers = computed(() => {
-  let result = users.value
+  let result = allUsers.value
+  
+  // 按账户类型过滤
+  if (accountType.value) {
+    result = result.filter(user => user.accountType === accountType.value)
+  }
   
   // 按搜索查询过滤
   if (searchQuery.value) {
@@ -164,11 +228,6 @@ const filteredUsers = computed(() => {
     )
   }
   
-  // 按角色过滤
-  if (filterRole.value) {
-    result = result.filter(user => user.role === filterRole.value)
-  }
-  
   // 计算分页
   const startIndex = (currentPage.value - 1) * usersPerPage
   const endIndex = startIndex + usersPerPage
@@ -177,23 +236,23 @@ const filteredUsers = computed(() => {
 
 // 计算总页数
 const totalPages = computed(() => {
-  let count = users.value.length
+  let count = allUsers.value.length
+  
+  // 应用账户类型过滤
+  if (accountType.value) {
+    count = allUsers.value.filter(user => user.accountType === accountType.value).length
+  }
   
   // 应用搜索过滤
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    count = users.value.filter(user => 
-      user.username.toLowerCase().includes(query) || 
-      user.email.toLowerCase().includes(query)
+    count = allUsers.value.filter(user => 
+      user.accountType === (accountType.value || user.accountType) &&
+      (user.username.toLowerCase().includes(query) || user.email.toLowerCase().includes(query))
     ).length
   }
   
-  // 应用角色过滤
-  if (filterRole.value) {
-    count = users.value.filter(user => user.role === filterRole.value).length
-  }
-  
-  return Math.ceil(count / usersPerPage)
+  return Math.max(1, Math.ceil(count / usersPerPage))
 })
 
 // 格式化日期
@@ -202,42 +261,123 @@ const formatDate = (date) => {
   return new Date(date).toLocaleDateString('zh-CN')
 }
 
-// 更改用户角色
-const changeUserRole = (userId, newRole) => {
-  const user = users.value.find(u => u.id === userId)
-  if (user) {
-    user.role = newRole
-    toast.success(`用户 ${user.username} 的角色已更改为 ${newRole}`)
-  }
-}
-
-// 切换用户状态
-const toggleUserStatus = (userId, currentStatus) => {
-  const user = users.value.find(u => u.id === userId)
-  if (user) {
-    const newStatus = currentStatus === 'active' ? 'inactive' : 'active'
-    if (confirm(`确定要${newStatus === 'active' ? '启用' : '禁用'}用户 ${user.username} 吗？`)) {
-      user.status = newStatus
-    }
-  }
-}
-
 // 编辑用户
 const editUser = (user) => {
-  toast.info(`编辑用户: ${user.username}`)
-  // 这里可以实现编辑功能
+  editingUser.value = {
+    ...user,
+    newPassword: '',
+    confirmPassword: ''
+  }
+}
+
+// 关闭编辑模态框
+const closeEditModal = () => {
+  editingUser.value = null
+}
+
+// 保存用户编辑
+const saveUserEdit = async () => {
+  if (!editingUser.value.newPassword && !editingUser.value.confirmPassword) {
+    toast.info('密码未修改')
+    closeEditModal()
+    return
+  }
+  
+  if (editingUser.value.newPassword !== editingUser.value.confirmPassword) {
+    toast.error('两次输入的密码不一致')
+    return
+  }
+  
+  if (editingUser.value.newPassword.length < 6) {
+    toast.error('密码长度不能少于6位')
+    return
+  }
+  
+  try {
+    let endpoint
+    let requestBody
+    
+    if (editingUser.value.accountType === 'admin') {
+      // 管理员账户使用专用 API
+      endpoint = `${API_CONFIG.BASE_URL}/api/admin/users/${editingUser.value.id}/edit`
+      requestBody = {
+        password: editingUser.value.newPassword
+      }
+    } else {
+      // 普通用户使用专用 API
+      endpoint = `${API_CONFIG.BASE_URL}/api/users/${editingUser.value.id}/edit`
+      requestBody = {
+        password: editingUser.value.newPassword
+      }
+    }
+    
+    const response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+      },
+      body: JSON.stringify(requestBody)
+    })
+    
+    const data = await response.json()
+    if (data.success) {
+      toast.success('密码修改成功')
+      closeEditModal()
+    } else {
+      toast.error(data.message || '密码修改失败')
+    }
+  } catch (error) {
+    console.error('密码修改失败:', error)
+    toast.error('密码修改失败')
+  }
 }
 
 // 删除用户
-const deleteUser = (userId) => {
-  const user = users.value.find(u => u.id === userId)
+const deleteUser = async (userId) => {
+  const user = allUsers.value.find(u => u.id === userId)
   if (user && confirm(`确定要删除用户 ${user.username} 吗？此操作不可撤销。`)) {
-    users.value = users.value.filter(u => u.id !== userId)
-    // 如果当前页为空且不是第一页，则转到上一页
-    if (filteredUsers.value.length === 0 && currentPage.value > 1) {
-      currentPage.value--
+    try {
+      const endpoint = user.accountType === 'admin' 
+        ? `${API_CONFIG.BASE_URL}/api/admin/users/${userId}`
+        : `${API_CONFIG.BASE_URL}/api/users/${userId}`
+      
+      const response = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      })
+      
+      const data = await response.json()
+      if (data.success) {
+        toast.success('删除用户成功')
+        // 重新加载数据
+        if (user.accountType === 'admin') {
+          await fetchAdminUsers()
+        } else {
+          await fetchRegularUsers()
+        }
+        // 如果当前页为空且不是第一页，则转到上一页
+        if (filteredUsers.value.length === 0 && currentPage.value > 1) {
+          currentPage.value--
+        }
+      } else {
+        toast.error(data.message || '删除用户失败')
+      }
+    } catch (error) {
+      console.error('删除用户失败:', error)
+      toast.error('删除用户失败')
     }
   }
+}
+
+// 加载所有用户数据
+const loadAllUsers = async () => {
+  await Promise.all([
+    fetchAdminUsers(),
+    fetchRegularUsers()
+  ])
 }
 
 // 监听页码变化，确保不会超出范围
@@ -405,31 +545,6 @@ const logout = () => {
   background: rgba(106, 90, 205, 0.1);
 }
 
-.role-select {
-  padding: 5px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.3);
-  color: #333;
-}
-
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: bold;
-}
-
-.status-badge.active {
-  background: rgba(46, 204, 113, 0.2);
-  color: #2ecc71;
-}
-
-.status-badge.inactive {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
-}
-
 .action-btn {
   padding: 6px 12px;
   border: none;
@@ -447,24 +562,6 @@ const logout = () => {
 
 .edit-btn:hover {
   background: rgba(52, 152, 219, 0.3);
-}
-
-.disable-btn {
-  background: rgba(243, 156, 18, 0.2);
-  color: #f39c12;
-}
-
-.disable-btn:hover {
-  background: rgba(243, 156, 18, 0.3);
-}
-
-.enable-btn {
-  background: rgba(46, 204, 113, 0.2);
-  color: #2ecc71;
-}
-
-.enable-btn:hover {
-  background: rgba(46, 204, 113, 0.3);
 }
 
 .delete-btn {
@@ -508,6 +605,150 @@ const logout = () => {
 .page-info {
   color: #887bb0;
   font-size: 0.9rem;
+}
+
+/* 编辑模态框样式 */
+.edit-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.edit-modal {
+  background: white;
+  border-radius: 15px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 1px solid rgba(106, 90, 205, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #6a5acd;
+  font-size: 1.3rem;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.close-btn:hover {
+  color: #e74c3c;
+}
+
+.modal-content {
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #6a5acd;
+  font-weight: 600;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid rgba(106, 90, 205, 0.3);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #6a5acd;
+  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.1);
+}
+
+.disabled-input {
+  background: rgba(0, 0, 0, 0.05);
+  cursor: not-allowed;
+}
+
+.modal-actions {
+  padding: 20px;
+  border-top: 1px solid rgba(106, 90, 205, 0.1);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.primary-btn, .secondary-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.primary-btn {
+  background: linear-gradient(135deg, #6a5acd, #8a2be2);
+  color: white;
+}
+
+.primary-btn:hover {
+  background: linear-gradient(135deg, #5a4ab3, #7a2ad2);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(106, 90, 205, 0.3);
+}
+
+.secondary-btn {
+  background: rgba(106, 90, 205, 0.1);
+  color: #6a5acd;
+}
+
+.secondary-btn:hover {
+  background: rgba(106, 90, 205, 0.2);
+}
+
+/* 模态框过渡动画 */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
 }
 
 /* 响应式设计 */
