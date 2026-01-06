@@ -80,6 +80,12 @@
                       <label>💿 专辑</label>
                       <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
                     </div>
+                    <div class="form-group">
+                      <label>📝 歌词文件 *</label>
+                      <input type="file" @change="handleLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
+                      <div v-if="newMusic.lyricsFileName" class="file-info">已选择: {{ newMusic.lyricsFileName }}</div>
+                      <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
+                    </div>
                   </div>
                 </div>
                 <div class="form-actions modal-actions">
@@ -146,6 +152,13 @@
                     <div class="form-group">
                       <label>💿 专辑</label>
                       <input type="text" v-model="editingMusic.album" placeholder="请输入专辑" />
+                    </div>
+                    <div class="form-group">
+                      <label>📝 歌词文件 *</label>
+                      <input type="file" @change="handleEditLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
+                      <div v-if="editingMusic.lyricsFileName" class="file-info">已选择: {{ editingMusic.lyricsFileName }}</div>
+                      <div v-if="editingMusic.lyricsPath && !editingMusic.lyricsFileName" class="file-info">当前文件: {{ editingMusic.lyricsPath.split('\\').pop() }}</div>
+                      <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
                     </div>
                   </div>
                 </div>
@@ -312,6 +325,36 @@ const handleEditCoverFileChange = (event) => {
   }
 }
 
+const handleLyricsFileChange = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // 检查文件类型是否为LRC
+    if (!file.name.toLowerCase().endsWith('.lrc')) {
+      toast.error('请选择LRC格式的歌词文件')
+      event.target.value = '' // 清空选择
+      return
+    }
+    
+    newMusic.value.lyricsFile = file
+    newMusic.value.lyricsFileName = file.name
+  }
+}
+
+const handleEditLyricsFileChange = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // 检查文件类型是否为LRC
+    if (!file.name.toLowerCase().endsWith('.lrc')) {
+      toast.error('请选择LRC格式的歌词文件')
+      event.target.value = '' // 清空选择
+      return
+    }
+    
+    editingMusic.value.lyricsFile = file
+    editingMusic.value.lyricsFileName = file.name
+  }
+}
+
 // 管理员信息
 const adminInfo = ref({})
 
@@ -353,7 +396,9 @@ const newMusic = ref({
   file: null,
   fileName: '',
   coverFile: null,
-  coverFileName: ''
+  coverFileName: '',
+  lyricsFile: null,
+  lyricsFileName: ''
 })
 const editingMusic = ref(null)
 const searchQuery = ref('')
@@ -410,6 +455,12 @@ const addMusic = async () => {
     return
   }
   
+  // 验证歌词文件必填
+  if (!newMusic.value.lyricsFile) {
+    toast.error('请选择歌词文件（必填项）')
+    return
+  }
+  
   // 创建FormData对象，用于上传文件
   const formData = new FormData()
   formData.append('title', newMusic.value.title)
@@ -420,6 +471,7 @@ const addMusic = async () => {
   formData.append('duration', newMusic.value.duration || 0)
   formData.append('uploadUserId', newMusic.value.uploadUserId || 0)
   formData.append('musicFile', newMusic.value.file)
+  formData.append('lyricsFile', newMusic.value.lyricsFile)
   
   if (newMusic.value.coverFile) {
     formData.append('coverFile', newMusic.value.coverFile)
@@ -468,7 +520,9 @@ const resetForm = () => {
     file: null,
     fileName: '',
     coverFile: null,
-    coverFileName: ''
+    coverFileName: '',
+    lyricsFile: null,
+    lyricsFileName: ''
   }
   showAddForm.value = false
 }
@@ -480,7 +534,7 @@ const closeAddModal = () => {
 
 // 编辑音乐
 const editMusic = async (music) => {
-  editingMusic.value = { ...music } // 复制音乐对象以避免直接修改原数据
+  editingMusic.value = { ...music, lyricsFile: null, lyricsFileName: '', lyricsPath: `\\Music\\lyrics\\${music.id}.lrc` } // 复制音乐对象以避免直接修改原数据
 }
 
 // 关闭编辑悬浮窗
@@ -546,26 +600,33 @@ const saveEdit = async () => {
     return
   }
   
-  // 创建FormData对象，用于上传文件
-  const formData = new FormData()
-  formData.append('id', editingMusic.value.id)
-  formData.append('title', editingMusic.value.title)
-  formData.append('artist', editingMusic.value.artist)
-  formData.append('language', editingMusic.value.language)
-  formData.append('tags', editingMusic.value.tags || '')
-  formData.append('album', editingMusic.value.album || '未知专辑')
-  formData.append('duration', editingMusic.value.duration || 0)
-  formData.append('uploadUserId', editingMusic.value.uploadUserId || 0)
-  
-  if (editingMusic.value.file) {
-    formData.append('musicFile', editingMusic.value.file)
-  }
-  
-  if (editingMusic.value.coverFile) {
-    formData.append('coverFile', editingMusic.value.coverFile)
+  // 验证歌词文件必填
+  if (!editingMusic.value.lyricsFile) {
+    toast.error('请选择歌词文件（必填项）')
+    return
   }
   
   try {
+    // 创建FormData对象，用于上传文件
+    const formData = new FormData()
+    formData.append('id', editingMusic.value.id)
+    formData.append('title', editingMusic.value.title)
+    formData.append('artist', editingMusic.value.artist)
+    formData.append('language', editingMusic.value.language)
+    formData.append('tags', editingMusic.value.tags || '')
+    formData.append('album', editingMusic.value.album || '未知专辑')
+    formData.append('duration', editingMusic.value.duration || 0)
+    formData.append('uploadUserId', editingMusic.value.uploadUserId || 0)
+    formData.append('lyricsFile', editingMusic.value.lyricsFile)
+    
+    if (editingMusic.value.file) {
+      formData.append('musicFile', editingMusic.value.file)
+    }
+    
+    if (editingMusic.value.coverFile) {
+      formData.append('coverFile', editingMusic.value.coverFile)
+    }
+    
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/upload`, {
       method: 'PUT',
       headers: {
@@ -883,20 +944,51 @@ const logout = () => {
   background: rgba(255, 255, 255, 0.4);
 }
 
+.form-group textarea {
+  padding: 12px 15px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(106, 90, 205, 0.2);
+  color: #333;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border: 1px solid rgba(106, 90, 205, 0.5);
+  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.2);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 5px;
+  font-style: italic;
+}
+
 .form-group input::file-selector-button {
   background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
   color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 15px;
-  margin-right: 10px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 0.9rem;
   transition: all 0.3s ease;
 }
 
 .form-group input::file-selector-button:hover {
-  background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
+  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
+  transform: scale(1.05);
 }
 
 .file-info {

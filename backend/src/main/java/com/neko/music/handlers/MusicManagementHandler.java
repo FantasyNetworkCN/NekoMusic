@@ -10,6 +10,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -22,6 +24,7 @@ import java.util.List;
 public class MusicManagementHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicManagementHandler.class);
     private ObjectMapper objectMapper = new ObjectMapper();
+    private static final String LYRICS_DIR = "Music/lyrics";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -384,12 +387,22 @@ public class MusicManagementHandler extends HttpServlet {
             // 解析JSON请求体
             EditMusicRequest editRequest = objectMapper.readValue(requestBody.toString(), EditMusicRequest.class);
             
+            // 验证必填字段
             if (editRequest.getId() == null || editRequest.getTitle() == null || editRequest.getTitle().trim().isEmpty() ||
                 editRequest.getArtist() == null || editRequest.getArtist().trim().isEmpty() ||
                 editRequest.getLanguage() == null || editRequest.getLanguage().trim().isEmpty()) {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐ID、标题、艺术家和语言不能为空");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
+            // 验证歌词必填
+            if (editRequest.getLyrics() == null || editRequest.getLyrics().trim().isEmpty()) {
+                response.setStatus(HttpStatus.BAD_REQUEST_400);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("歌词内容不能为空");
                 response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                 return;
             }
@@ -411,6 +424,11 @@ public class MusicManagementHandler extends HttpServlet {
                     stmt.setInt(10, editRequest.getId());
                     
                     rowsUpdated = stmt.executeUpdate();
+                }
+                
+                // 保存歌词文件到 \Music\lyrics 目录
+                if (rowsUpdated > 0) {
+                    saveLyricsFile(editRequest.getId(), editRequest.getLyrics());
                 }
             }
             
@@ -620,6 +638,7 @@ public class MusicManagementHandler extends HttpServlet {
         private String language;
         private String tags;
         private Integer uploadUserId;
+        private String lyrics; // 歌词内容
         
         // Getters and Setters
         public Integer getId() { return id; }
@@ -642,6 +661,8 @@ public class MusicManagementHandler extends HttpServlet {
         public void setTags(String tags) { this.tags = tags; }
         public Integer getUploadUserId() { return uploadUserId; }
         public void setUploadUserId(Integer uploadUserId) { this.uploadUserId = uploadUserId; }
+        public String getLyrics() { return lyrics; }
+        public void setLyrics(String lyrics) { this.lyrics = lyrics; }
     }
     
     // 内部类用于表示音乐列表响应
@@ -682,6 +703,28 @@ public class MusicManagementHandler extends HttpServlet {
         public void setMessage(String message) { this.message = message; }
         public Music getData() { return data; }
         public void setData(Music data) { this.data = data; }
+    }
+    
+    // 保存歌词文件到 \Music\lyrics 目录
+    private void saveLyricsFile(Integer musicId, String lyricsContent) {
+        try {
+            // 构建歌词文件路径
+            String lyricsFilePath = LYRICS_DIR + File.separator + musicId.toString() + ".lrc";
+            java.io.File lyricsFile = new java.io.File(lyricsFilePath);
+            
+            // 创建歌词目录（如果不存在）
+            java.io.File lyricsDir = lyricsFile.getParentFile();
+            if (!lyricsDir.exists()) {
+                lyricsDir.mkdirs();
+            }
+            
+            // 写入歌词内容
+            java.nio.file.Files.write(lyricsFile.toPath(), lyricsContent.getBytes("UTF-8"));
+            
+            logger.info("歌词文件已保存: {}", lyricsFile.getAbsolutePath());
+        } catch (Exception e) {
+            logger.error("保存歌词文件失败: {}", e.getMessage(), e);
+        }
     }
     
     // 内部类用于表示成功响应

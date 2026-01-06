@@ -34,9 +34,10 @@ public class FileUploadHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(FileUploadHandler.class);
     private ObjectMapper objectMapper = new ObjectMapper();
     
-    // 定义上传目录
+    // 定义上传目录（相对于JAR运行目录）
     private static final String MUSIC_DIR = "Music/music";
     private static final String COVER_DIR = "Music/covers";
+    private static final String LYRICS_DIR = "Music/lyrics";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -65,6 +66,7 @@ public class FileUploadHandler extends HttpServlet {
             Integer uploadUserId = null;
             Part musicFilePart = null;
             Part coverFilePart = null;
+            Part lyricsFilePart = null;
             
             // 解析表单字段和文件
             for (Part part : parts) {
@@ -102,6 +104,8 @@ public class FileUploadHandler extends HttpServlet {
                     musicFilePart = part;
                 } else if ("coverFile".equals(fieldName) && part.getSize() > 0) {
                     coverFilePart = part;
+                } else if ("lyricsFile".equals(fieldName) && part.getSize() > 0) {
+                    lyricsFilePart = part;
                 }
             }
             
@@ -111,6 +115,25 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐标题、艺术家和语言不能为空");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
+            // 验证歌词文件必填
+            if (lyricsFilePart == null) {
+                response.setStatus(HttpStatus.BAD_REQUEST_400);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("歌词文件不能为空");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
+            // 检查歌词文件类型
+            String lyricsFileName = getFileName(lyricsFilePart);
+            if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
+                response.setStatus(HttpStatus.BAD_REQUEST_400);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("只支持LRC格式的歌词文件");
                 response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                 return;
             }
@@ -192,6 +215,9 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
             
+            // 保存歌词文件
+            saveLyricsFile(musicId, lyricsFilePart);
+            
             // 更新数据库中的文件路径
             updateFilePathsInDatabase(musicId, musicFilePath, coverFilePath);
             
@@ -240,6 +266,7 @@ public class FileUploadHandler extends HttpServlet {
             Integer uploadUserId = null;
             Part musicFilePart = null;
             Part coverFilePart = null;
+            Part lyricsFilePart = null;
             
             // 解析表单字段和文件
             for (Part part : parts) {
@@ -286,6 +313,8 @@ public class FileUploadHandler extends HttpServlet {
                     musicFilePart = part;
                 } else if ("coverFile".equals(fieldName) && part.getSize() > 0) {
                     coverFilePart = part;
+                } else if ("lyricsFile".equals(fieldName) && part.getSize() > 0) {
+                    lyricsFilePart = part;
                 }
             }
             
@@ -294,6 +323,25 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐ID、标题和艺术家不能为空");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
+            // 验证歌词文件必填
+            if (lyricsFilePart == null) {
+                response.setStatus(HttpStatus.BAD_REQUEST_400);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("歌词文件不能为空");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
+            // 检查歌词文件类型
+            String lyricsFileName = getFileName(lyricsFilePart);
+            if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
+                response.setStatus(HttpStatus.BAD_REQUEST_400);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("只支持LRC格式的歌词文件");
                 response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                 return;
             }
@@ -376,6 +424,9 @@ public class FileUploadHandler extends HttpServlet {
                     logger.info("封面文件已保存到: " + coverFilePath);
                 }
             }
+            
+            // 保存歌词文件
+            saveLyricsFile(id, lyricsFilePart);
             
             // 更新数据库中的音乐信息
             updateMusicInDatabase(id, title, artist, album, language, tags, duration, musicFilePath, coverFilePath, uploadUserId);
@@ -675,5 +726,27 @@ public class FileUploadHandler extends HttpServlet {
         
         public String getError() { return error; }
         public void setError(String error) { this.error = error; }
+    }
+    
+    // 保存歌词文件
+    private void saveLyricsFile(int musicId, Part lyricsFilePart) {
+        try {
+            // 创建歌词目录（如果不存在）
+            Path lyricsPath = Paths.get(LYRICS_DIR);
+            Files.createDirectories(lyricsPath);
+            
+            // 构建歌词文件路径
+            String lyricsFilePath = LYRICS_DIR + File.separator + musicId + ".lrc";
+            Path lyricsFile = Paths.get(lyricsFilePath);
+            
+            // 保存歌词文件
+            try (InputStream inputStream = lyricsFilePart.getInputStream()) {
+                Files.copy(inputStream, lyricsFile);
+            }
+            
+            logger.info("歌词文件已保存到: " + lyricsFile.toAbsolutePath());
+        } catch (Exception e) {
+            logger.error("保存歌词文件失败", e);
+        }
     }
 }

@@ -20,6 +20,7 @@ import java.nio.file.Paths;
 public class MusicLyricsHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicLyricsHandler.class);
     private ObjectMapper objectMapper = new ObjectMapper();
+    private static final String LYRICS_DIR = "Music/lyrics";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -148,16 +149,11 @@ public class MusicLyricsHandler extends HttpServlet {
     private String getLyricsById(int musicId) {
         try {
             // 构建歌词文件路径
-            String lyricsDir = System.getProperty("user.dir") + "/Music/lyrics";
-            File lyricsDirFile = new File(lyricsDir);
-            if (!lyricsDirFile.exists()) {
-                lyricsDirFile.mkdirs();
-            }
-            
-            String lyricsFilePath = lyricsDir + "/" + musicId + ".lrc";
+            String lyricsFilePath = LYRICS_DIR + File.separator + musicId + ".lrc";
             File lyricsFile = new File(lyricsFilePath);
             
             if (!lyricsFile.exists()) {
+                logger.debug("歌词文件不存在: {}", lyricsFile.getAbsolutePath());
                 return null; // 歌词文件不存在
             }
             
@@ -175,9 +171,10 @@ public class MusicLyricsHandler extends HttpServlet {
                 content.deleteCharAt(content.length() - 1);
             }
             
+            logger.info("成功读取歌词文件: {}", lyricsFile.getAbsolutePath());
             return content.toString();
         } catch (Exception e) {
-            logger.error("读取歌词文件时出错", e);
+            logger.error("读取歌词文件时出错: {}", e.getMessage(), e);
             return null;
         }
     }
@@ -187,15 +184,8 @@ public class MusicLyricsHandler extends HttpServlet {
      */
     private boolean updateLyricsFile(int musicId, String lyrics) {
         try {
-            // 构建歌词文件目录
-            String lyricsDir = System.getProperty("user.dir") + "/Music/lyrics";
-            File lyricsDirFile = new File(lyricsDir);
-            if (!lyricsDirFile.exists()) {
-                lyricsDirFile.mkdirs();
-            }
-            
             // 构建歌词文件路径
-            String lyricsFilePath = lyricsDir + "/" + musicId + ".lrc";
+            String lyricsFilePath = LYRICS_DIR + File.separator + musicId + ".lrc";
             File lyricsFile = new File(lyricsFilePath);
             
             // 写入歌词内容
@@ -203,9 +193,10 @@ public class MusicLyricsHandler extends HttpServlet {
                 writer.write(lyrics);
             }
             
+            logger.info("成功更新歌词文件: {}", lyricsFile.getAbsolutePath());
             return true;
         } catch (Exception e) {
-            logger.error("更新歌词文件时出错", e);
+            logger.error("更新歌词文件时出错: {}", e.getMessage(), e);
             return false;
         }
     }
