@@ -98,6 +98,16 @@
               <path d="M981.333333 533.333333a21.333333 21.333333 0 0 1-21.333333 21.333334H448a21.333333 21.333333 0 0 1 0-42.666667h512a21.333333 21.333333 0 0 1 21.333333 21.333333zM533.333333 170.666667h426.666667a21.333333 21.333333 0 0 0 0-42.666667H533.333333a21.333333 21.333333 0 0 0 0 42.666667z m426.666667 725.333333H64a21.333333 21.333333 0 0 0 0 42.666667h896a21.333333 21.333333 0 0 0 0-42.666667zM89.66 696.753333C117.333333 715.186667 153.646667 725.333333 192 725.333333s74.7-10.146667 102.34-28.58c14.253333-9.5 25.56-20.746667 33.613333-33.44C336.833333 649.333333 341.333333 634.3 341.333333 618.666667V182a140.893333 140.893333 0 0 0 30.966667 27.82A21.18 21.18 0 0 0 376.666667 212c8.713333 3.2 16.773333 8.606667 23.953333 16.086667 16.733333 17.42 23.806667 41.146667 26.533333 53.733333a21.333333 21.333333 0 0 0 41.706667-9.026667c-4.5-20.773333-14.666667-50.513333-37.466667-74.266666-11.04-11.493333-23.64-20.093333-37.493333-25.606667-10.306667-7.126667-19.44-16.58-27.153333-28.133333-19.64-29.393333-24.373333-64.04-25.446667-82.08A21.333333 21.333333 0 0 0 298.666667 64v479.586667c-1.413333-1.02-2.846667-2-4.326667-3.006667C266.7 522.146667 230.353333 512 192 512s-74.666667 10.146667-102.34 28.58C75.406667 550.08 64.1 561.333333 56.046667 574 47.166667 588 42.666667 603.033333 42.666667 618.666667s4.5 30.666667 13.38 44.666666c8.053333 12.666667 19.36 23.92 33.613333 33.42z" fill="currentColor"/>
             </svg>
           </button>
+          
+          <!-- 收藏按钮 -->
+          <button @click="toggleFavorite" class="favorite-btn" :title="isFavorite ? '取消收藏' : '收藏'" :disabled="!currentMusic">
+            <svg v-if="isFavorite" class="btn-icon favorite-active" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+            <svg v-else class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z" fill="#888888"/>
+            </svg>
+          </button>
         </div>
       </div>
       
@@ -143,6 +153,8 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { useToast } from 'vue-toastification'
+const toast = useToast()
 
 const router = useRouter()
 
@@ -161,9 +173,99 @@ const currentAnimationIndex = ref(-1)
 // 播放模式相关状态
 const playbackMode = ref('list_repeat') // 'list_repeat', 'single_repeat', 'shuffle'
 const playlist = ref([])
+const isFavorite = ref(false) // 当前音乐是否已收藏
 
 // 记录上一个歌词索引
 let previousLyricIndex = -1
+
+// 获取用户token
+const getToken = () => {
+  return localStorage.getItem('userToken')
+}
+
+// 切换收藏状态
+const toggleFavorite = async () => {
+  if (!currentMusic.value) return
+  
+  const token = getToken()
+  if (!token) {
+    toast.error('请先登录')
+    return
+  }
+  
+  if (isFavorite.value) {
+    // 取消收藏
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites/${currentMusic.value.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token
+        }
+      })
+      
+      const data = await response.json()
+      if (data.success) {
+        isFavorite.value = false
+        toast.success('取消收藏成功')
+      } else {
+        toast.error('取消收藏失败: ' + data.message)
+      }
+    } catch (error) {
+      console.error('取消收藏失败:', error)
+      toast.error('取消收藏失败')
+    }
+  } else {
+    // 添加收藏
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ musicId: currentMusic.value.id })
+      })
+      
+      const data = await response.json()
+      if (data.success) {
+        isFavorite.value = true
+        toast.success('收藏成功')
+      } else {
+        toast.error('收藏失败: ' + data.message)
+      }
+    } catch (error) {
+      console.error('收藏失败:', error)
+      toast.error('收藏失败')
+    }
+  }
+}
+
+// 检查当前音乐是否已收藏
+const checkFavoriteStatus = async () => {
+  if (!currentMusic.value) return
+  
+  const token = getToken()
+  if (!token) {
+    isFavorite.value = false
+    return
+  }
+  
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token
+      }
+    })
+    
+    const data = await response.json()
+    if (data.success && data.favorites) {
+      isFavorite.value = data.favorites.some(m => m.id === currentMusic.value.id)
+    }
+  } catch (error) {
+    console.error('获取收藏状态失败:', error)
+  }
+}
 
 // 播放/暂停控制
 const togglePlayPause = () => {
@@ -1001,9 +1103,12 @@ const handleStorageChange = (e) => {
         updateMediaSessionMetadata(newMusic)
         // 更新媒体会话播放位置
         updateMediaSessionPositionState()
+        // 检查收藏状态
+        checkFavoriteStatus()
       } else {
         lyrics.value = ''
         parsedLyrics.value = []
+        isFavorite.value = false
         // 清除媒体会话元数据
         if ('mediaSession' in navigator) {
           navigator.mediaSession.metadata = null
@@ -1341,6 +1446,8 @@ onMounted(() => {
       loadLyrics(currentMusic.value.id)
       // 初始化媒体会话
       initializeMediaSession(currentMusic.value)
+      // 检查收藏状态
+      checkFavoriteStatus()
     }
   }
   
@@ -1670,7 +1777,7 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.prev-btn, .next-btn, .mode-btn, .playlist-btn {
+.prev-btn, .next-btn, .mode-btn, .playlist-btn, .favorite-btn {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -1685,9 +1792,18 @@ onUnmounted(() => {
   padding: 4px;
 }
 
-.prev-btn:hover, .next-btn:hover, .mode-btn:hover, .playlist-btn:hover {
+.prev-btn:hover, .next-btn:hover, .mode-btn:hover, .playlist-btn:hover, .favorite-btn:hover {
   transform: scale(1.05);
   box-shadow: 0 6px 12px rgba(106, 90, 205, 0.6);
+}
+
+.favorite-btn.favorite-active {
+  background: linear-gradient(135deg, rgba(255, 69, 58, 0.9), rgba(220, 38, 38, 0.9));
+  box-shadow: 0 4px 8px rgba(255, 69, 58, 0.4);
+}
+
+.favorite-btn.favorite-active:hover {
+  box-shadow: 0 6px 12px rgba(255, 69, 58, 0.6);
 }
 
 .prev-btn:disabled, .next-btn:disabled, .play-pause-btn:disabled {
