@@ -41,6 +41,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { useToast } from 'vue-toastification'
+const toast = useToast()
 
 const router = useRouter()
 const favorites = ref([])
@@ -162,14 +164,14 @@ const removeFavorite = async (musicId) => {
     if (data.success) {
       // 从列表中移除
       favorites.value = favorites.value.filter(m => m.id !== musicId)
-      alert('取消收藏成功')
+      toast.success('取消收藏成功')
     } else {
       console.error('取消收藏失败:', data.message)
-      alert('取消收藏失败: ' + data.message)
+      toast.error('取消收藏失败: ' + data.message)
     }
   } catch (error) {
     console.error('取消收藏失败:', error)
-    alert('取消收藏失败')
+    toast.error('取消收藏失败')
   }
 }
 
