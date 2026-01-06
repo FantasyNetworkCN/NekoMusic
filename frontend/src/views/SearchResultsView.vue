@@ -50,6 +50,8 @@
 import { ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { useToast } from 'vue-toastification'
+const toast = useToast()
 
 const route = useRoute()
 const searchQuery = ref('')
@@ -211,8 +213,7 @@ const isFavorite = (musicId) => {
 // 切换收藏状态
 const toggleFavorite = async (result) => {
   if (!isLoggedIn()) {
-    alert('请先登录');
-    router.push('/login');
+    toast.error('请先登录');
     return;
   }
   
@@ -231,14 +232,14 @@ const toggleFavorite = async (result) => {
       const data = await response.json();
       if (data.success) {
         favoriteMusicIds.value.delete(result.id);
-        alert('取消收藏成功');
+        toast.success('取消收藏成功');
       } else {
         console.error('取消收藏失败:', data.message);
-        alert('取消收藏失败: ' + data.message);
+        toast.error('取消收藏失败: ' + data.message);
       }
     } catch (error) {
       console.error('取消收藏失败:', error);
-      alert('取消收藏失败');
+      toast.error('取消收藏失败');
     }
   } else {
     // 添加收藏
@@ -255,14 +256,14 @@ const toggleFavorite = async (result) => {
       const data = await response.json();
       if (data.success) {
         favoriteMusicIds.value.add(result.id);
-        alert('收藏成功');
+        toast.success('收藏成功');
       } else {
         console.error('收藏失败:', data.message);
-        alert('收藏失败: ' + data.message);
+        toast.error('收藏失败: ' + data.message);
       }
     } catch (error) {
       console.error('收藏失败:', error);
-      alert('收藏失败');
+      toast.error('收藏失败');
     }
   }
 }
