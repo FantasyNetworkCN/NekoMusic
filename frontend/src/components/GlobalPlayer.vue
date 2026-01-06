@@ -115,7 +115,12 @@
       <div v-if="showPlaylist" class="playlist-container">
         <div class="playlist-header">
           <h3>播放列表</h3>
-          <button @click="togglePlaylist" class="close-playlist">✕</button>
+          <div class="playlist-header-actions">
+            <button @click="clearPlaylist" class="clear-playlist-btn" title="清空列表" :disabled="playlist.length === 0">
+              清空
+            </button>
+            <button @click="togglePlaylist" class="close-playlist">✕</button>
+          </div>
         </div>
         <div class="playlist-items">
           <div 
@@ -147,6 +152,22 @@
       </div>
     </div>
   </div>
+  
+  <!-- 确认清空播放列表模态框 -->
+  <div v-if="showClearConfirm" class="confirm-modal-overlay" @click.self="showClearConfirm = false">
+    <div class="confirm-modal">
+      <div class="confirm-modal-header">
+        <h3>确认清空</h3>
+      </div>
+      <div class="confirm-modal-body">
+        <p>确定要清空播放列表吗？</p>
+      </div>
+      <div class="confirm-modal-footer">
+        <button @click="showClearConfirm = false" class="confirm-btn cancel">取消</button>
+        <button @click="confirmClearPlaylist" class="confirm-btn confirm">确定</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -174,6 +195,7 @@ const currentAnimationIndex = ref(-1)
 const playbackMode = ref('list_repeat') // 'list_repeat', 'single_repeat', 'shuffle'
 const playlist = ref([])
 const isFavorite = ref(false) // 当前音乐是否已收藏
+const showClearConfirm = ref(false) // 是否显示清空确认模态框
 
 // 记录上一个歌词索引
 let previousLyricIndex = -1
@@ -621,6 +643,40 @@ const getCurrentLyricText = () => {
 // 处理封面图片加载错误
 const handleImageError = (event) => {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`
+}
+
+// 清空播放列表
+const clearPlaylist = () => {
+  if (playlist.value.length === 0) {
+    toast.warning('播放列表已经是空的')
+    return
+  }
+  
+  // 显示确认模态框
+  showClearConfirm.value = true
+}
+
+// 确认清空播放列表
+const confirmClearPlaylist = () => {
+  // 清空播放列表
+  playlist.value = []
+  // 清空localStorage中的播放列表
+  localStorage.setItem('globalPlaylist', JSON.stringify([]))
+  // 如果当前有正在播放的音乐，保留当前音乐在列表中
+  if (currentMusic.value) {
+    playlist.value = [currentMusic.value]
+    localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
+  }
+  // 广播播放列表更新事件
+  const playlistEvent = new CustomEvent('playlistUpdated', {
+    detail: {
+      playlist: playlist.value
+    }
+  })
+  window.dispatchEvent(playlistEvent)
+  toast.success('播放列表已清空')
+  // 关闭模态框
+  showClearConfirm.value = false
 }
 
 // 播放模式切换函数
@@ -1932,6 +1988,33 @@ onUnmounted(() => {
   font-size: 1rem;
 }
 
+.playlist-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.clear-playlist-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 5px 12px;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.clear-playlist-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.clear-playlist-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .close-playlist {
   background: none;
   border: none;
@@ -2012,6 +2095,120 @@ onUnmounted(() => {
 /* 隐藏audio元素 */
 audio {
   display: none;
+}
+
+/* 确认清空播放列表模态框 */
+.confirm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.confirm-modal {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  min-width: 320px;
+  max-width: 400px;
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirm-modal-header {
+  padding: 20px 20px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.confirm-modal-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #5c4b7b;
+  font-weight: 600;
+}
+
+.confirm-modal-body {
+  padding: 20px;
+}
+
+.confirm-modal-body p {
+  margin: 0;
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.confirm-modal-footer {
+  padding: 15px 20px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.confirm-btn {
+  padding: 10px 24px;
+  border-radius: 20px;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 80px;
+}
+
+.confirm-btn.cancel {
+  background: rgba(106, 90, 205, 0.1);
+  color: #6a5acd;
+  border: 1px solid rgba(106, 90, 205, 0.3);
+}
+
+.confirm-btn.cancel:hover {
+  background: rgba(106, 90, 205, 0.2);
+  transform: translateY(-1px);
+}
+
+.confirm-btn.confirm {
+  background: linear-gradient(135deg, rgba(255, 69, 58, 0.9), rgba(220, 38, 38, 0.9));
+  color: white;
+  box-shadow: 0 4px 12px rgba(255, 69, 58, 0.4);
+}
+
+.confirm-btn.confirm:hover {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.95), rgba(185, 28, 28, 0.95));
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 69, 58, 0.6);
 }
 
 /* 响应式设计 */
