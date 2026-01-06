@@ -162,7 +162,7 @@ public class UserFavoriteHandler extends HttpServlet {
     
     private List<JsonObject> getUserFavorites(int userId) throws SQLException {
         List<JsonObject> favorites = new ArrayList<>();
-        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.filename " +
+        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.file_path " +
                      "FROM user_favorites uf " +
                      "JOIN music m ON uf.music_id = m.id " +
                      "WHERE uf.user_id = ? " +
@@ -181,7 +181,7 @@ public class UserFavoriteHandler extends HttpServlet {
                 music.addProperty("artist", rs.getString("artist"));
                 music.addProperty("album", rs.getString("album"));
                 music.addProperty("duration", rs.getInt("duration"));
-                music.addProperty("filename", rs.getString("filename"));
+                music.addProperty("filename", rs.getString("file_path"));
                 favorites.add(music);
             }
         }
