@@ -2,8 +2,18 @@
   <div class="favorites-view">
     <div class="favorites-container">
       <div class="favorites-header">
-        <h2>我的收藏</h2>
-        <p v-if="favorites.length === 0" class="empty-message">还没有收藏任何音乐</p>
+        <div class="header-left">
+          <h2>我的收藏</h2>
+          <p v-if="favorites.length === 0" class="empty-message">还没有收藏任何音乐</p>
+        </div>
+        <div class="header-right" v-if="favorites.length > 0">
+          <button @click="playAllFavorites" class="play-all-btn" title="播放全部">
+            <svg class="play-all-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            播放全部
+          </button>
+        </div>
       </div>
       
       <div v-if="favorites.length > 0" class="favorites-list">
@@ -145,6 +155,32 @@ const playMusic = async (music) => {
   }, 100)
 }
 
+// 播放全部收藏
+const playAllFavorites = () => {
+  if (favorites.value.length === 0) {
+    toast.warning('收藏列表为空')
+    return
+  }
+  
+  // 将整个收藏列表设置为播放列表
+  localStorage.setItem('globalPlaylist', JSON.stringify(favorites.value))
+  
+  // 广播播放列表更新事件
+  const playlistEvent = new CustomEvent('playlistUpdated', {
+    detail: {
+      playlist: favorites.value
+    }
+  })
+  window.dispatchEvent(playlistEvent)
+  
+  // 播放第一首
+  if (favorites.value.length > 0) {
+    playMusic(favorites.value[0])
+  }
+  
+  toast.success(`已开始播放全部 ${favorites.value.length} 首收藏音乐`)
+}
+
 // 取消收藏
 const removeFavorite = async (musicId) => {
   if (!confirm('确定要取消收藏这首音乐吗？')) {
@@ -209,7 +245,23 @@ onMounted(() => {
 
 .favorites-header {
   margin-bottom: 30px;
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
 }
 
 .favorites-header h2 {
@@ -221,6 +273,32 @@ onMounted(() => {
 .empty-message {
   color: #887bb0;
   font-size: 1.2rem;
+}
+
+.play-all-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.9), rgba(138, 43, 226, 0.9));
+  color: white;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
+}
+
+.play-all-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
+}
+
+.play-all-icon {
+  width: 20px;
+  height: 20px;
 }
 
 .favorites-list {
