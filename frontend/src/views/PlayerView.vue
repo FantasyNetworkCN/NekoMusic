@@ -24,6 +24,9 @@
           <!-- 操作按钮 -->
           <div class="action-buttons">
             <button @click="playMusic" class="play-btn">播放音乐</button>
+            <button @click="toggleFavorite" class="favorite-btn" :class="{ 'is-favorite': isFavorite(currentMusic?.id) }">
+              {{ isFavorite(currentMusic?.id) ? '❤️ 已收藏' : '🤍 收藏' }}
+            </button>
             <button @click="downloadMusic" class="download-btn">
               下载音乐
             </button>
@@ -69,6 +72,7 @@ const duration = ref(0)
 const lyrics = ref('')
 const parsedLyrics = ref([])
 const lyricsContent = ref(null)
+const favoriteMusicIds = ref(new Set()) // 存储收藏的音乐ID
 
 // 用于定时器的引用
 let timeUpdateInterval = null
@@ -282,10 +286,10 @@ const playMusic = () => {
     // 设置当前播放的音乐到localStorage，触发全局播放器
     localStorage.setItem('currentPlayingMusic', JSON.stringify(currentMusic.value));
     
-    // 立即更新播放状态为播放，并清零时间
+    // 立即更新播放状态为播放，并清零时间（从0.1开始）
     const state = {
       isPlaying: true,
-      currentTime: 0,  // 确保进度条从0开始
+      currentTime: 0.1,
       duration: currentMusic.value.duration || 0
     };
     localStorage.setItem('globalPlayerState', JSON.stringify(state));
@@ -310,6 +314,106 @@ const playMusic = () => {
     setTimeout(() => {
       window.dispatchEvent(new Event('forcePlay'));
     }, 100);
+  }
+}
+
+// 获取用户token
+const getToken = () => {
+  return localStorage.getItem('userToken');
+}
+
+// 检查用户是否登录
+const isLoggedIn = () => {
+  return !!getToken();
+}
+
+// 检查音乐是否已收藏
+const isFavorite = (musicId) => {
+  return favoriteMusicIds.value.has(musicId);
+}
+
+// 切换收藏状态
+const toggleFavorite = async () => {
+  if (!currentMusic.value) return;
+  
+  if (!isLoggedIn()) {
+    alert('请先登录');
+    return;
+  }
+  
+  const token = getToken();
+  
+  if (isFavorite(currentMusic.value.id)) {
+    // 取消收藏
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites/${currentMusic.value.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        favoriteMusicIds.value.delete(currentMusic.value.id);
+        alert('取消收藏成功');
+      } else {
+        console.error('取消收藏失败:', data.message);
+        alert('取消收藏失败: ' + data.message);
+      }
+    } catch (error) {
+      console.error('取消收藏失败:', error);
+      alert('取消收藏失败');
+    }
+  } else {
+    // 添加收藏
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ musicId: currentMusic.value.id })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        favoriteMusicIds.value.add(currentMusic.value.id);
+        alert('收藏成功');
+      } else {
+        console.error('收藏失败:', data.message);
+        alert('收藏失败: ' + data.message);
+      }
+    } catch (error) {
+      console.error('收藏失败:', error);
+      alert('收藏失败');
+    }
+  }
+}
+
+// 获取收藏列表
+const fetchFavorites = async () => {
+  if (!isLoggedIn()) {
+    return;
+  }
+  
+  try {
+    const token = getToken();
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token
+      }
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      // 提取所有收藏的音乐ID
+      favoriteMusicIds.value = new Set(data.favorites.map(m => m.id));
+    }
+  } catch (error) {
+    console.error('获取收藏列表失败:', error);
   }
 }
 
@@ -410,6 +514,9 @@ onMounted(async () => {
     // 启动定时器以持续更新歌词
     startTimer();
   }
+  
+  // 获取收藏列表
+  await fetchFavorites();
 })
 
 // 组件卸载时移除事件监听和定时器
@@ -523,6 +630,34 @@ onUnmounted(() => {
 .download-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6);
+}
+
+.favorite-btn {
+  padding: 12px 24px;
+  border-radius: 25px;
+  border: none;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 120px;
+  background: linear-gradient(135deg, rgba(255, 105, 180, 0.9), rgba(255, 20, 147, 0.9));
+  color: white;
+  box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
+}
+
+.favorite-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 105, 180, 0.6);
+}
+
+.favorite-btn.is-favorite {
+  background: linear-gradient(135deg, rgba(255, 69, 0, 0.9), rgba(220, 20, 60, 0.9));
+  box-shadow: 0 4px 15px rgba(255, 69, 0, 0.4);
+}
+
+.favorite-btn.is-favorite:hover {
+  box-shadow: 0 6px 20px rgba(255, 69, 0, 0.6);
 }
 
 /* 歌词显示区域 */

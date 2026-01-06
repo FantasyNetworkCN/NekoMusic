@@ -22,6 +22,9 @@
             <button @click.stop="playMusic(result)" class="play-btn" title="播放">
               ▶️
             </button>
+            <button @click.stop="toggleFavorite(result)" class="favorite-btn" :class="{ 'is-favorite': isFavorite(result.id) }" :title="isFavorite(result.id) ? '取消收藏' : '收藏'">
+              {{ isFavorite(result.id) ? '❤️' : '🤍' }}
+            </button>
             <button @click.stop="downloadMusic(result)" class="download-btn" title="下载">
               ⬇️
             </button>
@@ -51,6 +54,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 const route = useRoute()
 const searchQuery = ref('')
 const searchResults = ref(null)
+const favoriteMusicIds = ref(new Set()) // 存储收藏的音乐ID
 const router = useRouter()
 
 // 初始化搜索查询
@@ -189,6 +193,105 @@ const downloadMusic = async (result) => {
   }
 }
 
+// 获取用户token
+const getToken = () => {
+  return localStorage.getItem('userToken');
+}
+
+// 检查用户是否登录
+const isLoggedIn = () => {
+  return !!getToken();
+}
+
+// 检查音乐是否已收藏
+const isFavorite = (musicId) => {
+  return favoriteMusicIds.value.has(musicId);
+}
+
+// 切换收藏状态
+const toggleFavorite = async (result) => {
+  if (!isLoggedIn()) {
+    alert('请先登录');
+    router.push('/login');
+    return;
+  }
+  
+  const token = getToken();
+  
+  if (isFavorite(result.id)) {
+    // 取消收藏
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites/${result.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        favoriteMusicIds.value.delete(result.id);
+        alert('取消收藏成功');
+      } else {
+        console.error('取消收藏失败:', data.message);
+        alert('取消收藏失败: ' + data.message);
+      }
+    } catch (error) {
+      console.error('取消收藏失败:', error);
+      alert('取消收藏失败');
+    }
+  } else {
+    // 添加收藏
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ musicId: result.id })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        favoriteMusicIds.value.add(result.id);
+        alert('收藏成功');
+      } else {
+        console.error('收藏失败:', data.message);
+        alert('收藏失败: ' + data.message);
+      }
+    } catch (error) {
+      console.error('收藏失败:', error);
+      alert('收藏失败');
+    }
+  }
+}
+
+// 获取收藏列表
+const fetchFavorites = async () => {
+  if (!isLoggedIn()) {
+    return;
+  }
+  
+  try {
+    const token = getToken();
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token
+      }
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      // 提取所有收藏的音乐ID
+      favoriteMusicIds.value = new Set(data.favorites.map(m => m.id));
+    }
+  } catch (error) {
+    console.error('获取收藏列表失败:', error);
+  }
+}
+
 // 获取音乐封面URL
 const getCoverUrl = (musicId) => {
   // 返回新的API端点，通过音乐ID获取封面
@@ -218,6 +321,8 @@ onMounted(async () => {
   if (searchQuery.value && searchQuery.value !== 'undefined') {
     await searchMusic(searchQuery.value)
   }
+  // 获取收藏列表
+  await fetchFavorites()
 })
 </script>
 
@@ -321,6 +426,30 @@ onMounted(async () => {
 .play-btn:hover, .download-btn:hover {
   transform: scale(1.1);
   box-shadow: 0 0 8px rgba(106, 90, 205, 0.6);
+}
+
+.favorite-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, rgba(255, 105, 180, 0.8), rgba(255, 20, 147, 0.8));
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.favorite-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(255, 105, 180, 0.6);
+}
+
+.favorite-btn.is-favorite {
+  background: linear-gradient(135deg, rgba(255, 69, 0, 0.8), rgba(220, 20, 60, 0.8));
 }
 
 .no-results {

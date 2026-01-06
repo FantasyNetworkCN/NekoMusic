@@ -4,6 +4,7 @@ import SearchResultsView from '@/views/SearchResultsView.vue'
 import PlayerView from '@/views/PlayerView.vue'
 import UserLoginView from '@/views/UserLoginView.vue'
 import UserRegisterView from '@/views/UserRegisterView.vue'
+import UserFavoritesView from '@/views/UserFavoritesView.vue'
 import AdminLoginView from '@/views/admin/AdminLoginView.vue'
 import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
@@ -57,6 +58,11 @@ const router = createRouter({
       path: '/register',
       name: 'register',
       component: UserRegisterView
+    },
+    {
+      path: '/favorites',
+      name: 'favorites',
+      component: UserFavoritesView
     },
     {
       path: '/admin/login',
