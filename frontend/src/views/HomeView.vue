@@ -2,7 +2,26 @@
   <div class="home-view">
     <div class="content">
       <div class="welcome-card">
-        <h2 class="welcome-title">欢迎使用 NekoMusic</h2>
+        <h1 class="welcome-title">🎵 Neko云音乐</h1>
+        <h2 class="welcome-subtitle-main">完全免费的在线音乐播放平台</h2>
+        <div class="features">
+          <div class="feature-item">
+            <span class="feature-icon">💰</span>
+            <span class="feature-text">永久免费 · 无需付费</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">🎧</span>
+            <span class="feature-text">海量音乐 · 高品质音频</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">🔒</span>
+            <span class="feature-text">保护隐私 · 不收集数据</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">⚡</span>
+            <span class="feature-text">快速播放 · 流畅体验</span>
+          </div>
+        </div>
         <p class="welcome-subtitle">本站不收集用户数据所以不会有定向推荐</p>
         <p class="welcome-subtitle">不是做不到这是这样不道德</p>
         <div class="decoration-element">
@@ -65,15 +84,16 @@ onMounted(() => {
 
 .welcome-title {
   color: #6a5acd;
-  margin-bottom: 1rem;
-  font-size: 2.2rem;
+  margin-bottom: 0.5rem;
+  font-size: 2.5rem;
+  font-weight: bold;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  background: linear-gradient(45deg, #ff69b4, #6a5acd, #84ffff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 .welcome-subtitle {

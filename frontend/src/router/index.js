@@ -35,65 +35,148 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: HomeView
+      component: HomeView,
+      meta: {
+        title: '首页 - Neko云音乐 | 完全免费的音乐平台',
+        description: 'Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源，无需付费，永久免费。发现海量音乐资源，享受高品质音乐体验。',
+        keywords: 'Neko云音乐,免费音乐,在线音乐,音乐播放,免费听歌,永久免费,无广告音乐'
+      }
     },
     {
       path: '/search',
       name: 'search',
       component: SearchResultsView,
-      props: true
+      props: true,
+      meta: {
+        title: '搜索音乐 - Neko云音乐 | 免费音乐搜索',
+        description: '在Neko云音乐免费搜索您喜爱的音乐，发现更多精彩免费音乐内容。完全免费，无需付费。',
+        keywords: '音乐搜索,免费音乐搜索,在线搜索,免费听歌'
+      }
     },
     {
       path: '/search/:query',
       name: 'search-query',
       component: SearchResultsView,
-      props: true
+      props: true,
+      meta: {
+        title: '搜索结果 - Neko云音乐 | 免费音乐',
+        description: '查看免费音乐搜索结果，找到您想要的免费音乐。Neko云音乐提供完全免费的音乐播放服务。',
+        keywords: '音乐搜索,搜索结果,免费音乐,免费听歌'
+      }
     },
     {
       path: '/login',
       name: 'login',
-      component: UserLoginView
+      component: UserLoginView,
+      meta: {
+        title: '用户登录 - Neko云音乐 | 免费音乐平台',
+        description: '登录您的Neko云音乐账户，享受完全免费的个性化音乐服务。无需付费，永久免费。',
+        keywords: '用户登录,账户登录,免费音乐账户'
+      }
     },
     {
       path: '/register',
       name: 'register',
-      component: UserRegisterView
+      component: UserRegisterView,
+      meta: {
+        title: '用户注册 - Neko云音乐 | 免费音乐平台',
+        description: '注册Neko云音乐账户，开启您的免费音乐之旅。完全免费，无需付费，永久免费。',
+        keywords: '用户注册,账户注册,免费音乐注册'
+      }
     },
     {
       path: '/favorites',
       name: 'favorites',
-      component: UserFavoritesView
+      component: UserFavoritesView,
+      meta: {
+        title: '我的收藏 - Neko云音乐 | 免费音乐收藏',
+        description: '查看和管理您收藏的免费音乐，随时播放喜爱的免费歌曲。Neko云音乐提供完全免费的收藏功能。',
+        keywords: '音乐收藏,我的收藏,免费音乐收藏'
+      }
     },
     {
       path: '/admin/login',
       name: 'admin-login',
-      component: AdminLoginView
+      component: AdminLoginView,
+      meta: {
+        title: '管理员登录 - Neko云音乐',
+        description: '管理员登录页面，管理免费音乐平台内容。',
+        keywords: '管理员登录,后台管理'
+      }
     },
     {
       path: '/admin',
       name: 'admin',
       component: AdminView,
-      beforeEnter: adminGuard
+      beforeEnter: adminGuard,
+      meta: {
+        title: '管理后台 - Neko云音乐',
+        description: '管理后台首页，管理免费音乐平台各项功能。',
+        keywords: '管理后台,后台管理'
+      }
     },
     {
       path: '/admin/music',
       name: 'admin-music',
       component: AdminMusicView,
-      beforeEnter: adminGuard
+      beforeEnter: adminGuard,
+      meta: {
+        title: '音乐管理 - Neko云音乐',
+        description: '管理平台免费音乐资源，上传、编辑、删除免费音乐。',
+        keywords: '音乐管理,音乐上传,免费音乐管理'
+      }
     },
     {
       path: '/admin/users',
       name: 'admin-users',
       component: AdminUsersView,
-      beforeEnter: adminGuard
+      beforeEnter: adminGuard,
+      meta: {
+        title: '用户管理 - Neko云音乐',
+        description: '管理平台免费音乐用户，查看用户信息和统计数据。',
+        keywords: '用户管理,用户统计,免费音乐用户'
+      }
     },
     {
       path: '/detail/:id',
       name: 'detail',
       component: PlayerView,
-      props: true
+      props: true,
+      meta: {
+        title: '音乐详情 - Neko云音乐 | 免费音乐播放',
+        description: '查看免费音乐详细信息，免费播放高品质音乐。Neko云音乐提供完全免费的音乐播放服务。',
+        keywords: '音乐详情,音乐播放,免费音乐播放,免费听歌'
+      }
     }
   ]
+})
+
+// 全局路由守卫 - 更新页面标题和元数据
+router.beforeEach((to, from, next) => {
+  // 设置页面标题
+  document.title = to.meta.title || 'Neko云音乐 - 完全免费的在线音乐播放平台'
+  
+  // 设置页面描述
+  const description = to.meta.description || 'Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费。'
+  let descriptionMeta = document.querySelector('meta[name="description"]')
+  if (!descriptionMeta) {
+    descriptionMeta = document.createElement('meta')
+    descriptionMeta.name = 'description'
+    document.head.appendChild(descriptionMeta)
+  }
+  descriptionMeta.content = description
+  
+  // 设置页面关键词
+  const keywords = to.meta.keywords || 'Neko云音乐,免费音乐,在线音乐,音乐播放,音乐搜索,音乐收藏,免费听歌,高品质音乐,无广告音乐,永久免费'
+  let keywordsMeta = document.querySelector('meta[name="keywords"]')
+  if (!keywordsMeta) {
+    keywordsMeta = document.createElement('meta')
+    keywordsMeta.name = 'keywords'
+    document.head.appendChild(keywordsMeta)
+  }
+  keywordsMeta.content = keywords
+  
+  next()
 })
 
 export default router
