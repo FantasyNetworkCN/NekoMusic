@@ -914,11 +914,6 @@ const handleStorageChange = (e) => {
         audioPlayer.value.pause();
       }
       
-      // 先暂停当前音频（如果有）
-      if (audioPlayer.value && !audioPlayer.value.paused) {
-        audioPlayer.value.pause();
-      }
-      
       // 音乐改变了，更新当前音乐并重置播放器
       currentMusic.value = newMusic;
       
@@ -948,38 +943,43 @@ const handleStorageChange = (e) => {
         
         // 检查播放状态，如果应该播放则开始播放
         const storedState = localStorage.getItem('globalPlayerState');
+        let shouldPlay = false;
+        
         if (storedState) {
           const state = JSON.parse(storedState);
-          
-          // 监听 canplay 事件，一旦音频可以播放就立即播放
-          const onCanPlay = () => {
-            audioPlayer.value.currentTime = 0; // 确保从头开始播放
-            currentTime.value = 0;
-            progress.value = 0;
-            updateGlobalPlayerState();
-            
-            if (state.isPlaying) {
-              // 设置播放状态
-              isPlaying.value = true;
-              fadeIn(audioPlayer.value);
-              audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
-              broadcastPlayerStateChange(); // 确保其他组件同步状态
-            }
-            // 移除事件监听器
-            audioPlayer.value.removeEventListener('canplay', onCanPlay);
-          };
-          
-          // 添加 canplay 事件监听器
-          audioPlayer.value.addEventListener('canplay', onCanPlay);
-          
-          // 调用 load() 来加载新资源
-          audioPlayer.value.load();
+          shouldPlay = state.isPlaying;
         } else {
-          // 如果没有播放状态信息，只加载资源，不播放
-          audioPlayer.value.load();
-          // 重置播放状态
-          isPlaying.value = false;
+          // 如果没有播放状态信息，默认播放（因为用户点击了播放按钮）
+          shouldPlay = true;
         }
+        
+        // 监听 canplay 事件，一旦音频可以播放就立即播放
+        const onCanPlay = () => {
+          audioPlayer.value.currentTime = 0; // 确保从头开始播放
+          currentTime.value = 0;
+          progress.value = 0;
+          updateGlobalPlayerState();
+          
+          if (shouldPlay) {
+            // 设置播放状态
+            isPlaying.value = true;
+            fadeIn(audioPlayer.value);
+            audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+            broadcastPlayerStateChange(); // 确保其他组件同步状态
+          } else {
+            // 如果不应该播放，确保播放状态为 false
+            isPlaying.value = false;
+            broadcastPlayerStateChange();
+          }
+          // 移除事件监听器
+          audioPlayer.value.removeEventListener('canplay', onCanPlay);
+        };
+        
+        // 添加 canplay 事件监听器
+        audioPlayer.value.addEventListener('canplay', onCanPlay);
+        
+        // 调用 load() 来加载新资源
+        audioPlayer.value.load();
       }
       
       // 加载新音乐的歌词
@@ -1110,14 +1110,26 @@ const handleForcePlay = () => {
     isPlaying.value = true;
     
     // 确保音频源已经设置为当前音乐
+    const expectedSrc = `${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.value.id}`;
+    
     if (!audioPlayer.value.src || !audioPlayer.value.src.includes(currentMusic.value.id.toString())) {
       // 如果音频源不是当前音乐，则设置为当前音乐
-      audioPlayer.value.src = `${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.value.id}`;
+      audioPlayer.value.src = expectedSrc;
       
       const onCanPlay = () => {
         audioPlayer.value.currentTime = 0; // 再次确保从0开始
+        currentTime.value = 0;
+        progress.value = 0;
+        updateGlobalPlayerState();
+        
         fadeIn(audioPlayer.value);
-        audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+        audioPlayer.value.play().catch(e => {
+          console.log('播放被阻止:', e);
+          // 如果播放失败，重置播放状态
+          isPlaying.value = false;
+          updateGlobalPlayerState();
+          broadcastPlayerStateChange();
+        });
         audioPlayer.value.removeEventListener('canplay', onCanPlay);
         
         // 更新播放状态
@@ -1126,12 +1138,28 @@ const handleForcePlay = () => {
         updateMediaSessionPlaybackState();
       };
       
+      // 添加错误处理
+      const onError = (e) => {
+        console.error('音频加载失败:', e);
+        isPlaying.value = false;
+        updateGlobalPlayerState();
+        broadcastPlayerStateChange();
+        audioPlayer.value.removeEventListener('error', onError);
+      };
+      
       audioPlayer.value.addEventListener('canplay', onCanPlay);
+      audioPlayer.value.addEventListener('error', onError);
       audioPlayer.value.load();
     } else {
       // 音频源已经是当前音乐，直接播放
       fadeIn(audioPlayer.value);
-      audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+      audioPlayer.value.play().catch(e => {
+        console.log('播放被阻止:', e);
+        // 如果播放失败，重置播放状态
+        isPlaying.value = false;
+        updateGlobalPlayerState();
+        broadcastPlayerStateChange();
+      });
       
       // 更新播放状态
       updateGlobalPlayerState();
@@ -1147,18 +1175,52 @@ const handlePlayerStateChange = (e) => {
   
   // 检查是否正在切换到新音乐
   if (currentMusic.value && state.currentMusic && currentMusic.value.id !== state.currentMusic.id) {
-    // 如果是切换到新音乐，重置播放时间
+    // 如果是切换到新音乐，更新当前音乐并切换音频源
+    currentMusic.value = state.currentMusic;
+    
+    // 重置播放时间
     currentTime.value = 0;
     duration.value = 0;
     progress.value = 0;
     updateGlobalPlayerState();
     updateMediaSessionPositionState();
-  } else {
-    // 否则是同一首音乐的时间更新
-    currentTime.value = state.currentTime;
-    duration.value = state.duration;
-    progress.value = state.currentTime;
+    
+    // 切换音频源
+    if (audioPlayer.value) {
+      audioPlayer.value.src = `${API_CONFIG.BASE_URL}/api/music/file/${state.currentMusic.id}`;
+      
+      const onCanPlay = () => {
+        audioPlayer.value.currentTime = 0;
+        currentTime.value = 0;
+        progress.value = 0;
+        updateGlobalPlayerState();
+        
+        if (state.isPlaying) {
+          isPlaying.value = true;
+          fadeIn(audioPlayer.value);
+          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+        }
+        
+        audioPlayer.value.removeEventListener('canplay', onCanPlay);
+        updateMediaSessionPlaybackState();
+      };
+      
+      audioPlayer.value.addEventListener('canplay', onCanPlay);
+      audioPlayer.value.load();
+    }
+    
+    // 加载新音乐的歌词
+    loadLyrics(state.currentMusic.id);
+    // 更新媒体会话元数据
+    updateMediaSessionMetadata(state.currentMusic);
+    
+    return; // 处理完音乐切换后直接返回
   }
+  
+  // 否则是同一首音乐的时间更新
+  currentTime.value = state.currentTime;
+  duration.value = state.duration;
+  progress.value = state.currentTime;
 
   // 如果有audio元素则同步操作
   if (audioPlayer.value && currentMusic.value && currentMusic.value.id === state.currentMusic?.id) {
