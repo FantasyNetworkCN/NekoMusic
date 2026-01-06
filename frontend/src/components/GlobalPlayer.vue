@@ -567,9 +567,6 @@ const playFromPlaylist = (index) => {
     progress.value = 0.1
     updateGlobalPlayerState()
     
-    // 更新媒体会话播放位置
-    updateMediaSessionPositionState()
-    
     // 设置为当前播放的音乐
     localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[index]))
     currentMusic.value = playlist.value[index]
@@ -589,7 +586,11 @@ const playFromPlaylist = (index) => {
         currentTime.value = 0.1
         progress.value = 0.1
         updateGlobalPlayerState()
-        updateMediaSessionPositionState()
+        // 只在有有效 duration 时才更新媒体会话播放位置
+        if (audioPlayer.value.duration > 0) {
+          duration.value = audioPlayer.value.duration
+          updateMediaSessionPositionState()
+        }
         fadeIn(audioPlayer.value)
         audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
       }
@@ -1509,10 +1510,12 @@ const updateMediaSessionPlaybackState = () => {
 const updateMediaSessionPositionState = () => {
   if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
     try {
+      // 确保 currentTime 不大于 duration
+      const safeCurrentTime = Math.min(currentTime.value, duration.value);
       navigator.mediaSession.setPositionState({
         duration: duration.value,
         playbackRate: 1.0,
-        position: currentTime.value
+        position: safeCurrentTime
       });
     } catch (error) {
       console.log('更新媒体会话播放位置失败:', error)
