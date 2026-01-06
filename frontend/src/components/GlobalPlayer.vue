@@ -561,10 +561,10 @@ const playFromPlaylist = (index) => {
       audioPlayer.value.pause();
     }
     
-    // 重置播放时间并立即更新UI
-    currentTime.value = 0
+    // 重置播放时间并立即更新UI（从0.1开始）
+    currentTime.value = 0.1
     duration.value = 0
-    progress.value = 0
+    progress.value = 0.1
     updateGlobalPlayerState()
     
     // 更新媒体会话播放位置
@@ -580,10 +580,21 @@ const playFromPlaylist = (index) => {
     
     // 确保音频元素重新加载资源
     if (audioPlayer.value) {
-      // 确保音频元素在加载新资源前已重置
-      audioPlayer.value.currentTime = 0
+      // 先加载音频资源
       audioPlayer.value.load()
-      fadeIn(audioPlayer.value)
+      
+      // 在音频加载完成后设置时间为0.1
+      const onLoadedData = () => {
+        audioPlayer.value.currentTime = 0.1
+        currentTime.value = 0.1
+        progress.value = 0.1
+        updateGlobalPlayerState()
+        updateMediaSessionPositionState()
+        fadeIn(audioPlayer.value)
+        audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
+      }
+      
+      audioPlayer.value.addEventListener('loadeddata', onLoadedData)
     }
     
     // 更新媒体会话元数据
@@ -657,10 +668,10 @@ const playNext = (fromEnded = false) => {
         audioPlayer.value.pause();
       }
       
-      // 重置播放时间并立即更新UI
-      currentTime.value = 0
+      // 重置播放时间并立即更新UI（从0.1开始）
+      currentTime.value = 0.1
       duration.value = 0
-      progress.value = 0
+      progress.value = 0.1
       updateGlobalPlayerState()
       
       // 更新媒体会话播放位置
@@ -668,17 +679,17 @@ const playNext = (fromEnded = false) => {
       
       // 加载新音频资源
       if (audioPlayer.value) {
-        // 确保音频元素在加载新资源前已重置时间
-        audioPlayer.value.currentTime = 0
+        // 确保音频元素在加载新资源前已重置时间（从0.1开始）
+        audioPlayer.value.currentTime = 0.1
         
         // 监听loadeddata事件以确保音频已加载后再操作
         const onLoadedData = () => {
-          // 确保音频时间已重置为0
-          audioPlayer.value.currentTime = 0
-          currentTime.value = 0
-          progress.value = 0
+          // 确保音频时间已重置为0.1
+          audioPlayer.value.currentTime = 0.1
+          currentTime.value = 0.1
+          progress.value = 0.1
           updateGlobalPlayerState()
-          updateMediaSessionPositionState()
+          
           fadeIn(audioPlayer.value)
           
           // 移除事件监听器
@@ -690,10 +701,10 @@ const playNext = (fromEnded = false) => {
       }
     }
     
-    // 确保UI立即更新时间轴
-    currentTime.value = 0
+    // 确保UI立即更新时间轴（从0.1开始）
+    currentTime.value = 0.1
     duration.value = 0
-    progress.value = 0
+    progress.value = 0.1
     updateGlobalPlayerState()
     
     // 更新媒体会话元数据
@@ -747,16 +758,16 @@ const playPrevious = (fromEnded = false) => {
         audioPlayer.value.addEventListener('canplay', onCanPlay)
       }
     } else {
-      // 手动点上一首：允许淡入
+      // 手动点下一首：允许淡入
       // 先暂停当前音频
       if (audioPlayer.value && !audioPlayer.value.paused) {
         audioPlayer.value.pause();
       }
       
-      // 重置播放时间并立即更新UI
-      currentTime.value = 0
+      // 重置播放时间并立即更新UI（从0.1开始）
+      currentTime.value = 0.1
       duration.value = 0
-      progress.value = 0
+      progress.value = 0.1
       updateGlobalPlayerState()
       
       // 更新媒体会话播放位置
@@ -764,17 +775,17 @@ const playPrevious = (fromEnded = false) => {
       
       // 加载新音频资源
       if (audioPlayer.value) {
-        // 确保音频元素在加载新资源前已重置时间
-        audioPlayer.value.currentTime = 0
+        // 确保音频元素在加载新资源前已重置时间（从0.1开始）
+        audioPlayer.value.currentTime = 0.1
         
         // 监听loadeddata事件以确保音频已加载后再操作
         const onLoadedData = () => {
-          // 确保音频时间已重置为0
-          audioPlayer.value.currentTime = 0
-          currentTime.value = 0
-          progress.value = 0
+          // 确保音频时间已重置为0.1
+          audioPlayer.value.currentTime = 0.1
+          currentTime.value = 0.1
+          progress.value = 0.1
           updateGlobalPlayerState()
-          updateMediaSessionPositionState()
+          
           fadeIn(audioPlayer.value)
           
           // 移除事件监听器
@@ -786,10 +797,10 @@ const playPrevious = (fromEnded = false) => {
       }
     }
     
-    // 确保UI立即更新时间轴
-    currentTime.value = 0
+    // 确保UI立即更新时间轴（从0.1开始）
+    currentTime.value = 0.1
     duration.value = 0
-    progress.value = 0
+    progress.value = 0.1
     updateGlobalPlayerState()
     
     // 更新媒体会话元数据
@@ -888,10 +899,10 @@ const playNextInShuffle = (fromEnded = false) => {
       }
     }
     
-    // 确保UI立即更新时间轴
-    currentTime.value = 0
+    // 确保UI立即更新时间轴（从0.1开始）
+    currentTime.value = 0.1
     duration.value = 0
-    progress.value = 0
+    progress.value = 0.1
     updateGlobalPlayerState()
     
     // 更新媒体会话元数据
@@ -955,9 +966,9 @@ const handleStorageChange = (e) => {
         
         // 监听 canplay 事件，一旦音频可以播放就立即播放
         const onCanPlay = () => {
-          audioPlayer.value.currentTime = 0; // 确保从头开始播放
-          currentTime.value = 0;
-          progress.value = 0;
+          audioPlayer.value.currentTime = 0.1; // 确保从0.1开始播放
+          currentTime.value = 0.1;
+          progress.value = 0.1;
           updateGlobalPlayerState();
           
           if (shouldPlay) {
@@ -1100,10 +1111,10 @@ const handleStorageChange = (e) => {
 // 强制播放处理函数
 const handleForcePlay = () => {
   if (audioPlayer.value && currentMusic.value) {
-    // 确保时间从0开始
-    audioPlayer.value.currentTime = 0;
-    currentTime.value = 0;
-    progress.value = 0;
+    // 确保时间从0.1开始
+    audioPlayer.value.currentTime = 0.1;
+    currentTime.value = 0.1;
+    progress.value = 0.1;
     updateGlobalPlayerState();
     
     // 确保播放状态为true
@@ -1117,9 +1128,9 @@ const handleForcePlay = () => {
       audioPlayer.value.src = expectedSrc;
       
       const onCanPlay = () => {
-        audioPlayer.value.currentTime = 0; // 再次确保从0开始
-        currentTime.value = 0;
-        progress.value = 0;
+        audioPlayer.value.currentTime = 0.1; // 再次确保从0.1开始
+        currentTime.value = 0.1;
+        progress.value = 0.1;
         updateGlobalPlayerState();
         
         fadeIn(audioPlayer.value);
@@ -1178,10 +1189,10 @@ const handlePlayerStateChange = (e) => {
     // 如果是切换到新音乐，更新当前音乐并切换音频源
     currentMusic.value = state.currentMusic;
     
-    // 重置播放时间
-    currentTime.value = 0;
+    // 重置播放时间（从0.1开始）
+    currentTime.value = 0.1;
     duration.value = 0;
-    progress.value = 0;
+    progress.value = 0.1;
     updateGlobalPlayerState();
     updateMediaSessionPositionState();
     
@@ -1190,9 +1201,9 @@ const handlePlayerStateChange = (e) => {
       audioPlayer.value.src = `${API_CONFIG.BASE_URL}/api/music/file/${state.currentMusic.id}`;
       
       const onCanPlay = () => {
-        audioPlayer.value.currentTime = 0;
-        currentTime.value = 0;
-        progress.value = 0;
+        audioPlayer.value.currentTime = 0.1;
+        currentTime.value = 0.1;
+        progress.value = 0.1;
         updateGlobalPlayerState();
         
         if (state.isPlaying) {
