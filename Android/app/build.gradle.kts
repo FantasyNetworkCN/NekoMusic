@@ -84,6 +84,12 @@ dependencies {
 
     
 
+    // ExoPlayer for audio playback
+
+    implementation(libs.exoplayer)
+
+    
+
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.junit)
