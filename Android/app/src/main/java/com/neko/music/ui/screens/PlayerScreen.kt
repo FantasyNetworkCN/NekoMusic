@@ -88,6 +88,7 @@ fun PlayerScreen(
     val isPlaying by playerManager.isPlaying.collectAsState()
     val currentPosition by playerManager.currentPosition.collectAsState()
     val duration by playerManager.duration.collectAsState()
+    val currentMusicId by playerManager.currentMusicId.collectAsState()
     
     val currentTime by remember { derivedStateOf { formatTime(currentPosition) } }
     val totalTime by remember { derivedStateOf { formatTime(duration) } }
@@ -103,16 +104,26 @@ fun PlayerScreen(
     val musicApi = remember { MusicApi() }
     val scope = rememberCoroutineScope()
     
-    // 加载音乐文件URL
+    // 加载音乐文件URL，只在音乐ID不同时才重新播放
     LaunchedEffect(music.id) {
         isLoading = true
         scope.launch {
             musicFileUrl = musicApi.getMusicFileUrl(music)
             isLoading = false
             musicFileUrl?.let { url ->
-                playerManager.playMusic(url, music.title, music.artist, music.coverUrl)
+                // 只在音乐ID不同时才播放
+                if (currentMusicId != music.id) {
+                    // 获取完整的封面URL
+                    val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
+                        "https://music.cnmsb.xin${music.coverFilePath}"
+                    } else {
+                        "https://music.cnmsb.xin/api/music/cover/${music.id}"
+                    }
+                    Log.d("PlayerScreen", "封面URL: $fullCoverUrl, coverFilePath: ${music.coverFilePath}")
+                    playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath, fullCoverUrl)
+                }
             }
-            Log.d("PlayerScreen", "音乐文件URL: $musicFileUrl")
+            Log.d("PlayerScreen", "音乐文件URL: $musicFileUrl, 当前音乐ID: $currentMusicId")
         }
     }
     
