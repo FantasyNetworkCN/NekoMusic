@@ -38,10 +38,15 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import com.neko.music.service.MusicPlayerManager
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -76,16 +81,22 @@ fun PlayerScreen(
     onBackClick: () -> Unit,
     onPlaylistClick: () -> Unit = {}
 ) {
-    var isPlaying by remember { mutableStateOf(false) }
-    var isFavorite by remember { mutableStateOf(false) }
-    var progress by remember { mutableFloatStateOf(0f) }
-    var currentTime by remember { mutableStateOf("0:00") }
-    var totalTime by remember { mutableStateOf("0:00") }
-    var lyrics by remember { mutableStateOf<List<LrcLine>>(emptyList()) }
-    var showLyrics by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val playerManager = MusicPlayerManager.getInstance(context)
+    
+    val isPlaying by playerManager.isPlaying.collectAsState()
+    val currentPosition by playerManager.currentPosition.collectAsState()
+    val duration by playerManager.duration.collectAsState()
+    
+    val currentTime by remember { derivedStateOf { formatTime(currentPosition) } }
+    val totalTime by remember { derivedStateOf { formatTime(duration) } }
+    val currentProgressSeconds by remember { derivedStateOf { currentPosition / 1000f } }
+    
     var musicFileUrl by remember { mutableStateOf<String?>(null) }
-    var currentProgressSeconds by remember { mutableFloatStateOf(0f) }
+    var isLoading by remember { mutableStateOf(false) }
+    var lyrics by remember { mutableStateOf<List<LrcLine>>(emptyList()) }
+    var isFavorite by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
     var playMode by remember { mutableStateOf(PlayMode.LIST_LOOP) }
     
     val musicApi = remember { MusicApi() }
@@ -97,6 +108,9 @@ fun PlayerScreen(
         scope.launch {
             musicFileUrl = musicApi.getMusicFileUrl(music)
             isLoading = false
+            musicFileUrl?.let { url ->
+                playerManager.playMusic(url, music.title, music.artist, music.coverUrl)
+            }
             Log.d("PlayerScreen", "音乐文件URL: $musicFileUrl")
         }
     }
@@ -246,38 +260,58 @@ fun PlayerScreen(
                 isFavorite = isFavorite,
     
                 onFavoriteClick = { isFavorite = !isFavorite },
-    
                 showLyrics = showLyrics
-    
             )
-    
-            
-    
+
             Spacer(modifier = Modifier.height(8.dp))
     
             
     
-            ProgressSlider(
+                        // 进度条
     
-                progress = progress,
+            
     
-                currentTime = currentTime,
+                                            ProgressSlider(
     
-                totalTime = totalTime,
+            
     
-                isLoading = isLoading,
+                                                progress = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
     
-                onProgressChange = { 
+            
     
-                    progress = it
+                                                currentTime = currentTime,
     
-                    // 假设总时长为 300 秒（5分钟），计算当前秒数
+            
     
-                    currentProgressSeconds = it * 300f
+                                                totalTime = totalTime,
     
-                }
+            
     
-            )
+                                                isLoading = isLoading,
+    
+            
+    
+                                                onProgressChange = { 
+    
+            
+    
+                                                    if (duration > 0) {
+    
+            
+    
+                                                        playerManager.seekTo((it * duration).toLong())
+    
+            
+    
+                                                    }
+    
+            
+    
+                                                }
+    
+            
+    
+                                            )
     
             
     
@@ -285,78 +319,243 @@ fun PlayerScreen(
     
             
     
-            PlaybackControls(
+                        PlaybackControls(
     
             
     
-                        isPlaying = isPlaying,
+            
     
             
     
-                        isLoading = isLoading,
+            
     
             
     
-                        musicFileUrl = musicFileUrl,
+                                    isPlaying = isPlaying,
     
             
     
-                        playMode = playMode,
+            
     
             
     
-                        onPlayPauseClick = { isPlaying = !isPlaying },
+            
     
             
     
-                        onPreviousClick = {},
+                                    isLoading = isLoading,
     
             
     
-                        onNextClick = {},
+            
     
             
     
-                        onPlaylistClick = onPlaylistClick,
+            
     
             
     
-                        onPlayModeClick = {
+                                    musicFileUrl = musicFileUrl,
     
             
     
-                            playMode = when (playMode) {
+            
     
             
     
-                                PlayMode.LIST_LOOP -> PlayMode.SINGLE_LOOP
+            
     
             
     
-                                PlayMode.SINGLE_LOOP -> PlayMode.SHUFFLE
+                                    playMode = playMode,
     
             
     
-                                PlayMode.SHUFFLE -> PlayMode.LIST_LOOP
+            
     
             
     
-                            }
+            
     
             
     
-                        }
+                                    onPlayPauseClick = {
     
             
     
-                    )
+                                        playerManager.togglePlayPause()
     
             
     
-            Spacer(modifier = Modifier.height(24.dp))
+                                    },
     
-        }
-}
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                    onPreviousClick = {},
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                    onNextClick = {},
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                    onPlaylistClick = onPlaylistClick,
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                    onPlayModeClick = {
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                        playMode = when (playMode) {
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                            PlayMode.LIST_LOOP -> PlayMode.SINGLE_LOOP
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                            PlayMode.SINGLE_LOOP -> PlayMode.SHUFFLE
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                            PlayMode.SHUFFLE -> PlayMode.LIST_LOOP
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                        }
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                    }
+    
+            
+    
+            
+    
+            
+    
+            
+    
+            
+    
+                                )
+    
+            
+    
+                        Spacer(modifier = Modifier.height(24.dp))
+    
+            
+    
+                    }
+    
+            
+    
+            }
+    
+            
+    
+            
+    
+            
+    
+            private fun formatTime(milliseconds: Long): String {
+    
+            
+    
+                val seconds = (milliseconds / 1000) % 60
+    
+            
+    
+                val minutes = (milliseconds / (1000 * 60)) % 60
+    
+            
+    
+                return String.format("%d:%02d", minutes, seconds)
+    
+            
+    
+            }
 
 @Composable
 fun TopBar(
@@ -692,13 +891,13 @@ fun LyricsView(
     }
     
     // 自动滚动到当前歌词，使其居中
-    LaunchedEffect(currentIndex) {
-        if (currentIndex >= 0) {
-            val viewportHeight = listState.layoutInfo.viewportSize.height
-            val currentItem = listState.layoutInfo.visibleItemsInfo.getOrNull(currentIndex)
-            val itemHeight = currentItem?.size ?: 0
-            val scrollOffset = -viewportHeight / 2 + itemHeight / 2
-            listState.animateScrollToItem(currentIndex, scrollOffset)
+    androidx.compose.runtime.LaunchedEffect(currentIndex) {
+        if (currentIndex >= 0 && lyrics.isNotEmpty()) {
+            try {
+                listState.animateScrollToItem(currentIndex)
+            } catch (e: Exception) {
+                // 忽略滚动错误
+            }
         }
     }
     

@@ -21,8 +21,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.neko.music.data.model.Music
+import com.neko.music.service.MusicPlayerManager
 import com.neko.music.ui.components.BottomNavigationBar
 import com.neko.music.ui.components.BottomNavItem
+import com.neko.music.ui.components.MiniPlayer
 import com.neko.music.ui.screens.HomeScreen
 import com.neko.music.ui.screens.MineScreen
 import com.neko.music.ui.screens.PlayerScreen
@@ -48,12 +50,22 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val playerManager = MusicPlayerManager.getInstance(context)
+    
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryFlow.collectAsState(initial = null)
     val currentRoute = navBackStackEntry?.destination?.route
     
     // 检查是否在播放页面
     val isPlayerScreen = currentRoute?.startsWith("player") == true
+    
+    // 获取播放器状态
+    val isPlaying by playerManager.isPlaying.collectAsState()
+    val currentMusicUrl by playerManager.currentMusicUrl.collectAsState()
+    val currentMusicTitle by playerManager.currentMusicTitle.collectAsState()
+    val currentMusicArtist by playerManager.currentMusicArtist.collectAsState()
+    val currentMusicCover by playerManager.currentMusicCover.collectAsState()
     
     Box(modifier = Modifier.fillMaxSize()) {
         androidx.compose.foundation.layout.Column(
@@ -126,8 +138,23 @@ fun MainScreen() {
                 }
             }
             
-            // 只在非播放页面显示底部导航栏
+            // 只在非播放页面显示迷你播放器和底部导航栏
             if (!isPlayerScreen) {
+                MiniPlayer(
+                    isPlaying = isPlaying,
+                    songTitle = currentMusicTitle ?: "暂无播放",
+                    artist = currentMusicArtist ?: "",
+                    coverUrl = currentMusicCover,
+                    onPlayPauseClick = {
+                        playerManager.togglePlayPause()
+                    },
+                    onPlayerClick = {
+                        // 跳转到播放页面
+                        val title = currentMusicTitle ?: "未知歌曲"
+                        val artist = currentMusicArtist ?: "未知歌手"
+                        navController.navigate("player/0/$title/$artist")
+                    }
+                )
                 BottomNavigationBar(navController = navController)
             }
         }

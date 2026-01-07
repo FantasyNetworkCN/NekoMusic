@@ -12,6 +12,7 @@ ktor = "2.3.12"
 kotlinxSerialization = "1.7.3"
 navigation = "2.8.4"
 coil = "2.6.0"
+exoplayer = "2.19.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -36,6 +37,7 @@ ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serializatio
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+exoplayer = { group = "com.google.android.exoplayer", name = "exoplayer", version.ref = "exoplayer" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
