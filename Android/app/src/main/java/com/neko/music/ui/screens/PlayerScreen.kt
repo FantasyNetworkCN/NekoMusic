@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1131,7 +1132,9 @@ fun PlaybackControls(
                 }
                 else -> {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        painter = painterResource(
+                            id = if (isPlaying) R.drawable.pause else R.drawable.play
+                        ),
                         contentDescription = if (isPlaying) "Pause" else "Play",
                         tint = Color.White,
                         modifier = Modifier.size(36.dp)
