@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -35,6 +36,7 @@ fun HomeScreen() {
     val view = LocalView.current
     SideEffect {
         val window = (view.context as android.app.Activity).window
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
     }
     
@@ -61,10 +63,11 @@ fun HeaderSection() {
                     )
                 )
             )
+            .statusBarsPadding()
             .padding(20.dp)
     ) {
         Column {
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             
             Text(
                 text = "Neko云音乐",
