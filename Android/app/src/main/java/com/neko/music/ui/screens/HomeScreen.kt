@@ -1,6 +1,7 @@
 package com.neko.music.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,11 +29,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.neko.music.data.model.Music
 import com.neko.music.ui.theme.DeepBlue
 import com.neko.music.ui.theme.RoseRed
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    onSearchClick: () -> Unit = {}
+) {
     val view = LocalView.current
     SideEffect {
         val window = (view.context as android.app.Activity).window
@@ -45,12 +49,14 @@ fun HomeScreen() {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        HeaderSection()
+        HeaderSection(onSearchClick = onSearchClick)
     }
 }
 
 @Composable
-fun HeaderSection() {
+fun HeaderSection(
+    onSearchClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -86,7 +92,8 @@ fun HeaderSection() {
                         color = Color.White.copy(alpha = 0.2f),
                         shape = RoundedCornerShape(24.dp)
                     )
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = 20.dp)
+                    .clickable(onClick = onSearchClick),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
