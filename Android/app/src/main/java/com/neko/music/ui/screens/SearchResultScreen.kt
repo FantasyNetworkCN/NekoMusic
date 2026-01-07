@@ -1,5 +1,6 @@
 package com.neko.music.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.width as composeWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,8 +25,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,14 +57,24 @@ fun SearchResultScreen(
     val musicApi = remember { MusicApi() }
     val scope = rememberCoroutineScope()
     
-    LaunchedEffect(initialQuery) {
-        if (initialQuery.isNotEmpty()) {
-            searchQuery = initialQuery
+    // 实时搜索 - 输入后立即请求
+    androidx.compose.runtime.LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotEmpty()) {
+            Log.d("SearchScreen", "实时搜索: $searchQuery")
             performSearch(musicApi, searchQuery, scope) { results, error ->
                 searchResults = results
                 isLoading = false
                 errorMessage = error
             }
+        } else {
+            searchResults = emptyList()
+        }
+    }
+    
+    // 初始查询
+    androidx.compose.runtime.LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotEmpty()) {
+            searchQuery = initialQuery
         }
     }
     
@@ -77,8 +85,12 @@ fun SearchResultScreen(
     ) {
         SearchBar(
             query = searchQuery,
-            onQueryChange = { searchQuery = it },
+            onQueryChange = { 
+                searchQuery = it
+                Log.d("SearchScreen", "输入: $it")
+            },
             onSearch = {
+                Log.d("SearchScreen", "手动触发搜索: $searchQuery")
                 isLoading = true
                 performSearch(musicApi, searchQuery, scope) { results, error ->
                     searchResults = results
@@ -169,7 +181,7 @@ fun SearchBar(
                 )
             }
             
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.composeWidth(4.dp))
             
             Box(
                 modifier = Modifier
@@ -193,21 +205,33 @@ fun SearchBar(
                         modifier = Modifier.size(20.dp)
                     )
                     
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.composeWidth(8.dp))
                     
                     androidx.compose.foundation.layout.Box(
                         modifier = Modifier.weight(1f)
                     ) {
                         androidx.compose.foundation.text.BasicTextField(
                             value = query,
-                            onValueChange = onQueryChange,
-                            modifier = Modifier.fillMaxWidth(),
+                            onValueChange = {
+                                onQueryChange(it)
+                                Log.d("SearchScreen", "输入: $it")
+                            },
+                            modifier = Modifier.fillMaxSize(),
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 color = Color.Black,
                                 fontSize = 16.sp
                             ),
                             singleLine = true,
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(RoseRed)
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(RoseRed),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                            ),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                                onSearch = {
+                                    Log.d("SearchScreen", "触发搜索: $query")
+                                    onSearch()
+                                }
+                            )
                         )
                         
                         if (query.isEmpty()) {
@@ -282,7 +306,7 @@ fun MusicItem(
             )
         }
         
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.composeWidth(12.dp))
         
         Column(
             modifier = Modifier.weight(1f),
@@ -316,9 +340,11 @@ private fun performSearch(
         val result = api.searchMusic(query)
         result.fold(
             onSuccess = { musics ->
+                Log.d("SearchScreen", "请求成功 - 找到 ${musics.size} 条结果")
                 onResult(musics, null)
             },
             onFailure = { error ->
+                Log.e("SearchScreen", "请求失败 - ${error.message}")
                 onResult(emptyList(), error.message)
             }
         )

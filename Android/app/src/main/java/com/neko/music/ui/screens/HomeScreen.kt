@@ -1,5 +1,6 @@
 package com.neko.music.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -93,7 +94,10 @@ fun HeaderSection(
                         shape = RoundedCornerShape(24.dp)
                     )
                     .padding(horizontal = 20.dp)
-                    .clickable(onClick = onSearchClick),
+                    .clickable {
+                        Log.d("HomeScreen", "搜索框被点击")
+                        onSearchClick()
+                    },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
