@@ -33,17 +33,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.neko.music.ui.theme.NetEaseRed
+import com.neko.music.ui.theme.DeepBlue
+import com.neko.music.ui.theme.RoseRed
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.delay
 
 class SplashActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         
-        // 设置窗口背景为红色渐变，避免白屏
+        // 先清除窗口背景
         window.setBackgroundDrawableResource(android.R.color.transparent)
+        
+        // enableEdgeToEdge()
         
         setContent {
             Neko云音乐Theme {
@@ -82,8 +84,8 @@ fun SplashScreen(onAnimationComplete: () -> Unit) {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        NetEaseRed,
-                        Color(0xFFE63946)
+                        DeepBlue,
+                        RoseRed
                     )
                 )
             ),
@@ -109,6 +111,12 @@ fun SplashScreen(onAnimationComplete: () -> Unit) {
             AppSubtitle(
                 alpha = alpha.value
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            LoadingDot(
+                alpha = alpha.value
+            )
         }
     }
 }
@@ -127,7 +135,7 @@ fun LogoIcon(scale: Float, alpha: Float) {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "🎵",
+            text = "♪",
             fontSize = 64.sp,
             modifier = Modifier.alpha(alpha)
         )
@@ -149,12 +157,25 @@ fun AppTitle(alpha: Float) {
 @Composable
 fun AppSubtitle(alpha: Float) {
     Text(
-        text = "听见好时光",
+        text = "听见你的世界",
         fontSize = 16.sp,
         fontWeight = FontWeight.Normal,
         color = Color.White.copy(alpha = 0.8f),
         textAlign = TextAlign.Center,
         modifier = Modifier.alpha(alpha)
+    )
+}
+
+@Composable
+fun LoadingDot(alpha: Float) {
+    Box(
+        modifier = Modifier
+            .size(4.dp)
+            .background(
+                color = Color.White,
+                shape = androidx.compose.foundation.shape.CircleShape
+            )
+            .alpha(alpha)
     )
 }
 
