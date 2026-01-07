@@ -39,6 +39,9 @@ class MusicPlayerManager private constructor(context: Context) {
     private val _currentMusicCover = MutableStateFlow<String?>(null)
     val currentMusicCover: StateFlow<String?> = _currentMusicCover.asStateFlow()
     
+    private val _currentMusicId = MutableStateFlow<Int?>(null)
+    val currentMusicId: StateFlow<Int?> = _currentMusicId.asStateFlow()
+    
     private var updateJob: Job? = null
     
     init {
@@ -80,15 +83,16 @@ class MusicPlayerManager private constructor(context: Context) {
         updateJob = null
     }
     
-    fun playMusic(url: String, title: String? = null, artist: String? = null, cover: String? = null) {
+    fun playMusic(url: String, id: Int? = null, title: String? = null, artist: String? = null, cover: String? = null, fullCoverUrl: String? = null) {
         if (_currentMusicUrl.value != url) {
             val mediaItem = MediaItem.fromUri(url)
             player.setMediaItem(mediaItem)
             player.prepare()
             _currentMusicUrl.value = url
+            _currentMusicId.value = id
             _currentMusicTitle.value = title
             _currentMusicArtist.value = artist
-            _currentMusicCover.value = cover
+            _currentMusicCover.value = fullCoverUrl ?: cover
         }
         player.play()
         _isPlaying.value = true

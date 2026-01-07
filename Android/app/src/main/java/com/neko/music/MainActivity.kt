@@ -66,6 +66,7 @@ fun MainScreen() {
     val currentMusicTitle by playerManager.currentMusicTitle.collectAsState()
     val currentMusicArtist by playerManager.currentMusicArtist.collectAsState()
     val currentMusicCover by playerManager.currentMusicCover.collectAsState()
+    val currentMusicId by playerManager.currentMusicId.collectAsState()
     
     Box(modifier = Modifier.fillMaxSize()) {
         androidx.compose.foundation.layout.Column(
@@ -149,10 +150,11 @@ fun MainScreen() {
                         playerManager.togglePlayPause()
                     },
                     onPlayerClick = {
-                        // 跳转到播放页面
+                        // 跳转到播放页面，传递当前音乐ID
+                        val id = currentMusicId ?: 0
                         val title = currentMusicTitle ?: "未知歌曲"
                         val artist = currentMusicArtist ?: "未知歌手"
-                        navController.navigate("player/0/$title/$artist")
+                        navController.navigate("player/$id/$title/$artist")
                     }
                 )
                 BottomNavigationBar(navController = navController)
