@@ -1,6 +1,7 @@
 package com.neko.music
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -62,6 +63,7 @@ fun MainScreen() {
                     composable(BottomNavItem.Home.route) {
                         HomeScreen(
                             onSearchClick = {
+                                Log.d("MainActivity", "导航到搜索页面")
                                 navController.navigate("search")
                             }
                         )
@@ -79,12 +81,15 @@ fun MainScreen() {
                         )
                     ) { backStackEntry ->
                         val query = backStackEntry.arguments?.getString("query") ?: ""
+                        Log.d("MainActivity", "搜索页面加载，查询: $query")
                         SearchResultScreen(
                             initialQuery = query,
                             onBackClick = {
+                                Log.d("MainActivity", "从搜索页面返回")
                                 navController.popBackStack()
                             },
                             onMusicClick = { music ->
+                                Log.d("MainActivity", "点击音乐: ${music.title}")
                                 // TODO: 处理音乐点击事件，跳转到播放页面
                             }
                         )
