@@ -23,6 +23,7 @@ import androidx.navigation.navArgument
 import com.neko.music.data.model.Music
 import com.neko.music.ui.components.BottomNavigationBar
 import com.neko.music.ui.components.BottomNavItem
+import com.neko.music.ui.components.MiniPlayer
 import com.neko.music.ui.screens.HomeScreen
 import com.neko.music.ui.screens.MineScreen
 import com.neko.music.ui.screens.PlayerScreen
@@ -126,8 +127,22 @@ fun MainScreen() {
                 }
             }
             
-            // 只在非播放页面显示底部导航栏
+            // 只在非播放页面显示迷你播放器和底部导航栏
             if (!isPlayerScreen) {
+                MiniPlayer(
+                    isPlaying = false,
+                    songTitle = "暂无播放",
+                    artist = "",
+                    coverUrl = null,
+                    onPlayPauseClick = {
+                        // TODO: 实现播放/暂停逻辑
+                    },
+                    onPlayerClick = {
+                        // 跳转到播放页面
+                        // TODO: 保存当前播放的音乐信息
+                        navController.navigate("player/0/未知歌曲/未知歌手")
+                    }
+                )
                 BottomNavigationBar(navController = navController)
             }
         }
