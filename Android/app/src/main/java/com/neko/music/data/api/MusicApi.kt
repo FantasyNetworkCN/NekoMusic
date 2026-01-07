@@ -12,6 +12,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType.Application.Json
@@ -91,5 +92,31 @@ class MusicApi {
     
     suspend fun getMusicFileUrl(music: Music): String {
         return "$baseUrl/api/music/file/${music.id}"
+    }
+    
+    suspend fun getMusicLyrics(music: Music): Result<String> {
+        return try {
+            Log.d("MusicApi", "Fetching lyrics for music: ${music.id}")
+            val response = client.get("$baseUrl/api/music/lyrics/${music.id}")
+            Log.d("MusicApi", "Response status: ${response.status}")
+            val responseText = response.body<String>()
+            Log.d("MusicApi", "Response raw text: $responseText")
+            
+            val jsonResponse = json.parseToJsonElement(responseText) as JsonObject
+            val success = jsonResponse["success"]?.toString()?.toBoolean() ?: false
+            val message = jsonResponse["message"]?.toString()?.removeSurrounding("\"") ?: ""
+            val data = jsonResponse["data"]?.toString()?.removeSurrounding("\"")?.replace("\\n", "\n") ?: ""
+            
+            Log.d("MusicApi", "Parsed lyrics: $data")
+            
+            if (success) {
+                Result.success(data)
+            } else {
+                Result.failure(Exception(message))
+            }
+        } catch (e: Exception) {
+            Log.e("MusicApi", "Fetch lyrics error", e)
+            Result.failure(e)
+        }
     }
 }
