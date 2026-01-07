@@ -1,0 +1,31 @@
+package com.neko.music.data.database
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface PlaylistDao {
+    @Query("SELECT * FROM playlist ORDER BY addedAt ASC")
+    fun getAllPlaylist(): Flow<List<PlaylistEntity>>
+    
+    @Query("SELECT * FROM playlist WHERE musicId = :musicId")
+    suspend fun getMusicById(musicId: Int): PlaylistEntity?
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addToPlaylist(music: PlaylistEntity)
+    
+    @Query("DELETE FROM playlist WHERE musicId = :musicId")
+    suspend fun removeFromPlaylist(musicId: Int)
+    
+    @Query("DELETE FROM playlist")
+    suspend fun clearPlaylist()
+    
+    @Query("SELECT COUNT(*) FROM playlist")
+    suspend fun getPlaylistCount(): Int
+    
+    @Query("SELECT * FROM playlist ORDER BY addedAt DESC LIMIT 1")
+    suspend fun getLastPlayed(): PlaylistEntity?
+}

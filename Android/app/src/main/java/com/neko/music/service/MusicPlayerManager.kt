@@ -4,6 +4,7 @@ import android.content.Context
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
+import com.neko.music.data.manager.PlaylistManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -14,6 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class MusicPlayerManager private constructor(context: Context) {
+    
+    private val playlistManager = PlaylistManager.getInstance(context)
     
     private val player = ExoPlayer.Builder(context).build()
     private val scope = CoroutineScope(Dispatchers.Main + Job())
@@ -93,6 +96,24 @@ class MusicPlayerManager private constructor(context: Context) {
             _currentMusicTitle.value = title
             _currentMusicArtist.value = artist
             _currentMusicCover.value = fullCoverUrl ?: cover
+            
+            // 保存到播放列表
+            if (id != null && title != null && artist != null) {
+                scope.launch {
+                    val music = com.neko.music.data.model.Music(
+                        id = id,
+                        title = title,
+                        artist = artist,
+                        album = "",
+                        duration = 0,
+                        filePath = url,
+                        coverFilePath = cover ?: "",
+                        uploadUserId = 0,
+                        createdAt = ""
+                    )
+                    playlistManager.addToPlaylist(music)
+                }
+            }
         }
         player.play()
         _isPlaying.value = true
@@ -123,6 +144,30 @@ class MusicPlayerManager private constructor(context: Context) {
     fun release() {
         stopPositionUpdate()
         player.release()
+    }
+    
+    suspend fun restoreLastPlayed(context: Context) {
+        val lastPlayed = playlistManager.getLastPlayed()
+        lastPlayed?.let { music ->
+            val musicApi = com.neko.music.data.api.MusicApi()
+            val url = musicApi.getMusicFileUrl(music)
+            val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
+                "https://music.cnmsb.xin${music.coverFilePath}"
+            } else {
+                "https://music.cnmsb.xin/api/music/cover/${music.id}"
+            }
+            
+            _currentMusicUrl.value = url
+            _currentMusicId.value = music.id
+            _currentMusicTitle.value = music.title
+            _currentMusicArtist.value = music.artist
+            _currentMusicCover.value = fullCoverUrl
+            
+            // 准备但不自动播放
+            val mediaItem = MediaItem.fromUri(url)
+            player.setMediaItem(mediaItem)
+            player.prepare()
+        }
     }
     
     companion object {
