@@ -12,6 +12,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
@@ -30,6 +31,7 @@ import com.neko.music.ui.screens.MineScreen
 import com.neko.music.ui.screens.PlayerScreen
 import com.neko.music.ui.screens.SearchResultScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +54,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val playerManager = MusicPlayerManager.getInstance(context)
+    val scope = rememberCoroutineScope()
     
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryFlow.collectAsState(initial = null)
@@ -67,6 +70,13 @@ fun MainScreen() {
     val currentMusicArtist by playerManager.currentMusicArtist.collectAsState()
     val currentMusicCover by playerManager.currentMusicCover.collectAsState()
     val currentMusicId by playerManager.currentMusicId.collectAsState()
+    
+    // 启动时恢复上次播放的音乐
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        scope.launch {
+            playerManager.restoreLastPlayed(context)
+        }
+    }
     
     Box(modifier = Modifier.fillMaxSize()) {
         androidx.compose.foundation.layout.Column(
