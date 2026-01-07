@@ -3,6 +3,7 @@ package com.neko.music.ui.screens
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,15 +58,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.neko.music.R
 import com.neko.music.data.api.MusicApi
 import com.neko.music.data.model.Music
 import com.neko.music.ui.theme.RoseRed
 import kotlinx.coroutines.launch
 
+enum class PlayMode {
+    LIST_LOOP,    // 列表循环
+    SINGLE_LOOP,  // 单曲循环
+    SHUFFLE       // 随机播放
+}
+
 @Composable
 fun PlayerScreen(
     music: Music,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onPlaylistClick: () -> Unit = {}
 ) {
     var isPlaying by remember { mutableStateOf(false) }
     var isFavorite by remember { mutableStateOf(false) }
@@ -77,6 +86,7 @@ fun PlayerScreen(
     var isLoading by remember { mutableStateOf(false) }
     var musicFileUrl by remember { mutableStateOf<String?>(null) }
     var currentProgressSeconds by remember { mutableFloatStateOf(0f) }
+    var playMode by remember { mutableStateOf(PlayMode.LIST_LOOP) }
     
     val musicApi = remember { MusicApi() }
     val scope = rememberCoroutineScope()
@@ -108,95 +118,244 @@ fun PlayerScreen(
     }
     
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .statusBarsPadding()
-    ) {
-        TopBar(
-            onBackClick = onBackClick,
-            onMenuClick = {}
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // 封面视图和歌词视图容器
-        Box(
+    
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
+    
+                .fillMaxSize()
+    
+                .background(Color.White)
+    
+                .statusBarsPadding()
+    
         ) {
-            // 封面视图
-            androidx.compose.animation.AnimatedVisibility(
-                visible = !showLyrics,
-                modifier = Modifier.fillMaxSize(),
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CoverImage(
-                        music = music,
-                        onClick = { showLyrics = true }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    MusicInfo(
-                        music = music,
-                        isFavorite = isFavorite,
-                        onFavoriteClick = { isFavorite = !isFavorite }
-                    )
-                }
-            }
+    
+            TopBar(
+    
+                onBackClick = onBackClick,
+    
+                onMenuClick = {}
+    
+            )
+    
             
-            // 歌词视图
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showLyrics,
-                modifier = Modifier.fillMaxSize(),
-                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+    
+            Spacer(modifier = Modifier.height(16.dp))
+    
+            
+    
+            // 封面视图和歌词视图容器
+    
+            Box(
+    
+                modifier = Modifier
+    
+                    .fillMaxWidth()
+    
+                    .weight(1f)
+    
             ) {
-                LyricsView(
-                    lyrics = lyrics,
-                    currentProgressSeconds = currentProgressSeconds,
-                    isLoading = isLoading,
-                    onClick = { showLyrics = false },
-                    modifier = Modifier.fillMaxSize()
-                )
+    
+                // 封面视图
+    
+                            androidx.compose.animation.AnimatedVisibility(
+    
+                                visible = !showLyrics,
+    
+                                modifier = Modifier.fillMaxSize(),
+    
+                                enter = fadeIn(),
+    
+                                exit = fadeOut()
+    
+                            ) {
+    
+                                Box(
+    
+                                    modifier = Modifier.fillMaxSize(),
+    
+                                    contentAlignment = Alignment.Center
+    
+                                ) {
+    
+                                    CoverImage(
+    
+                                        music = music,
+    
+                                        onClick = { showLyrics = true }
+    
+                                    )
+    
+                                }
+    
+                            }
+    
+                
+    
+                // 歌词视图
+    
+                androidx.compose.animation.AnimatedVisibility(
+    
+                    visible = showLyrics,
+    
+                    modifier = Modifier.fillMaxSize(),
+    
+                    enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+    
+                    exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+    
+                ) {
+    
+                    Box(
+    
+                        modifier = Modifier.fillMaxSize()
+    
+                    ) {
+    
+                        LyricsView(
+    
+                            lyrics = lyrics,
+    
+                            currentProgressSeconds = currentProgressSeconds,
+    
+                            isLoading = isLoading,
+    
+                            onClick = { showLyrics = false },
+    
+                            modifier = Modifier.fillMaxSize()
+    
+                        )
+    
+                    }
+    
+                }
+    
             }
+    
+            
+    
+            Spacer(modifier = Modifier.height(8.dp))
+    
+            
+    
+            // 歌曲信息和收藏按钮 - 紧贴在进度条上方
+    
+            LyricSongInfoBar(
+    
+                music = music,
+    
+                isFavorite = isFavorite,
+    
+                onFavoriteClick = { isFavorite = !isFavorite },
+    
+                showLyrics = showLyrics
+    
+            )
+    
+            
+    
+            Spacer(modifier = Modifier.height(8.dp))
+    
+            
+    
+            ProgressSlider(
+    
+                progress = progress,
+    
+                currentTime = currentTime,
+    
+                totalTime = totalTime,
+    
+                isLoading = isLoading,
+    
+                onProgressChange = { 
+    
+                    progress = it
+    
+                    // 假设总时长为 300 秒（5分钟），计算当前秒数
+    
+                    currentProgressSeconds = it * 300f
+    
+                }
+    
+            )
+    
+            
+    
+            Spacer(modifier = Modifier.height(12.dp))
+    
+            
+    
+            PlaybackControls(
+    
+            
+    
+                        isPlaying = isPlaying,
+    
+            
+    
+                        isLoading = isLoading,
+    
+            
+    
+                        musicFileUrl = musicFileUrl,
+    
+            
+    
+                        playMode = playMode,
+    
+            
+    
+                        onPlayPauseClick = { isPlaying = !isPlaying },
+    
+            
+    
+                        onPreviousClick = {},
+    
+            
+    
+                        onNextClick = {},
+    
+            
+    
+                        onPlaylistClick = onPlaylistClick,
+    
+            
+    
+                        onPlayModeClick = {
+    
+            
+    
+                            playMode = when (playMode) {
+    
+            
+    
+                                PlayMode.LIST_LOOP -> PlayMode.SINGLE_LOOP
+    
+            
+    
+                                PlayMode.SINGLE_LOOP -> PlayMode.SHUFFLE
+    
+            
+    
+                                PlayMode.SHUFFLE -> PlayMode.LIST_LOOP
+    
+            
+    
+                            }
+    
+            
+    
+                        }
+    
+            
+    
+                    )
+    
+            
+    
+            Spacer(modifier = Modifier.height(24.dp))
+    
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        ProgressSlider(
-            progress = progress,
-            currentTime = currentTime,
-            totalTime = totalTime,
-            isLoading = isLoading,
-            onProgressChange = { 
-                progress = it
-                // 假设总时长为 300 秒（5分钟），计算当前秒数
-                currentProgressSeconds = it * 300f
-            }
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        PlaybackControls(
-            isPlaying = isPlaying,
-            isLoading = isLoading,
-            musicFileUrl = musicFileUrl,
-            onPlayPauseClick = { isPlaying = !isPlaying },
-            onPreviousClick = {},
-            onNextClick = {}
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-    }
 }
 
 @Composable
@@ -280,6 +439,58 @@ fun CoverImage(
 }
 
 @Composable
+fun MusicInfoWithFavorite(
+    music: Music,
+    isFavorite: Boolean,
+    onFavoriteClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp)
+    ) {
+        // 歌名和歌手 - 居中
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = music.title,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = music.artist,
+                fontSize = 16.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
+            )
+        }
+        
+        // 收藏按钮 - 右侧固定位置
+        IconButton(
+            onClick = onFavoriteClick,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(40.dp)
+        ) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                contentDescription = "收藏",
+                tint = if (isFavorite) RoseRed else Color.Gray,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
 fun MusicInfo(
     music: Music,
     isFavorite: Boolean,
@@ -326,6 +537,148 @@ fun MusicInfo(
 }
 
 @Composable
+fun LyricSongInfoBar(
+    music: Music,
+    isFavorite: Boolean,
+    onFavoriteClick: () -> Unit,
+    showLyrics: Boolean
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp)
+    ) {
+        if (showLyrics) {
+            // 歌词界面：歌名和歌手在左侧
+            Column(
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                // 歌名 - 可横向滚动
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                ) {
+                    Text(
+                        text = music.title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        maxLines = 1
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(2.dp))
+                
+                // 歌手
+                Text(
+                    text = music.artist,
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    maxLines = 1
+                )
+            }
+        } else {
+            // 封面界面：歌名和歌手居中
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = music.title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+                
+                Spacer(modifier = Modifier.height(2.dp))
+                
+                Text(
+                    text = music.artist,
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        
+        // 收藏按钮 - 始终在右侧固定位置
+        IconButton(
+            onClick = onFavoriteClick,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(36.dp)
+        ) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                contentDescription = "收藏",
+                tint = if (isFavorite) RoseRed else Color.Gray,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun LyricsSongInfo(
+    music: Music,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+    ) {
+        // 歌名和歌手 - 左侧
+        Column(
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            // 歌名 - 可横向滚动
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+            ) {
+                Text(
+                    text = music.title,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            // 歌手
+            Text(
+                text = music.artist,
+                fontSize = 14.sp,
+                color = Color.Gray,
+                maxLines = 1
+            )
+        }
+        
+        // 收藏按钮 - 右侧固定位置
+        IconButton(
+            onClick = {},
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(40.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.FavoriteBorder,
+                contentDescription = "收藏",
+                tint = Color.Gray,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
 fun LyricsView(
     lyrics: List<LrcLine>,
     currentProgressSeconds: Float,
@@ -338,10 +691,14 @@ fun LyricsView(
         lyrics.indexOfLast { it.time <= currentProgressSeconds }
     }
     
-    // 自动滚动到当前歌词
+    // 自动滚动到当前歌词，使其居中
     LaunchedEffect(currentIndex) {
         if (currentIndex >= 0) {
-            listState.animateScrollToItem(currentIndex, scrollOffset = 0)
+            val viewportHeight = listState.layoutInfo.viewportSize.height
+            val currentItem = listState.layoutInfo.visibleItemsInfo.getOrNull(currentIndex)
+            val itemHeight = currentItem?.size ?: 0
+            val scrollOffset = -viewportHeight / 2 + itemHeight / 2
+            listState.animateScrollToItem(currentIndex, scrollOffset)
         }
     }
     
@@ -367,9 +724,13 @@ fun LyricsView(
                 androidx.compose.foundation.lazy.LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // 添加顶部占位，让第一行歌词也能居中
+                    item {
+                        Spacer(modifier = Modifier.height(300.dp))
+                    }
+                    
                     items(lyrics.size) { index ->
                         val line = lyrics[index]
                         val isCurrentLine = index == currentIndex
@@ -385,6 +746,11 @@ fun LyricsView(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                         )
+                    }
+                    
+                    // 添加底部占位，让最后一行歌词也能居中
+                    item {
+                        Spacer(modifier = Modifier.height(300.dp))
                     }
                 }
             }
@@ -490,34 +856,61 @@ fun PlaybackControls(
     isPlaying: Boolean,
     isLoading: Boolean,
     musicFileUrl: String?,
+    playMode: PlayMode,
     onPlayPauseClick: () -> Unit,
     onPreviousClick: () -> Unit,
-    onNextClick: () -> Unit
+    onNextClick: () -> Unit,
+    onPlaylistClick: () -> Unit,
+    onPlayModeClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 48.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+            .padding(horizontal = 32.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 上一首按钮 - 使用左箭头
-        IconButton(
-            onClick = onPreviousClick,
-            modifier = Modifier.size(48.dp)
+        // 左侧：播放模式、上一首
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.ArrowBack,
-                contentDescription = "上一首",
-                tint = Color.Black,
-                modifier = Modifier.size(32.dp)
-            )
+            // 播放模式按钮
+            IconButton(
+                onClick = onPlayModeClick,
+                modifier = Modifier.size(40.dp)
+            ) {
+                val iconRes = when (playMode) {
+                    PlayMode.LIST_LOOP -> R.drawable.list_loop
+                    PlayMode.SINGLE_LOOP -> R.drawable.single_loop
+                    PlayMode.SHUFFLE -> R.drawable.shuffle
+                }
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(iconRes),
+                    contentDescription = "Play Mode",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            // 上一首按钮
+            IconButton(
+                onClick = onPreviousClick,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.previous_song),
+                    contentDescription = "Previous",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
         
-        // 播放/暂停按钮
+        // 中间：播放/暂停按钮
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(64.dp)
                 .background(RoseRed, CircleShape)
                 .clickable(enabled = !isLoading && musicFileUrl != null, onClick = onPlayPauseClick),
             contentAlignment = Alignment.Center
@@ -526,41 +919,58 @@ fun PlaybackControls(
                 isLoading -> {
                     CircularProgressIndicator(
                         color = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
                 musicFileUrl == null -> {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "加载中",
+                        contentDescription = "Loading",
                         tint = Color.White.copy(alpha = 0.5f),
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                 }
                 else -> {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "暂停" else "播放",
+                        contentDescription = if (isPlaying) "Pause" else "Play",
                         tint = Color.White,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                 }
             }
         }
         
-        // 下一首按钮 - 使用右箭头（旋转180度）
-        IconButton(
-            onClick = onNextClick,
-            modifier = Modifier.size(48.dp)
+        // 右侧：下一首、播放列表
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.ArrowBack,
-                contentDescription = "下一首",
-                tint = Color.Black,
-                modifier = Modifier
-                    .size(32.dp)
-                    .rotate(180f)
-            )
+            // 下一首按钮
+            IconButton(
+                onClick = onNextClick,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.next_song),
+                    contentDescription = "Next",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            // 播放列表按钮
+            IconButton(
+                onClick = onPlaylistClick,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.playlist),
+                    contentDescription = "Playlist",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
