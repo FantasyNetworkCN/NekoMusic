@@ -275,6 +275,17 @@ fun MusicItem(
     music: Music,
     onClick: () -> Unit
 ) {
+    val musicApi = remember { MusicApi() }
+    val scope = rememberCoroutineScope()
+    var coverUrl by remember { mutableStateOf<String?>(null) }
+    
+    androidx.compose.runtime.LaunchedEffect(music.id) {
+        scope.launch {
+            coverUrl = musicApi.getMusicCoverUrl(music)
+            Log.d("MusicItem", "封面URL: $coverUrl, music.coverFilePath: ${music.coverFilePath}")
+        }
+    }
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -296,10 +307,19 @@ fun MusicItem(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "🎵",
-                fontSize = 22.sp
-            )
+            if (!coverUrl.isNullOrEmpty()) {
+                coil.compose.AsyncImage(
+                    model = coverUrl,
+                    contentDescription = "封面",
+                    modifier = Modifier.size(44.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = "🎵",
+                    fontSize = 22.sp
+                )
+            }
         }
         
         Spacer(modifier = Modifier.composeWidth(12.dp))
