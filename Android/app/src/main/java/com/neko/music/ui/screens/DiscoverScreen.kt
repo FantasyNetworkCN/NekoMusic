@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +28,7 @@ fun DiscoverScreen() {
     val view = LocalView.current
     SideEffect {
         val window = (view.context as android.app.Activity).window
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
     }
     
@@ -53,6 +55,7 @@ fun DiscoverHeader() {
             .fillMaxWidth()
             .height(120.dp)
             .background(RoseRed)
+            .statusBarsPadding()
             .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {

@@ -4,11 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,7 +28,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Neko云音乐Theme {
-                MainScreen()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.Transparent
+                ) {
+                    MainScreen()
+                }
             }
         }
     }
@@ -35,23 +43,29 @@ class MainActivity : ComponentActivity() {
 fun MainScreen() {
     val navController = rememberNavController()
     
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            BottomNavigationBar(navController = navController)
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomNavItem.Home.route,
-            modifier = Modifier.padding(innerPadding)
+    Box(modifier = Modifier.fillMaxSize()) {
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            composable(BottomNavItem.Home.route) {
-                HomeScreen()
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize()
+            ) {
+                NavHost(
+                    navController = navController,
+                    startDestination = BottomNavItem.Home.route
+                ) {
+                    composable(BottomNavItem.Home.route) {
+                        HomeScreen()
+                    }
+                    composable(BottomNavItem.Mine.route) {
+                        MineScreen()
+                    }
+                }
             }
-            composable(BottomNavItem.Mine.route) {
-                MineScreen()
-            }
+            
+            BottomNavigationBar(navController = navController)
         }
     }
 }
