@@ -278,13 +278,13 @@ fun MusicItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(60.dp)
+            .height(56.dp)
             .background(
                 color = Color.White,
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -315,9 +315,9 @@ fun MusicItem(
                 color = Color.Black,
                 maxLines = 1
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${music.artist}",
+                text = "作者：${music.artist}",
                 fontSize = 13.sp,
                 color = Color.Gray,
                 maxLines = 1
