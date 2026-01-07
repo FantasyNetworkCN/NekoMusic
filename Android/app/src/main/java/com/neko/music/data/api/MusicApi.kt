@@ -86,10 +86,10 @@ class MusicApi {
     }
     
     suspend fun getMusicCoverUrl(music: Music): String {
-        return "$baseUrl${music.coverUrl}"
+        return "$baseUrl/api/music/cover/${music.id}"
     }
     
     suspend fun getMusicFileUrl(music: Music): String {
-        return "$baseUrl${music.filePath}"
+        return "$baseUrl/api/music/file/${music.id}"
     }
 }
