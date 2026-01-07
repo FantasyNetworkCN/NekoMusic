@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -35,11 +37,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.neko.music.data.api.MusicApi
+import com.neko.music.data.manager.SearchHistoryManager
 import com.neko.music.data.model.Music
+import com.neko.music.data.model.SearchHistory
 import com.neko.music.ui.theme.RoseRed
 import kotlinx.coroutines.launch
 
@@ -49,10 +54,13 @@ fun SearchResultScreen(
     onBackClick: () -> Unit,
     onMusicClick: (Music) -> Unit
 ) {
+    val context = LocalContext.current
+    val historyManager = remember { SearchHistoryManager(context) }
     var searchQuery by remember { mutableStateOf(initialQuery) }
     var searchResults by remember { mutableStateOf<List<Music>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var searchHistory by remember { mutableStateOf<List<SearchHistory>>(emptyList()) }
     
     val musicApi = remember { MusicApi() }
     val scope = rememberCoroutineScope()
@@ -78,6 +86,11 @@ fun SearchResultScreen(
         }
     }
     
+    // 加载搜索历史
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        searchHistory = historyManager.getSearchHistory()
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -90,12 +103,16 @@ fun SearchResultScreen(
                 Log.d("SearchScreen", "输入: $it")
             },
             onSearch = {
-                Log.d("SearchScreen", "手动触发搜索: $searchQuery")
-                isLoading = true
-                performSearch(musicApi, searchQuery, scope) { results, error ->
-                    searchResults = results
-                    isLoading = false
-                    errorMessage = error
+                if (searchQuery.isNotEmpty()) {
+                    Log.d("SearchScreen", "手动触发搜索: $searchQuery")
+                    historyManager.saveSearch(searchQuery)
+                    searchHistory = historyManager.getSearchHistory()
+                    isLoading = true
+                    performSearch(musicApi, searchQuery, scope) { results, error ->
+                        searchResults = results
+                        isLoading = false
+                        errorMessage = error
+                    }
                 }
             },
             onBackClick = onBackClick
@@ -127,6 +144,18 @@ fun SearchResultScreen(
                         )
                     }
                 }
+                searchResults.isEmpty() && searchQuery.isEmpty() && searchHistory.isNotEmpty() -> {
+                    SearchHistoryList(
+                        history = searchHistory,
+                        onItemClick = { query ->
+                            searchQuery = query
+                        },
+                        onClearClick = {
+                            historyManager.clearHistory()
+                            searchHistory = emptyList()
+                        }
+                    )
+                }
                 searchResults.isEmpty() && searchQuery.isNotEmpty() -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -134,6 +163,18 @@ fun SearchResultScreen(
                     ) {
                         Text(
                             text = "未找到相关音乐",
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+                searchResults.isEmpty() && searchQuery.isEmpty() && searchHistory.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无搜索历史",
                             color = Color.Gray,
                             fontSize = 14.sp
                         )
@@ -342,6 +383,84 @@ fun MusicItem(
                 color = Color.Gray,
                 maxLines = 1
             )
+        }
+    }
+}
+
+@Composable
+fun SearchHistoryList(
+    history: List<SearchHistory>,
+    onItemClick: (String) -> Unit,
+    onClearClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "搜索历史",
+                    tint = Color.Gray,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "搜索历史",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.Gray
+                )
+            }
+            
+            IconButton(
+                onClick = onClearClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Clear,
+                    contentDescription = "清除历史",
+                    tint = Color.Gray,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(history) { item ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .background(
+                            color = Color(0xFFF5F5F5),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clickable { onItemClick(item.query) }
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = item.query,
+                        fontSize = 14.sp,
+                        color = Color.Black
+                    )
+                }
+            }
         }
     }
 }
