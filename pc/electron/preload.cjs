@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+const { contextBridge, ipcRenderer } = require('electron')
 
 // 暴露安全的 API 给渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 其他可以暴露的 API
   platform: process.platform,
-  arch: process.arch,
+  arch: process.arch
 })
 
 // 监听主进程事件
