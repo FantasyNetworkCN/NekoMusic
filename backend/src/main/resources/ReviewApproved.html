@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>NekoMusic - 雫の共鸣协议</title>
+    <title>NekoMusic - 雫の审定报告</title>
     <style>
         body {
             background-color: #f0f8ff;
@@ -11,21 +11,21 @@
             font-family: 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
         }
 
-        /* 主容器：雫蓝渐变边框与毛玻璃质感 */
+        /* 主容器：延续雫蓝渐变边框与毛玻璃质感 */
         .container {
             max-width: 580px;
             margin: 40px auto;
             background: #ffffff;
-            border-radius: 40px 10px 40px 10px; /* 不规则圆角更具设计感 */
+            border-radius: 40px 10px 40px 10px;
             border: 2px solid #a2d2ff;
             box-shadow: 0 20px 60px rgba(162, 210, 255, 0.3);
             overflow: hidden;
             position: relative;
         }
 
-        /* 顶部华丽装饰区 */
+        /* 顶部华丽装饰区 - 通过时使用蓝色系 */
         .header-art {
-            background: linear-gradient(135deg, #bde0fe 0%, #ffc8dd 100%);
+            background: linear-gradient(135deg, #bde0fe 0%, #a2d2ff 100%);
             height: 120px;
             position: relative;
             display: flex;
@@ -33,7 +33,7 @@
             justify-content: center;
         }
 
-        /* SVG 绘制：猫耳装饰 */
+        /* 猫耳装饰 */
         .neko-ears {
             position: absolute;
             top: -20px;
@@ -67,26 +67,62 @@
             align-items: center;
         }
 
-        /* 验证码卡片：精致的内嵌式设计 */
-        .code-card {
+        /* 审核状态卡片 */
+        .status-card {
             margin: 35px 0;
             background: #ffffff;
             border-radius: 20px;
-            padding: 40px 20px;
+            padding: 30px 20px;
             text-align: center;
             border: 1px solid #e0f2fe;
             box-shadow: inset 0 0 20px rgba(189, 224, 254, 0.2), 0 10px 20px rgba(0,0,0,0.05);
             position: relative;
         }
 
-        .code-display {
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 52px;
+        /* 审核状态文字展示 - 通过状态 */
+        .status-display {
+            font-size: 42px;
             font-weight: bold;
             background: linear-gradient(to right, #4895ef, #4cc9f0);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            letter-spacing: 12px;
+            letter-spacing: 4px;
+            margin: 10px 0;
+        }
+
+        .music-title {
+            font-size: 18px;
+            color: #5b7083;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .music-artist {
+            font-size: 14px;
+            color: #9bb1c4;
+            margin-bottom: 15px;
+        }
+
+        .success-message {
+            background: #f0f9ff;
+            border-left: 4px solid #4895ef;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 0 10px 10px 0;
+        }
+
+        .success-message-title {
+            font-size: 14px;
+            color: #4895ef;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .success-message-content {
+            font-size: 13px;
+            color: #5b7083;
+            line-height: 1.8;
         }
 
         /* 底部信息栏 */
@@ -97,10 +133,18 @@
             border-top: 1px solid #eef6ff;
         }
 
-        /* 纯SVG按钮效果 */
         .svg-icon {
             vertical-align: middle;
             margin-right: 8px;
+        }
+
+        .tips {
+            font-size: 13px;
+            color: #9bb1c4;
+            border-left: 4px solid #bde0fe;
+            padding-left: 15px;
+            margin-top: 20px;
+            line-height: 1.8;
         }
     </style>
 </head>
@@ -109,7 +153,7 @@
     <div class="neko-ears">
         <svg width="200" height="40" viewBox="0 0 200 40" xmlns="http://www.w3.org/2000/svg">
             <path d="M40 40 L60 10 L80 40" fill="#bde0fe" />
-            <path d="M120 40 L140 10 L160 40" fill="#ffc8dd" />
+            <path d="M120 40 L140 10 L160 40" fill="#a2d2ff" />
         </svg>
     </div>
 
@@ -128,30 +172,41 @@
         </div>
 
         <p style="line-height: 2; margin-top: 20px;">
-            收到了来自雫酱的信号请求！为了连接至 NekoMusic 的深层网络，请执行以下序列同步。
-            不要让雫酱等太久哦，不然她又要去钻被窝了喵。
+            雫酱已经从星际电波中捕获了审定结果喵！<br>
+            您提交的灵魂乐章已经过 NekoMusic 委员会的认真感应。
         </p>
 
-        <div class="code-card">
+        <div class="status-card">
             <svg style="position:absolute; top:10px; left:10px;" width="30" height="30" viewBox="0 0 100 100">
-                <circle cx="20" cy="20" r="10" fill="#ffc8dd" />
+                <circle cx="20" cy="20" r="10" fill="#bde0fe" />
             </svg>
 
-            <span style="font-size: 11px; color: #a2d2ff; letter-spacing: 3px; display:block; margin-bottom: 10px;">-- AUTHENTICATION CODE --</span>
-            <div class="code-display">{{verificationCode}}</div>
+            <span style="font-size: 11px; color: #a2d2ff; letter-spacing: 3px; display:block; margin-bottom: 5px;">-- AUDIT REPORT --</span>
+
+            <div class="music-title">《{{musicName}}》</div>
+            <div class="music-artist">演唱者：{{artistName}}</div>
+            <div class="status-display">审核通过</div>
+
+            <div class="success-message">
+                <div class="success-message-title">🎉 恭喜！</div>
+                <div class="success-message-content">
+                    您的音乐已成功通过审核，现已添加到 NekoMusic 音乐库中！<br>
+                    快来 NekoMusic 搜索您的作品，和大家分享美妙的旋律吧~
+                </div>
+            </div>
 
             <div style="font-size: 12px; color: #bde0fe; margin-top: 15px;">
-                该密钥将在 300 秒后随音符消散
+                审定时间：{{auditDate}}
             </div>
         </div>
 
-        <p style="font-size: 13px; color: #9bb1c4; border-left: 4px solid #bde0fe; padding-left: 15px;">
-            提示：若非本人请求，请将此讯号视为虚空的低语。
-        </p>
+        <div class="tips">
+            提示：感谢您为 NekoMusic 贡献优秀的音乐作品！<br>
+            我们期待您未来上传更多精彩的音乐喵~
+        </div>
     </div>
 
     <div class="footer-info">
-
         <div style="font-size: 12px; color: #84a59d;">
             Fantasy Network | <strong>雫の音乐工坊</strong>
         </div>
