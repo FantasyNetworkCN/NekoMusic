@@ -3,7 +3,7 @@ port: 9999
 
 # MySQL数据库配置
 mysql:
-  host: 10.0.5.2
+  host: 127.0.0.1
   port: 3306
   database: neko_music
   username: root
@@ -11,8 +11,14 @@ mysql:
 
 # Redis配置
 redis:
-  host: 10.0.5.2
+  host: 127.0.0.1
   port: 6379
+
+# Hook消息配置
+# astrbot 插件 https://github.com/MinecraftNekoServer/astrbot_msg_hook
+Msg:
+  url: 127.0.0.1:8080
+  token: Fantasy_Network
 
 # JWT配置
 jwt:
