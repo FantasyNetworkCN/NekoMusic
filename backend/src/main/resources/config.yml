@@ -45,6 +45,11 @@ redis:
   # 示例：6379 (Redis 默认端口)
   port: 6379
 
+  # Redis 密码
+  # 如果 Redis 不需要密码，留空即可
+  # 示例：your_redis_password
+  password: "kl076076..."
+
 # =============================================
 # Hook 消息配置（可选）
 # =============================================
@@ -83,7 +88,7 @@ smtp:
   #   - QQ邮箱：smtp.qq.com
   #   - Gmail：smtp.gmail.com
   #   - 163邮箱：smtp.163.com
-  host: smtp.exmail.qq.com
+  host: smtp.163.com
 
   # SMTP 服务器端口
   # 常用端口：
@@ -95,11 +100,11 @@ smtp:
   # SMTP 用户名
   # 通常是完整的邮箱地址
   # 示例：support@cnmsb.xin, admin@example.com
-  username: support@cnmsb.xin
+  username: wwj16696995232@163.com
 
   # SMTP 密码
   # 注意：某些邮箱需要使用授权码而非登录密码
-  password: qTHWV9pU4fR52rGf
+  password: "RJuBmpw2gTYhcycy"
 
   # 是否启用 SSL
   # 示例：true (推荐), false
@@ -123,6 +128,7 @@ whitelist_email:
   # - example.com
   - qq.com
   - gmail.com
+  - 163.com
 
 # =============================================
 # IP 频率限制配置（安全防护）
