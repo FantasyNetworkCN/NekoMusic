@@ -7,7 +7,7 @@
 # =============================================
 # 运行端口
 # 示例：8080, 9999, 3000
-port: 9999
+port: 65535
 
 # =============================================
 # MySQL 数据库配置
@@ -48,7 +48,7 @@ redis:
   # Redis 密码
   # 如果 Redis 不需要密码，留空即可
   # 示例：your_redis_password
-  password: "kl076076..."
+  password: ""
 
 # =============================================
 # Hook 消息配置（可选）
@@ -88,7 +88,7 @@ smtp:
   #   - QQ邮箱：smtp.qq.com
   #   - Gmail：smtp.gmail.com
   #   - 163邮箱：smtp.163.com
-  host: smtp.163.com
+  host: smtp.exmail.qq.com
 
   # SMTP 服务器端口
   # 常用端口：
@@ -100,11 +100,11 @@ smtp:
   # SMTP 用户名
   # 通常是完整的邮箱地址
   # 示例：support@cnmsb.xin, admin@example.com
-  username: wwj16696995232@163.com
+  username: support@cnmsb.xin
 
   # SMTP 密码
   # 注意：某些邮箱需要使用授权码而非登录密码
-  password: "RJuBmpw2gTYhcycy"
+  password: 7fnFaXso2ccRHmLL
 
   # 是否启用 SSL
   # 示例：true (推荐), false
@@ -128,7 +128,6 @@ whitelist_email:
   # - example.com
   - qq.com
   - gmail.com
-  - 163.com
 
 # =============================================
 # IP 频率限制配置（安全防护）
@@ -138,7 +137,7 @@ whitelist_email:
 rate_limit:
   # 是否启用 IP 频率限制
   # 示例：true (启用), false (禁用)
-  enabled: true
+  enabled: false
 
   # 时间窗口（秒）
   # 在此时间窗口内统计请求数，超过限制后封锁网段
