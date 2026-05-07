@@ -9,6 +9,14 @@
 # 示例：8080, 9999, 3000
 port: 65535
 
+# 高并发调优（可选；缺省为下列值，请与 MySQL max_connections 等一起规划）
+performance:
+  jetty_max_threads: 200
+  jetty_min_threads: 10
+  jetty_idle_timeout_ms: 60000
+  hikari_maximum_pool_size: 20
+  hikari_minimum_idle: 5
+
 # =============================================
 # MySQL 数据库配置
 # =============================================
@@ -49,6 +57,9 @@ redis:
   # 如果 Redis 不需要密码，留空即可
   # 示例：your_redis_password
   password: ""
+
+  # Lettuce 连接池上限（建议不小于 Jetty 峰值并发下会打 Redis 的线程数）
+  pool_max_total: 32
 
 # =============================================
 # Hook 消息配置（可选）
