@@ -182,7 +182,7 @@ rate_limit:
 #   GET  /api/video/render/{jobId}    轮询 pending → processing → done / failed
 #   GET  /api/video/render/{jobId}/download
 # 会员策略：
-#   非 VIP：最长 non_vip_max_duration_sec 秒、带 watermark_text 水印、每日 non_vip_daily_limit 次（Redis 计数）
+#   非 VIP：最长 non_vip_max_duration_sec 秒、带内嵌 watermark.png 水印、每日 non_vip_daily_limit 次（Redis 计数）
 #   VIP：整首时长（从 startSec 到曲末）、无水印、不限次数
 # 内嵌 FFmpeg：打包时已打入 JAR（resources/native/linux-x86_64/ffmpeg，仅 Linux amd64）
 video_render:
@@ -210,10 +210,6 @@ video_render:
   # 后台渲染线程数（队列满时新任务返回 503）
   # 示例：1, 2, 4
   worker_threads: 20
-
-  # 非 VIP 成片右下角水印文字（VIP 不显示）
-  # 示例：NekoMusic, 平台名称
-  watermark_text: NekoMusic
 
   # 渲染完成邮件中的站点根（不含尾斜杠），用于拼接下载 API
   # 示例：https://music.cnmsb.xin → …/api/video/render/{jobId}/download（无需登录）
