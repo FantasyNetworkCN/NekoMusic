@@ -179,11 +179,11 @@ rate_limit:
 # 当前域名下完整异步地址示例：https://music.cnmsb.xin/api/payment/zpay/notify
 # return_url：未填 frontend_return_url 时默认为 public_base_url + /vip
 # pid、key 仅填你在 ZPay 商户后台拿到的值；切勿把 key 提交到公开仓库。
+# 仅使用 mapi.php（API 接口支付），不使用 submit.php 页面跳转。
 zpay:
   enabled: true
   pid: "2025110723453452"
   key: "2AmiPprT4D1d7Eyi5DNFNsi1BdnqFYPR"
   mapi_url: "https://zpayz.cn/mapi.php"
-  submit_url: "https://zpayz.cn/submit.php"
   public_base_url: "https://music.cnmsb.xin/api/payment/zpay/notify"
   frontend_return_url: "https://music.cnmsb.xin/vip"
