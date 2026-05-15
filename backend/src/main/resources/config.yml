@@ -178,10 +178,13 @@ rate_limit:
 # 非 VIP：最长 15 秒、带平台水印、每日 10 次；VIP 无时长/次数限制
 video_render:
   enabled: true
-  ffmpeg_path: ffmpeg
+  # auto：优先使用 JAR 内嵌 FFmpeg（mvn package 时下载）；也可填绝对路径如 /usr/bin/ffmpeg
+  ffmpeg_path: auto
+  prefer_bundled_ffmpeg: true
   non_vip_max_duration_sec: 15
   non_vip_daily_limit: 10
   worker_threads: 2
+  # 水印
   watermark_text: NekoMusic
 
 # =============================================
