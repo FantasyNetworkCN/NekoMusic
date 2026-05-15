@@ -176,7 +176,7 @@ rate_limit:
 # 横屏短视频渲染（FFmpeg，独立线程池异步执行）
 # =============================================
 # 用户在播放页发起「生成分享视频」，服务端异步合成 1920×1080 MP4（封面 + 波形 + 标题/艺术家字幕）。
-# 成片目录：运行目录下 Music/videos/{jobId}.mp4
+# 成片目录：/tmp/neko-video-render/{jobId}.mp4
 # 公开 API（需登录）：
 #   POST /api/video/render/create   body: { "musicId": 1, "startSec": 0 }
 #   GET  /api/video/render/{jobId}    轮询 pending → processing → done / failed
