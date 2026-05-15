@@ -173,6 +173,18 @@ rate_limit:
   silent_timeout: true
 
 # =============================================
+# 横屏短视频渲染（FFmpeg，需服务器安装 ffmpeg；独立线程池异步执行）
+# =============================================
+# 非 VIP：最长 15 秒、带平台水印、每日 10 次；VIP 无时长/次数限制
+video_render:
+  enabled: true
+  ffmpeg_path: ffmpeg
+  non_vip_max_duration_sec: 15
+  non_vip_daily_limit: 10
+  worker_threads: 2
+  watermark_text: NekoMusic
+
+# =============================================
 # ZPay 支付（易支付兼容 API，文档 https://z-pay.cn/doc.html）
 # =============================================
 # notify_url = public_base_url + /api/payment/zpay/notify（须公网 HTTPS，无查询参数）
