@@ -215,8 +215,8 @@ video_render:
   # 示例：NekoMusic, 平台名称
   watermark_text: NekoMusic
 
-  # 渲染完成邮件中的站点根（不含尾斜杠），用于拼接公开下载 API
-  # 示例：https://music.cnmsb.xin → …/api/video/render/{jobId}/download?token=…（无需登录）
+  # 渲染完成邮件中的站点根（不含尾斜杠），用于拼接下载 API
+  # 示例：https://music.cnmsb.xin → …/api/video/render/{jobId}/download（无需登录）
   # 未填则从 zpay.frontend_return_url 推断（去掉 /vip）
   notify_frontend_base_url: "https://music.cnmsb.xin"
 
