@@ -173,18 +173,46 @@ rate_limit:
   silent_timeout: true
 
 # =============================================
-# 横屏短视频渲染（FFmpeg，需服务器安装 ffmpeg；独立线程池异步执行）
+# 横屏短视频渲染（FFmpeg，独立线程池异步执行）
 # =============================================
-# 非 VIP：最长 15 秒、带平台水印、每日 10 次；VIP 无时长/次数限制
+# 用户在播放页发起「生成分享视频」，服务端异步合成 1920×1080 MP4（封面 + 波形 + 标题/艺术家字幕）。
+# 成片目录：运行目录下 Music/videos/{jobId}.mp4
+# 公开 API（需登录）：
+#   POST /api/video/render/create   body: { "musicId": 1, "startSec": 0 }
+#   GET  /api/video/render/{jobId}    轮询 pending → processing → done / failed
+#   GET  /api/video/render/{jobId}/download
+# 会员策略：
+#   非 VIP：最长 non_vip_max_duration_sec 秒、带 watermark_text 水印、每日 non_vip_daily_limit 次（Redis 计数）
+#   VIP：整首时长（从 startSec 到曲末）、无水印、不限次数
+# 内嵌 FFmpeg：打包时已打入 JAR（resources/native/linux-x86_64/ffmpeg，仅 Linux amd64）
 video_render:
+  # 是否启用视频生成功能
+  # 示例：true (启用), false (关闭，接口返回 503)
   enabled: true
-  # auto：优先使用 JAR 内嵌 FFmpeg（mvn package 时下载）；也可填绝对路径如 /usr/bin/ffmpeg
+
+  # FFmpeg 可执行文件路径
+  # auto 或 ffmpeg：自动解析（优先 JAR 内嵌 → /usr/bin/ffmpeg 等）
+  # 也可填绝对路径，例如 /usr/bin/ffmpeg
   ffmpeg_path: auto
+
+  # 为 true 时优先使用 JAR 内嵌 FFmpeg（推荐；避免 systemd 等环境 PATH 过短找不到命令）
+  # 为 false 时先找系统 PATH / 常见路径，再找内嵌包
   prefer_bundled_ffmpeg: true
+
+  # 非 VIP 单次成片最长秒数（VIP 不受此项限制，按歌曲剩余时长）
+  # 示例：15, 30
   non_vip_max_duration_sec: 15
+
+  # 非 VIP 每自然日（东八区）最多生成次数，依赖 Redis
+  # 示例：10, 20
   non_vip_daily_limit: 10
-  worker_threads: 2
-  # 水印
+
+  # 后台渲染线程数（队列满时新任务返回 503）
+  # 示例：1, 2, 4
+  worker_threads: 20
+
+  # 非 VIP 成片右下角水印文字（VIP 不显示）
+  # 示例：NekoMusic, 平台名称
   watermark_text: NekoMusic
 
 # =============================================
