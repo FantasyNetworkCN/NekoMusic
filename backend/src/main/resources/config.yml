@@ -215,6 +215,10 @@ video_render:
   # 示例：NekoMusic, 平台名称
   watermark_text: NekoMusic
 
+  # 渲染完成邮件中的下载页站点根（不含尾斜杠），如 https://music.cnmsb.xin
+  # 未填则从 zpay.frontend_return_url 推断（去掉 /vip）
+  notify_frontend_base_url: "https://music.cnmsb.xin"
+
 # =============================================
 # ZPay 支付（易支付兼容 API，文档 https://z-pay.cn/doc.html）
 # =============================================
