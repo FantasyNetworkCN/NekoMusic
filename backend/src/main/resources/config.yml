@@ -17,6 +17,7 @@ performance:
   hikari_maximum_pool_size: 20
   hikari_minimum_idle: 5
 
+
 # =============================================
 # MySQL 数据库配置
 # =============================================
@@ -52,11 +53,6 @@ redis:
   # Redis 端口
   # 示例：6379 (Redis 默认端口)
   port: 6379
-
-  # Redis 密码
-  # 如果 Redis 不需要密码，留空即可
-  # 示例：your_redis_password
-  password: ""
 
   # Lettuce 连接池上限（建议不小于 Jetty 峰值并发下会打 Redis 的线程数）
   pool_max_total: 32
@@ -132,19 +128,18 @@ smtp:
 # 留空表示允许所有邮箱域名注册
 whitelist_email:
   # 示例邮箱域名
-  # - qq.com
-  # - gmail.com
-  # - outlook.com
-  # - 163.com
-  # - example.com
   - qq.com
   - gmail.com
+  - 163.com
+  - outlook.com
+  - 126.com
+  - hotmail.com
 
 # =============================================
 # IP 频率限制配置（安全防护）
 # =============================================
-# 按 /24 网段（a.b.c.*）聚合计数与封锁，减轻 NAT 下误伤，又比 /16 更精细
-# 示例：192.168.1.10 与 192.168.1.200 同属 192.168.1.0/24；192.168.2.1 属于另一段
+# 按 /24 网段进行限制，防止暴力攻击
+# 示例：192.168.1.100 和 192.168.2.50 属于同一网段 192.168.0.0/24
 rate_limit:
   # 是否启用 IP 频率限制
   # 示例：true (启用), false (禁用)
@@ -159,30 +154,30 @@ rate_limit:
   # 同一 /24 网段在时间窗口内的最大请求次数
   # 示例：10, 20, 50
   # 建议：生产环境设置为 10-20，开发环境可设为 100
-  max_requests: 50
+  max_requests: 300
 
   # 封锁时间（秒）
   # 超过限制后，该网段将被封锁的时间
   # 示例：3600 (1小时), 7200 (2小时), 86400 (1天)
-  block_duration: 3600
+  block_duration: 1200
 
   # 是否静默超时
   # true: 对超频请求不返回任何响应，让对方自己 timeout（更安全）
   # false: 返回错误信息给用户
   # 示例：true (推荐), false
-  silent_timeout: true
+  silent_timeout: false
 
 # =============================================
 # 横屏短视频渲染（FFmpeg，独立线程池异步执行）
 # =============================================
 # 用户在播放页发起「生成分享视频」，服务端异步合成 1920×1080 MP4（封面 + 波形 + 标题/艺术家字幕）。
-# 成片目录：/tmp/NekoMusic-video-render/{jobId}.mp4
+# 临时目录（tmpfs）：/tmp/.neko/video-render/{jobId}.mp4、ass/{jobId}.ass；内嵌字体/FFmpeg/水印亦在此树下
 # 公开 API（需登录）：
 #   POST /api/video/render/create   body: { "musicId": 1, "startSec": 0 }
 #   GET  /api/video/render/{jobId}    轮询 pending → processing → done / failed
 #   GET  /api/video/render/{jobId}/download
 # 会员策略：
-#   非 VIP：最长 non_vip_max_duration_sec 秒、带内嵌 watermark.png 水印、每日 non_vip_daily_limit 次（Redis 计数）
+#   非 VIP：最长 non_vip_max_duration_sec 秒、带 watermark_text 水印、每日 non_vip_daily_limit 次（Redis 计数）
 #   VIP：整首时长（从 startSec 到曲末）、无水印、不限次数
 # 内嵌 FFmpeg：打包时已打入 JAR（resources/native/linux-x86_64/ffmpeg，仅 Linux amd64）
 video_render:
@@ -201,7 +196,7 @@ video_render:
 
   # 非 VIP 单次成片最长秒数（VIP 不受此项限制，按歌曲剩余时长）
   # 示例：15, 30
-  non_vip_max_duration_sec: 15
+  non_vip_max_duration_sec: 30
 
   # 非 VIP 每自然日（东八区）最多生成次数，依赖 Redis
   # 示例：10, 20
@@ -211,8 +206,10 @@ video_render:
   # 示例：1, 2, 4
   worker_threads: 20
 
-  # 渲染完成邮件中的站点根（不含尾斜杠），用于拼接下载 API
-  # 示例：https://music.cnmsb.xin → …/api/video/render/{jobId}/download（无需登录）
+  # 成片与 ASS 在 /tmp/.neko 中的保留时间（小时），到期自动删除；Redis 任务元数据 TTL 与此一致
+  artifact_retention_hours: 3
+
+  # 渲染完成邮件中的下载页站点根（不含尾斜杠），如 https://music.cnmsb.xin
   # 未填则从 zpay.frontend_return_url 推断（去掉 /vip）
   notify_frontend_base_url: "https://music.cnmsb.xin"
 
@@ -223,7 +220,6 @@ video_render:
 # 当前域名下完整异步地址示例：https://music.cnmsb.xin/api/payment/zpay/notify
 # return_url：未填 frontend_return_url 时默认为 public_base_url + /vip
 # pid、key 仅填你在 ZPay 商户后台拿到的值；切勿把 key 提交到公开仓库。
-# 仅使用 mapi.php（API 接口支付），不使用 submit.php 页面跳转。
 zpay:
   enabled: true
   pid: "2025110723453452"
