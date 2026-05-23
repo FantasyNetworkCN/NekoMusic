@@ -176,8 +176,7 @@ verification_code:
 
 # =============================================
 # 横屏短视频渲染（FFmpeg，独立线程池异步执行）
-# =============================================
-# 用户在播放页发起「生成分享视频」，服务端异步合成 1920×1080 MP4（封面 + 波形 + 标题/艺术家字幕）。
+# 用户在播放页发起「生成分享视频」，服务端异步合成 1920×1080 MP4（封面 + 标题/艺术家字幕）。
 # 临时目录（tmpfs）：/tmp/.neko/video-render/{jobId}.mp4、ass/{jobId}.ass；内嵌字体/FFmpeg/水印亦在此树下
 # 公开 API（需登录）：
 #   POST /api/video/render/create   body: { "musicId": 1, "startSec": 0 }
@@ -186,20 +185,29 @@ verification_code:
 # 会员策略：
 #   非 VIP：最长 non_vip_max_duration_sec 秒、带 watermark_text 水印、每日 non_vip_daily_limit 次（Redis 计数）
 #   VIP：整首时长（从 startSec 到曲末）、无水印、不限次数
-# 内嵌 FFmpeg：打包时已打入 JAR（resources/native/linux-x86_64/ffmpeg，仅 Linux amd64）
+# 内嵌 FFmpeg：JAR 内 resources/native/linux-x86_64/ffmpeg（BtbN linux64-gpl 构建，含 NVENC/CUDA；mvn 在 Linux x86_64 上会自动下载）
 video_render:
   # 是否启用视频生成功能
   # 示例：true (启用), false (关闭，接口返回 503)
   enabled: true
+
+  # 渲染管线：
+  #   cuda_native — CUDA 显存内合成（scale_cuda/overlay_cuda 等）+ h264_nvenc；须 NVIDIA 驱动与带 CUDA 的 FFmpeg。
+  #                 无实时频谱/波形（底部为静态色条），ASS 字幕仍由 CPU（libass）绘制。
+  #   cpu_legacy  — 原 CPU 滤镜链（showfreqs/showwaves 等），video_codec 可选 libx264 或 h264_nvenc。
+  pipeline: cuda_native
 
   # FFmpeg 可执行文件路径
   # auto 或 ffmpeg：自动解析（优先 JAR 内嵌 → /usr/bin/ffmpeg 等）
   # 也可填绝对路径，例如 /usr/bin/ffmpeg
   ffmpeg_path: auto
 
-  # 为 true 时优先使用 JAR 内嵌 FFmpeg（推荐；避免 systemd 等环境 PATH 过短找不到命令）
-  # 为 false 时先找系统 PATH / 常见路径，再找内嵌包
+  # 为 true 时优先使用 JAR 内嵌 FFmpeg（推荐；含 NVENC/CUDA，与 cuda_native 管线一致）
   prefer_bundled_ffmpeg: true
+
+  # 仅 cpu_legacy 生效：libx264（CPU）或 h264_nvenc（GPU 编码但滤镜仍在 CPU）
+  # cuda_native 下固定使用 h264_nvenc，此项被忽略
+  video_codec: h264_nvenc
 
   # 非 VIP 单次成片最长秒数（VIP 不受此项限制，按歌曲剩余时长）
   # 示例：15, 30
