@@ -192,7 +192,7 @@ video_render:
   enabled: true
 
   # 渲染管线：
-  #   cuda_native — 与 cpu_legacy 相同滤镜（圆形封面、环形频谱等），成片固定 h264_nvenc（须 NVIDIA 与 NVENC）。
+  #   cuda_native — 与 cpu_legacy 相同滤镜（圆形封面、封面外径向频谱条等），成片固定 h264_nvenc（须 NVIDIA 与 NVENC）。
   #   cpu_legacy  — 同上滤镜图，video_codec 可选 libx264 或 h264_nvenc。
   pipeline: cuda_native
 
