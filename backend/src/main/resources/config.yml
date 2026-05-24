@@ -257,8 +257,8 @@ netease_search_fill:
   cookie: ""
   # 优先下载音质（与 /song/url/v1 的 level 一致）；若无该档则自动降档直至可用
   quality: "hires"
-  # 入库语言；tags 不入库（留空）
-  language: "华语"
+  # 入库语言：留空或 auto=按歌名/歌手/专辑/歌词自动推断；也可写死如 英文、日语
+  language: ""
   upload_user_id: null
   # HTTP 超时（秒）
   http_timeout_seconds: 45
