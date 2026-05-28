@@ -270,3 +270,29 @@ netease_search_fill:
   upload_user_id: null
   # HTTP 超时（秒）
   http_timeout_seconds: 45
+
+# =============================================
+# 每日推荐 AI（OpenAI 兼容接口）
+# =============================================
+# 用于“每日推荐”场景下按用户风格做重排/解释生成；兼容 OpenAI Chat Completions 格式。
+# 推荐在服务端离线任务中调用，不建议前端直连。
+recommendation_ai:
+  # 是否启用 AI 推荐（false 时可回退为规则排序）
+  enabled: true
+  # OpenAI 兼容 API Base URL（不要带尾斜杠）
+  # 官方示例: https://api.openai.com/v1
+  base_url: "https://ai-api.sliveridc1.cn/v1"
+  # API Key（生产环境请改为环境变量注入）
+  api_key: "sk-j57VpVSsgXH6cMUdaUaFIUGSxFIrHJCVzXomxEbu1pW3p7QA"
+  # 模型名称（可填 gpt-4o-mini / gpt-4.1-mini 等 OpenAI 兼容模型）
+  model: "deepseek-chat"
+  # 生成参数
+  temperature: 0.3
+  top_p: 0.9
+  max_tokens: 800
+  # HTTP 超时（秒）
+  timeout_seconds: 60
+  # 每个用户每日产出的推荐条数（最终仍需过滤用户已收藏歌曲）
+  daily_limit: 30
+  # 当 AI 请求失败时，是否自动回退到规则推荐
+  fallback_to_rule: true
