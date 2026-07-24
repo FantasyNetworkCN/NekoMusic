@@ -278,8 +278,6 @@ onUnmounted(() => {
 
 .forgot-password-card {
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 40px;
   width: 100%;
@@ -419,8 +417,6 @@ onUnmounted(() => {
   outline: none;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   transition: all 0.3s ease;
   color: #333;
@@ -455,8 +451,6 @@ onUnmounted(() => {
 .resend-btn {
   padding: 14px 20px;
   background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   color: #6a5acd;
   border: 1px solid rgba(106, 90, 205, 0.3);
   border-radius: 30px;
@@ -490,8 +484,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
   width: 100%;
   margin-top: 10px;
 }

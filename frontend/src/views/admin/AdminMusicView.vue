@@ -1647,8 +1647,6 @@ const logout = () => {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 15px;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   margin-bottom: 20px;
   flex-shrink: 0; /* 防止头部被压缩 */
@@ -1714,8 +1712,6 @@ const logout = () => {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 15px;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
@@ -1788,8 +1784,6 @@ const logout = () => {
   border: none;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(106, 90, 205, 0.2);
   color: #333;
   font-size: 1rem;
@@ -1835,8 +1829,6 @@ const logout = () => {
   border: none;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(106, 90, 205, 0.2);
   color: #333;
   font-size: 1rem;
@@ -1952,8 +1944,6 @@ const logout = () => {
   border: none;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #333;
   font-size: 1rem;
@@ -2067,8 +2057,6 @@ const logout = () => {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 240, 255, 0.95));
   border-radius: 20px;
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   min-width: 700px;
   min-height: 450px;
@@ -2180,7 +2168,6 @@ const logout = () => {
   justify-content: center;
   border-radius: 50%;
   transition: all 0.3s ease;
-  backdrop-filter: blur(5px);
 }
 
 .close-btn:hover {
@@ -2271,8 +2258,6 @@ const logout = () => {
   border: none;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(106, 90, 205, 0.2);
   color: #333;
   font-size: 1rem;
@@ -2349,8 +2334,6 @@ const logout = () => {
   padding: 15px 20px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 10px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 

@@ -127,8 +127,6 @@ const hasPermission = (permission) => {
 .admin-sidebar {
   width: 250px;
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border-right: 1px solid rgba(255, 255, 255, 0.18);
   display: flex;
   flex-direction: column;

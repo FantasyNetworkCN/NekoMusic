@@ -1276,7 +1276,6 @@ const handleSubmit = async () => {
 /* 右侧表单 */
 .form-side {
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 40px;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -1475,7 +1474,6 @@ const handleSubmit = async () => {
   border-radius: 14px;
   font-size: 15px;
   background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(5px);
   transition: all 0.3s ease;
 }
 

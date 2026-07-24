@@ -340,8 +340,6 @@ onMounted(() => {
   gap: 20px;
   box-shadow: 0 4px 20px rgba(31, 38, 135, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -430,8 +428,6 @@ onMounted(() => {
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   border: 1px solid rgba(255, 255, 255, 0.18);
   position: relative;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   margin: 30px auto;
   max-width: 90%;
   overflow: hidden;
@@ -617,8 +613,6 @@ onMounted(() => {
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   border: 1px solid rgba(255, 255, 255, 0.18);
   position: relative;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   margin: 30px auto;
   max-width: 90%;
   overflow: hidden;

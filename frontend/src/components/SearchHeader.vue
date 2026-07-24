@@ -352,8 +352,6 @@ onUnmounted(() => {
 <style scoped>
 .search-header {
   background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   color: #5c4b7b;
   padding: 1rem 0;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
@@ -401,8 +399,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
   min-width: 60px;
   text-align: center;
 }
@@ -420,8 +416,6 @@ onUnmounted(() => {
   padding: 5px 10px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .user-avatar {
@@ -453,8 +447,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(255, 99, 71, 0.4);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
 }
 
 .logout-btn:hover {
@@ -473,8 +465,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(255, 105, 180, 0.4);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
 }
 
 .playlists-btn {
@@ -487,8 +477,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
 }
 
 .favorites-btn:hover {
@@ -513,8 +501,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(78, 205, 196, 0.4);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
 }
 
 .upload-btn:hover {
@@ -568,8 +554,6 @@ onUnmounted(() => {
   outline: none;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   transition: all 0.3s ease;
   padding-right: 60px; /* 为按钮留出空间 */
@@ -609,8 +593,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
 }
 
 .search-button:hover:not(:disabled) {
@@ -630,8 +612,6 @@ onUnmounted(() => {
   left: 0;
   width: 100%;
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border-radius: 15px;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   z-index: 1000;

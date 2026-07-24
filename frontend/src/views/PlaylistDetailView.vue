@@ -514,8 +514,6 @@ onMounted(() => {
 
 .playlist-header {
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 30px;
   margin-bottom: 30px;
@@ -537,7 +535,6 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
-  backdrop-filter: blur(5px);
 }
 
 .back-btn:hover {
@@ -641,7 +638,6 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
-  backdrop-filter: blur(5px);
 }
 
 .add-btn:hover,
@@ -681,8 +677,6 @@ onMounted(() => {
 
 .music-list {
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 4px 15px rgba(31, 38, 135, 0.1);
@@ -825,13 +819,10 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(5px);
 }
 
 .modal-content {
   background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 30px;
   max-width: 600px;
@@ -860,7 +851,6 @@ onMounted(() => {
   font-size: 1em;
   box-sizing: border-box;
   background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(5px);
 }
 
 .search-box input:focus {

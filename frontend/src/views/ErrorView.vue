@@ -55,8 +55,6 @@ const goBack = () => {
   padding: 60px 40px;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   max-width: 600px;
   width: 90%;
   animation: fadeIn 0.6s ease-out;

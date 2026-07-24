@@ -431,8 +431,6 @@ onMounted(() => {
 
 .playlist-item {
   background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 20px;
   display: flex;
@@ -515,7 +513,6 @@ onMounted(() => {
   cursor: pointer;
   font-size: 0.9em;
   transition: all 0.3s ease;
-  backdrop-filter: blur(5px);
   white-space: nowrap;
 }
 
@@ -580,13 +577,10 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(5px);
 }
 
 .modal-content {
   background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 40px;
   max-width: 500px;
@@ -635,7 +629,6 @@ onMounted(() => {
   transition: all 0.3s ease;
   box-sizing: border-box;
   background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(5px);
 }
 
 .form-group input:focus,
@@ -663,7 +656,6 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  backdrop-filter: blur(5px);
 }
 
 .cancel-btn:hover {

@@ -185,8 +185,6 @@ onMounted(() => {
   padding: 30px;
   box-shadow: 0 4px 20px rgba(31, 38, 135, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .header-text {
@@ -246,8 +244,6 @@ onMounted(() => {
   border-radius: 15px;
   box-shadow: 0 4px 12px rgba(31, 38, 135, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   transition: all 0.3s ease;
 }
 

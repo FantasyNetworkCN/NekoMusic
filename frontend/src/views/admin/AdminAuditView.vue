@@ -784,8 +784,6 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 15px;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   margin-bottom: 20px;
   flex-shrink: 0;
@@ -888,8 +886,6 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 15px;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   overflow: hidden;
   transition: transform 0.3s ease;
@@ -1270,8 +1266,6 @@ onMounted(() => {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 

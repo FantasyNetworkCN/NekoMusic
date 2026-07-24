@@ -371,7 +371,6 @@ onMounted(() => {
   padding: 40px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 20px;
-  backdrop-filter: blur(10px);
 }
 
 .loading-spinner {
@@ -431,7 +430,6 @@ onMounted(() => {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05));
   border-radius: 32px;
   padding: 45px 30px;
-  backdrop-filter: blur(20px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
   border: 2px solid rgba(255, 255, 255, 0.3);
   position: relative;
@@ -618,7 +616,6 @@ onMounted(() => {
   background: linear-gradient(145deg, rgba(15, 15, 25, 0.95), rgba(25, 25, 40, 0.9));
   border-radius: 16px;
   padding: 50px 35px;
-  backdrop-filter: blur(20px);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;

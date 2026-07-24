@@ -25,8 +25,6 @@
 <style scoped>
 .footer {
   background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   color: #5c4b7b;
   padding: 30px 0 10px;
   margin-top: auto;
