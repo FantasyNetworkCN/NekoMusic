@@ -372,6 +372,10 @@ public final class ListenTogetherService implements AutoCloseable {
             synchronized (room.lock) {
                 requireMember(room, userId);
                 beginOperationLocked(room, opId);
+                if (containsTrackLocked(room, trackId)) {
+                    throw new ListenTogetherException(
+                            409, "duplicate_track", "listen.duplicate_track");
+                }
                 if (room.playlist.size() >= MAX_PLAYLIST_ITEMS) {
                     throw new ListenTogetherException(409, "playlist_full", "listen.playlist.full");
                 }
@@ -437,19 +441,26 @@ public final class ListenTogetherService implements AutoCloseable {
             if (idsNode.size() > MAX_PLAYLIST_ITEMS) {
                 throw new ListenTogetherException(409, "playlist_full", "listen.playlist.full");
             }
-            List<Track> tracks = new ArrayList<>();
+            List<Integer> requestedIds = new ArrayList<>();
             for (JsonNode idNode : idsNode) {
                 int trackId = idNode.asInt(0);
                 if (trackId <= 0) {
                     throw new ListenTogetherException(400, "bad_track_id", "listen.track.not_found");
                 }
+                requestedIds.add(trackId);
+            }
+            int requestedStart = Math.max(0, Math.min(
+                    command.path("startIndex").asInt(0),
+                    requestedIds.size() - 1));
+            int requestedStartTrackId = requestedIds.get(requestedStart);
+            List<Integer> uniqueIds = new ArrayList<>(new java.util.LinkedHashSet<>(requestedIds));
+            int startIndex = Math.max(0, uniqueIds.indexOf(requestedStartTrackId));
+            List<Track> tracks = new ArrayList<>();
+            for (int trackId : uniqueIds) {
                 tracks.add(trackResolver.apply(trackId)
                         .orElseThrow(() -> new ListenTogetherException(
                                 404, "track_not_found", "listen.track.not_found")));
             }
-            int startIndex = Math.max(0, Math.min(
-                    command.path("startIndex").asInt(0),
-                    tracks.size() - 1));
             synchronized (room.lock) {
                 requireMember(room, userId);
                 beginOperationLocked(room, opId);
@@ -491,6 +502,10 @@ public final class ListenTogetherService implements AutoCloseable {
             synchronized (room.lock) {
                 requireMember(room, userId);
                 beginOperationLocked(room, opId);
+                if (containsTrackLocked(room, trackId)) {
+                    throw new ListenTogetherException(
+                            409, "duplicate_track", "listen.duplicate_track");
+                }
                 if (room.playlist.size() >= MAX_PLAYLIST_ITEMS) {
                     throw new ListenTogetherException(409, "playlist_full", "listen.playlist.full");
                 }
@@ -762,6 +777,11 @@ public final class ListenTogetherService implements AutoCloseable {
                 && command.path("playlistRevision").asLong(-1) != room.playlistRevision) {
             throw new ListenTogetherException(409, "playlist_changed", "listen.playlist.changed");
         }
+    }
+
+    private static boolean containsTrackLocked(Room room, int trackId) {
+        return room.playlist.values().stream()
+                .anyMatch(item -> item.track.id() == trackId);
     }
 
     private void beginOperationLocked(Room room, String opId) throws ListenTogetherException {

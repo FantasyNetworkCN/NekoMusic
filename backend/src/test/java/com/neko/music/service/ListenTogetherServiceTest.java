@@ -260,4 +260,32 @@ class ListenTogetherServiceTest {
         Map<?, ?> finalPlaylist = (Map<?, ?>) service.currentSnapshot(token, 1).get("playlist");
         assertEquals(5, ((List<?>) finalPlaylist.get("items")).size());
     }
+
+    @Test
+    void sameTrackCannotBeAddedTwiceAndPlayListIsDeduplicated() throws Exception {
+        ListenTogetherService service = newService(new MemoryTickets());
+        String token = service.createRoom(1);
+        ObjectMapper mapper = new ObjectMapper();
+
+        service.handleControl(token, 1, mapper.readTree("""
+                {"type":"control","action":"playlist.add","opId":"add-a","trackId":55}
+                """));
+        ListenTogetherService.ListenTogetherException duplicate = assertThrows(
+                ListenTogetherService.ListenTogetherException.class,
+                () -> service.handleControl(token, 1, mapper.readTree("""
+                        {"type":"control","action":"playlist.add","opId":"add-b","trackId":55}
+                        """)));
+        assertEquals("duplicate_track", duplicate.code());
+
+        service.handleControl(token, 1, mapper.readTree("""
+                {"type":"control","action":"playlist.playList","opId":"list-a",
+                 "trackIds":[55,56,55,57,56],"startIndex":3}
+                """));
+        Map<?, ?> playlist = (Map<?, ?>) service.currentSnapshot(token, 1).get("playlist");
+        List<?> items = (List<?>) playlist.get("items");
+        assertEquals(3, items.size());
+        ListenTogetherService.Track selected =
+                (ListenTogetherService.Track) ((Map<?, ?>) items.get(2)).get("track");
+        assertEquals("Track 57", selected.title());
+    }
 }
