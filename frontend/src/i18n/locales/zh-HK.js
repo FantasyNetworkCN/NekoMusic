@@ -208,7 +208,16 @@ export default {
     adminSettings: '系統設定 - Neko歌姬計劃',
     adminLogs: '操作日誌 - Neko歌姬計劃',
     detail: '音樂詳情 - Neko歌姬計劃 | 免費音樂播放',
+    togetherLaunch: '開啟 NekoMusic - 一起聽',
     notFound: '404 - 找不到頁面 - Neko歌姬計劃',
+  },
+  togetherLaunch: {
+    title: '正在開啟 NekoMusic',
+    opening: '正在把這個一起聽連結交給 NekoMusic 用戶端處理。',
+    retryHint: '如果沒有自動開啟，請點擊下方按鈕。',
+    openApp: '開啟 NekoMusic',
+    invalidTitle: '連結無效',
+    invalidDesc: '這個一起聽連結不完整或已失效，請重新取得分享連結。',
   },
   ui: {
     clearInput: '清空',

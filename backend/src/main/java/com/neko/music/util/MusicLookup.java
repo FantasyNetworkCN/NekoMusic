@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.Optional;
 
 /**
  * 音乐行查询辅助。
@@ -46,6 +47,30 @@ public final class MusicLookup {
         } catch (Exception e) {
             logger.error("查询音乐音质时出错，音乐ID: {}", musicId, e);
             return null;
+        }
+    }
+
+    /** 一起听临时歌单需要的轻量曲目信息；不存在或查询失败时返回空。 */
+    public static Optional<com.neko.music.service.ListenTogetherService.Track> findListenTrack(int musicId) {
+        String sql = "SELECT id, title, artist, album, duration, max_quality FROM music WHERE id = ?";
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, musicId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new com.neko.music.service.ListenTogetherService.Track(
+                        rs.getInt("id"),
+                        rs.getString("title") == null ? "" : rs.getString("title"),
+                        rs.getString("artist") == null ? "" : rs.getString("artist"),
+                        rs.getString("album") == null ? "" : rs.getString("album"),
+                        Math.max(0, rs.getInt("duration")),
+                        rs.getString("max_quality")));
+            }
+        } catch (Exception e) {
+            logger.error("查询一起听曲目信息失败，音乐ID: {}", musicId, e);
+            return Optional.empty();
         }
     }
 }

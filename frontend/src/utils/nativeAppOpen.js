@@ -121,3 +121,44 @@ export function tryOpenMusicDetailInApp(musicId) {
 export function tryOpenPlaylistInApp(playlistId) {
   tryOpenNative('playlist', String(playlistId), `/playlist/${playlistId}`, `nekomusic://playlist/${playlistId}`)
 }
+
+/**
+ * 一起听分享页只负责把随机房间 token 交给原生客户端，不承载播放器或房间界面。
+ *
+ * @param {string} token 后端生成的房间 token
+ * @param {{ force?: boolean }} [options]
+ * @returns {boolean} 是否发起了拉起 App 的导航
+ */
+export function tryOpenTogetherInApp(token, options = {}) {
+  const roomToken = String(token || '').trim()
+  if (!/^[A-Za-z0-9_-]{8,128}$/.test(roomToken)) return false
+
+  try {
+    const u = new URL(window.location.href)
+    if (u.searchParams.get(SKIP_QUERY) === '1') {
+      stripSkipQueryFromUrl()
+      return false
+    }
+  } catch {
+    /* ignore */
+  }
+
+  if (!options.force && !shouldFireNativeOpen('together', roomToken)) return false
+
+  const webPath = `/together/${roomToken}`
+  const schemeUrl = `nekomusic://together/${roomToken}`
+  const ua = navigator.userAgent || ''
+
+  if (!/Android/i.test(ua)) {
+    window.location.assign(schemeUrl)
+    return true
+  }
+
+  const fallback = encodeURIComponent(`${window.location.origin}${webPath}?${SKIP_QUERY}=1`)
+  const intent =
+    `intent:#Intent;action=android.intent.action.VIEW;data=${encodeURIComponent(schemeUrl)};` +
+    `package=${ANDROID_PKG};` +
+    `S.browser_fallback_url=${fallback};end`
+  navigateLikeUserClick(intent)
+  return true
+}

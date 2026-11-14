@@ -108,6 +108,7 @@ class RequestAuditFilterTest {
                 RequestAuditFilter.redactQuery("size=50&token=abc&keyword=x"));
         assertEquals("TOKEN=***", RequestAuditFilter.redactQuery("TOKEN=abc"));
         assertEquals("code=***&t=a", RequestAuditFilter.redactQuery("code=9999&t=a"));
+        assertEquals("ticket=***", RequestAuditFilter.redactQuery("ticket=one-time"));
         // 无值 / 无查询串不改变形状
         assertEquals("token", RequestAuditFilter.redactQuery("token"));
         assertEquals("a=1&", RequestAuditFilter.redactQuery("a=1&"));

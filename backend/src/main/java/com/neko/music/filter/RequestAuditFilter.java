@@ -66,7 +66,8 @@ public class RequestAuditFilter implements Filter {
      * 参数名与其余查询串保持原样，日志的可检索性不受影响。</p>
      */
     private static final Set<String> SENSITIVE_QUERY_PARAMS = Set.of(
-            "token", "access_token", "authorization", "password", "passwd", "secret", "code");
+            "token", "access_token", "authorization", "password", "passwd", "secret", "code",
+            "ticket");
 
     /**
      * 一条语义化操作规则：命中「最长路径前缀 + 方法」的一边，决定操作日志里写什么模块与动作。
