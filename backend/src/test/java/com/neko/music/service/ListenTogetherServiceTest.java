@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,33 @@ class ListenTogetherServiceTest {
 
     private static final Clock CLOCK =
             Clock.fixed(Instant.parse("2026-11-14T00:00:00Z"), ZoneOffset.UTC);
+
+    private static final class MutableClock extends Clock {
+        private Instant now;
+
+        private MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advanceSeconds(long seconds) {
+            now = now.plusSeconds(seconds);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
 
     private static final class MemoryTickets implements ListenTogetherService.TicketStore {
         private final Map<String, String> values = new ConcurrentHashMap<>();
@@ -67,6 +95,10 @@ class ListenTogetherServiceTest {
     }
 
     private static ListenTogetherService newService(MemoryTickets tickets) {
+        return newService(tickets, CLOCK);
+    }
+
+    private static ListenTogetherService newService(MemoryTickets tickets, Clock clock) {
         ObjectMapper mapper = new ObjectMapper();
         return new ListenTogetherService(
                 tickets,
@@ -74,7 +106,7 @@ class ListenTogetherServiceTest {
                         id, "Track " + id, "Artist", "Album", 180, "hq")),
                 id -> "用户" + id,
                 mapper,
-                CLOCK,
+                clock,
                 null,
                 false);
     }
@@ -167,5 +199,29 @@ class ListenTogetherServiceTest {
                 ListenTogetherService.ListenTogetherException.class,
                 () -> service.consumeTicket(ticket));
         assertEquals("invalid_ticket", reused.code());
+    }
+
+    @Test
+    void snapshotAnchorDoesNotDoubleCountElapsedTime() throws Exception {
+        MutableClock clock = new MutableClock(Instant.parse("2026-11-14T00:00:00Z"));
+        ListenTogetherService service = newService(new MemoryTickets(), clock);
+        String token = service.createRoom(1);
+        ObjectMapper mapper = new ObjectMapper();
+        service.handleControl(token, 1, mapper.readTree("""
+                {"type":"control","action":"playlist.add","opId":"add-1","trackId":1}
+                """));
+        service.handleControl(token, 1, mapper.readTree("""
+                {"type":"control","action":"playback.play","opId":"play-1"}
+                """));
+
+        clock.advanceSeconds(10);
+        Map<?, ?> playback = (Map<?, ?>) service.currentSnapshot(token, 1).get("playback");
+        long positionMs = ((Number) playback.get("positionMs")).longValue();
+        long effectiveAt = ((Number) playback.get("effectiveAt")).longValue();
+        long serverNow = clock.millis();
+
+        assertEquals(10_000L, positionMs);
+        assertEquals(serverNow, effectiveAt);
+        assertEquals(10_000L, positionMs + (serverNow - effectiveAt));
     }
 }
