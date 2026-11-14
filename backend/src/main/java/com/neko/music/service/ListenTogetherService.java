@@ -779,7 +779,9 @@ public final class ListenTogetherService implements AutoCloseable {
         playback.put("currentEntryId", room.currentEntryId);
         playback.put("playing", room.playing);
         playback.put("positionMs", positionAtLocked(room, now));
-        playback.put("effectiveAt", room.effectiveAt);
+        // 对外快照中的 positionMs 已经推进到 now；锚点必须同步改成 now，
+        // 否则客户端会在此基础上再叠加一次 (now - 旧锚点)，加入房间时进度会翻倍偏移。
+        playback.put("effectiveAt", now);
         playback.put("repeatMode", room.repeatMode);
         return playback;
     }
@@ -805,8 +807,9 @@ public final class ListenTogetherService implements AutoCloseable {
 
     private void broadcastPlaybackLocked(Room room, int actorUserId) {
         Map<String, Object> event = baseEvent(room, "playback.updated");
-        event.put("serverTime", clock.millis());
-        event.put("playback", playbackLocked(room, clock.millis()));
+        long now = clock.millis();
+        event.put("serverTime", now);
+        event.put("playback", playbackLocked(room, now));
         event.put("actor", actor(room, actorUserId));
         broadcast(room, event);
     }
