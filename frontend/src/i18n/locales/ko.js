@@ -208,7 +208,16 @@ export default {
     adminSettings: '시스템 설정 - NekoMusic',
     adminLogs: '작업 로그 - NekoMusic',
     detail: '음악 상세 - NekoMusic | 무료 음악 재생',
+    togetherLaunch: 'NekoMusic 열기 - 함께 듣기',
     notFound: '404 - 페이지를 찾을 수 없음 - NekoMusic',
+  },
+  togetherLaunch: {
+    title: 'NekoMusic을 여는 중',
+    opening: '이 함께 듣기 링크를 NekoMusic 앱으로 전달하고 있습니다.',
+    retryHint: '자동으로 열리지 않았다면 아래 버튼을 눌러 주세요.',
+    openApp: 'NekoMusic 열기',
+    invalidTitle: '링크가 올바르지 않습니다',
+    invalidDesc: '이 함께 듣기 링크가 불완전하거나 만료되었습니다. 공유 링크를 다시 받아 주세요.',
   },
   ui: {
     clearInput: '지우기',

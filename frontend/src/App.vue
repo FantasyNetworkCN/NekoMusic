@@ -31,6 +31,8 @@ const { sendPlayerCommand } = usePlaybackBridge()
 
 /** 下载页独立布局：不显示顶栏、底栏与全局播放器 */
 const isDownloadPage = computed(() => route.name === 'download')
+/** 一起听分享链接页只负责拉起客户端，不展示网页播放器或房间操作。 */
+const isTogetherLaunchPage = computed(() => route.name === 'together-launch')
 
 /**
  * 全屏播放页（/detail/:id）自带整屏 UI 与播放控制，
@@ -57,7 +59,7 @@ const isAdminPage = computed(() => String(route.name || '').startsWith('admin'))
  */
 const isMobileUA = isMobileDevice()
 const showAppBanner = computed(
-  () => isMobileUA && !isDownloadPage.value && !isAdminPage.value
+  () => isMobileUA && !isDownloadPage.value && !isTogetherLaunchPage.value && !isAdminPage.value
 )
 
 /** 深色 chrome：管理后台除外 */
@@ -70,7 +72,9 @@ const isChromeDarkShell = computed(() => !String(route.name || '').startsWith('a
  * 用户区）压在上面既占高度又和后台导航打架。这里复用下载页的「视觉收起」而不是 v-if 卸载——
  * SiteHeader 挂着搜索防抖、通知流与顶栏高度观测（--app-header-h），卸载会连带把观测目标弄丢。
  */
-const isChromeHeaderHidden = computed(() => isDownloadPage.value || isAdminPage.value)
+const isChromeHeaderHidden = computed(
+  () => isDownloadPage.value || isTogetherLaunchPage.value || isAdminPage.value
+)
 
 /** 是否存在当前曲目（决定播放条显隐） */
 const hasTrack = ref(false)
@@ -165,12 +169,12 @@ onUnmounted(() => {
       class="app-footer"
       :class="{ 'app-footer--raised': hasTrack && !isDownloadPage && !isLyricsToolPage }"
     >
-      <SiteFooter v-if="!isDownloadPage" />
+      <SiteFooter v-if="!isDownloadPage && !isTogetherLaunchPage" />
     </div>
 
     <div
       class="app-player"
-      :class="{ 'app-player--hidden': !hasTrack || isDownloadPage || isPlayerPage || isLyricsToolPage }"
+      :class="{ 'app-player--hidden': !hasTrack || isDownloadPage || isTogetherLaunchPage || isPlayerPage || isLyricsToolPage }"
     >
       <!-- 不能 v-if 卸载：<audio> 是唯一播放源，卸载即打断播放（含下载页） -->
       <GlobalPlayer :chrome-dark="isChromeDarkShell" />

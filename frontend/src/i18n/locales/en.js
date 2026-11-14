@@ -257,7 +257,16 @@ export default {
     adminSettings: 'System settings - NekoMusic',
     adminLogs: 'Audit log - NekoMusic',
     detail: 'Track details - NekoMusic | Free music playback',
+    togetherLaunch: 'Open NekoMusic - Listen Together',
     notFound: '404 - Page not found - NekoMusic',
+  },
+  togetherLaunch: {
+    title: 'Opening NekoMusic',
+    opening: 'Handing this Listen Together link to the NekoMusic app.',
+    retryHint: 'If it did not open automatically, use the button below.',
+    openApp: 'Open NekoMusic',
+    invalidTitle: 'Invalid link',
+    invalidDesc: 'This Listen Together link is incomplete or expired. Request a new share link.',
   },
   ui: {
     clearInput: 'Clear',

@@ -259,8 +259,17 @@ export default {
     adminSettings: '系统设置 - Neko歌姬计划',
     adminLogs: '操作日志 - Neko歌姬计划',
     detail: '音乐详情 - Neko歌姬计划 | 免费音乐播放',
+    togetherLaunch: '打开 NekoMusic - 一起听',
     lyricsReport: '歌词报错 - Neko歌姬计划',
     notFound: '404 - 页面未找到 - Neko歌姬计划',
+  },
+  togetherLaunch: {
+    title: '正在打开 NekoMusic',
+    opening: '正在交给 NekoMusic 客户端处理这个一起听链接。',
+    retryHint: '如果没有自动打开，请点击下方按钮。',
+    openApp: '打开 NekoMusic',
+    invalidTitle: '链接无效',
+    invalidDesc: '这个一起听链接不完整或已经失效，请重新获取分享链接。',
   },
   ui: {
     clearInput: '清空',

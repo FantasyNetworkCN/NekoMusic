@@ -36,6 +36,7 @@ import com.neko.music.filter.SourceBanFilter;
 import com.neko.music.filter.StaticPageSeoFilter;
 import com.neko.music.filter.MusicRecognitionWebSocketAdmissionFilter;
 import com.neko.music.util.ClientReleaseStorage;
+import com.neko.music.util.MusicLookup;
 import com.neko.music.util.SiteResourceStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,6 +102,7 @@ public class Main {
     private static CommentDatabaseManager commentDatabaseManager;
     private static UserNotificationDatabaseManager userNotificationDatabaseManager;
     private static UserNotificationService userNotificationService;
+    private static ListenTogetherService listenTogetherService;
     private static IpRegionService ipRegionService;
     private static VipPricingDatabaseManager vipPricingDatabaseManager;
     private static VipPayOrderDatabaseManager vipPayOrderDatabaseManager;
@@ -227,6 +229,23 @@ public class Main {
         nicknameResolver = new NicknameResolver(databaseManager, nekoAuthAccountService);
         userAuthService = new UserAuthService(
                 databaseManager, nekoAuthAccountService, nicknameResolver, sharedWebSessionService);
+        listenTogetherService = new ListenTogetherService(
+                new ListenTogetherService.TicketStore() {
+                    @Override
+                    public boolean putIfAbsent(String key, String value, int ttlSeconds) {
+                        return redisService.setIfAbsentWithExpiry(key, value, ttlSeconds);
+                    }
+
+                    @Override
+                    public String take(String key) {
+                        return redisService.getDel(key);
+                    }
+                },
+                MusicLookup::findListenTrack,
+                userId -> nicknameResolver.resolveByLocalUserId(userId, "听众"),
+                objectMapper);
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(listenTogetherService::close, "listen-together-shutdown"));
         nekoAuthOAuthService = new NekoAuthOAuthService(
                 configManager, redisService, userAuthService, objectMapper);
         userManagementService = new UserManagementService(
@@ -691,6 +710,10 @@ public class Main {
 
     public static UserNotificationService getUserNotificationService() {
         return userNotificationService;
+    }
+
+    public static ListenTogetherService getListenTogetherService() {
+        return listenTogetherService;
     }
 
     public static IpRegionService getIpRegionService() {

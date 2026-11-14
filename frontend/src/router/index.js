@@ -495,6 +495,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/together/:token',
+      name: 'together-launch',
+      component: () => import('@/views/TogetherLaunchView.vue'),
+      meta: {
+        title: '打开 NekoMusic - 一起听',
+        description: '通过 NekoMusic 客户端加入一起听房间。',
+        keywords: '一起听,NekoMusic',
+      }
+    },
+    {
       path: '/lyrics-report/:id',
       name: 'lyrics-report',
       component: () => import('@/views/LyricsReportView.vue'),
@@ -529,7 +539,7 @@ const NOINDEX_PREFIXES = [
   '/admin', '/favorites', '/playlists', '/account', '/vip', '/upload',
   '/lyrics-report',
   '/notifications', '/playlist/create', '/forgot-password', '/login', '/register',
-  '/oauth/nekocore', '/sso',
+  '/oauth/nekocore', '/sso', '/together',
 ]
 
 /**
@@ -569,6 +579,7 @@ const ROUTE_TITLE_KEYS = {
   'admin-settings': 'route.adminSettings',
   'admin-logs': 'route.adminLogs',
   detail: 'route.detail',
+  'together-launch': 'route.togetherLaunch',
   'lyrics-report': 'route.lyricsReport',
   'not-found': 'route.notFound',
 }

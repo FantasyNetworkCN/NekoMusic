@@ -21,8 +21,10 @@ public final class ServletRegistrar {
 
     /** 把前端静态资源与全部 API/页面 Servlet 注册到 context。 */
     public static void register(ServletContextHandler context, ConfigManager configManager) {
-        JakartaWebSocketServletContainerInitializer.configure(context, (servletContext, serverContainer) ->
-                serverContainer.addEndpoint(MusicRecognitionWebSocketEndpoint.endpointConfig()));
+        JakartaWebSocketServletContainerInitializer.configure(context, (servletContext, serverContainer) -> {
+            serverContainer.addEndpoint(MusicRecognitionWebSocketEndpoint.endpointConfig());
+            serverContainer.addEndpoint(ListenTogetherWebSocketEndpoint.endpointConfig());
+        });
 
         // 前端静态资源与 Vue History 路由回退；更具体的 API/页面映射会优先匹配。
         ServletHolder siteResourceHolder = new ServletHolder(new SiteResourceHandler());
@@ -359,6 +361,12 @@ public final class ServletRegistrar {
         // 注册站内消息API处理器（列表 / 未读数 / 标记已读）
         ServletHolder userNotificationHolder = new ServletHolder(new UserNotificationHandler());
         context.addServlet(userNotificationHolder, "/api/user/notifications/*");
+
+        // 一起听：创建房间不接受任何选项；播放与临时歌单操作通过 /api/listen/ws 广播。
+        ServletHolder listenRoomsHolder = new ServletHolder(new ListenTogetherHandler());
+        context.addServlet(listenRoomsHolder, "/api/listen/rooms");
+        ServletHolder listenRoomActionsHolder = new ServletHolder(new ListenTogetherHandler());
+        context.addServlet(listenRoomActionsHolder, "/api/listen/rooms/*");
         
     }
 }
