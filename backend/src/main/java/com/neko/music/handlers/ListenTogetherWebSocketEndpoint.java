@@ -60,7 +60,8 @@ public final class ListenTogetherWebSocketEndpoint {
     public void onOpen(Session session) {
         session.setMaxTextMessageBufferSize(MAX_TEXT_BYTES);
         session.setMaxBinaryMessageBufferSize(256);
-        session.setMaxIdleTimeout(120_000L);
+        // 客户端每 15 秒发送时钟心跳；45 秒无任何帧即判定连接失效，异常退出会尽快广播离线。
+        session.setMaxIdleTimeout(45_000L);
 
         String ticket = firstQueryValue(session, "ticket");
         try {

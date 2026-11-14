@@ -44,7 +44,8 @@ public final class ListenTogetherService implements AutoCloseable {
     private static final int WS_TICKET_TTL_SECONDS = 30;
     private static final int WS_TICKET_ATTEMPTS = 3;
     private static final int RECENT_OP_LIMIT = 512;
-    private static final long MEMBER_DISCONNECT_GRACE_MS = TimeUnit.MINUTES.toMillis(2);
+    /** 短保留用于网络切换重连；异常退出后其他成员看到的是“离线即消失”。 */
+    private static final long MEMBER_DISCONNECT_GRACE_MS = TimeUnit.SECONDS.toMillis(15);
     private static final long IDLE_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(30);
 
     public static final String MODE_LIST_REPEAT = "list_repeat";
@@ -196,7 +197,7 @@ public final class ListenTogetherService implements AutoCloseable {
         this.scheduler = scheduler;
         this.ownsScheduler = ownsScheduler;
         if (scheduler != null) {
-            scheduler.scheduleAtFixedRate(this::purgeIdleRooms, 1, 1, TimeUnit.MINUTES);
+            scheduler.scheduleAtFixedRate(this::purgeIdleRooms, 5, 5, TimeUnit.SECONDS);
         }
     }
 
