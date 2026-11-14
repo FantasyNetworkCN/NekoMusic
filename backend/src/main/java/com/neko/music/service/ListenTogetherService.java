@@ -391,6 +391,144 @@ public final class ListenTogetherService implements AutoCloseable {
             return;
         }
 
+        if ("playback.playTrack".equals(action)) {
+            int trackId = command.path("trackId").asInt(0);
+            if (trackId <= 0) {
+                throw new ListenTogetherException(400, "bad_track_id", "listen.track.not_found");
+            }
+            Track track = trackResolver.apply(trackId)
+                    .orElseThrow(() -> new ListenTogetherException(
+                            404, "track_not_found", "listen.track.not_found"));
+            synchronized (room.lock) {
+                requireMember(room, userId);
+                beginOperationLocked(room, opId);
+                long now = clock.millis();
+                String entryId = room.playlist.entrySet().stream()
+                        .filter(entry -> entry.getValue().track.id() == trackId)
+                        .map(Map.Entry::getKey)
+                        .findFirst()
+                        .orElse(null);
+                if (entryId == null) {
+                    if (room.playlist.size() >= MAX_PLAYLIST_ITEMS) {
+                        throw new ListenTogetherException(409, "playlist_full", "listen.playlist.full");
+                    }
+                    entryId = "q_" + randomToken(8);
+                    room.playlist.put(entryId, new PlaylistItem(entryId, track, userId, now));
+                    room.playlistRevision++;
+                }
+                room.currentEntryId = entryId;
+                room.positionMs = 0;
+                room.playing = true;
+                room.effectiveAt = now;
+                room.revision++;
+                room.lastActiveAt = now;
+                scheduleEndLocked(room);
+                broadcastPlaylistLocked(room, userId);
+                broadcastPlaybackLocked(room, userId);
+            }
+            return;
+        }
+
+        if ("playlist.playList".equals(action)) {
+            JsonNode idsNode = command.get("trackIds");
+            if (idsNode == null || !idsNode.isArray() || idsNode.isEmpty()) {
+                throw new ListenTogetherException(400, "bad_playlist", "listen.bad_command");
+            }
+            if (idsNode.size() > MAX_PLAYLIST_ITEMS) {
+                throw new ListenTogetherException(409, "playlist_full", "listen.playlist.full");
+            }
+            List<Track> tracks = new ArrayList<>();
+            for (JsonNode idNode : idsNode) {
+                int trackId = idNode.asInt(0);
+                if (trackId <= 0) {
+                    throw new ListenTogetherException(400, "bad_track_id", "listen.track.not_found");
+                }
+                tracks.add(trackResolver.apply(trackId)
+                        .orElseThrow(() -> new ListenTogetherException(
+                                404, "track_not_found", "listen.track.not_found")));
+            }
+            int startIndex = Math.max(0, Math.min(
+                    command.path("startIndex").asInt(0),
+                    tracks.size() - 1));
+            synchronized (room.lock) {
+                requireMember(room, userId);
+                beginOperationLocked(room, opId);
+                long now = clock.millis();
+                LinkedHashMap<String, PlaylistItem> replacement = new LinkedHashMap<>();
+                String startEntryId = null;
+                for (int i = 0; i < tracks.size(); i++) {
+                    String entryId = "q_" + randomToken(8);
+                    replacement.put(entryId,
+                            new PlaylistItem(entryId, tracks.get(i), userId, now));
+                    if (i == startIndex) {
+                        startEntryId = entryId;
+                    }
+                }
+                room.playlist.clear();
+                room.playlist.putAll(replacement);
+                room.currentEntryId = startEntryId;
+                room.positionMs = 0;
+                room.playing = true;
+                room.effectiveAt = now;
+                room.playlistRevision++;
+                room.revision++;
+                room.lastActiveAt = now;
+                scheduleEndLocked(room);
+                broadcastPlaylistLocked(room, userId);
+                broadcastPlaybackLocked(room, userId);
+            }
+            return;
+        }
+
+        if ("playlist.addNext".equals(action)) {
+            int trackId = command.path("trackId").asInt(0);
+            if (trackId <= 0) {
+                throw new ListenTogetherException(400, "bad_track_id", "listen.track.not_found");
+            }
+            Track track = trackResolver.apply(trackId)
+                    .orElseThrow(() -> new ListenTogetherException(
+                            404, "track_not_found", "listen.track.not_found"));
+            synchronized (room.lock) {
+                requireMember(room, userId);
+                beginOperationLocked(room, opId);
+                if (room.playlist.size() >= MAX_PLAYLIST_ITEMS) {
+                    throw new ListenTogetherException(409, "playlist_full", "listen.playlist.full");
+                }
+                long now = clock.millis();
+                String entryId = "q_" + randomToken(8);
+                PlaylistItem item = new PlaylistItem(entryId, track, userId, now);
+                LinkedHashMap<String, PlaylistItem> reordered = new LinkedHashMap<>();
+                boolean inserted = false;
+                for (Map.Entry<String, PlaylistItem> entry : room.playlist.entrySet()) {
+                    reordered.put(entry.getKey(), entry.getValue());
+                    if (!inserted && entry.getKey().equals(room.currentEntryId)) {
+                        reordered.put(entryId, item);
+                        inserted = true;
+                    }
+                }
+                if (!inserted) {
+                    reordered.put(entryId, item);
+                }
+                room.playlist.clear();
+                room.playlist.putAll(reordered);
+                if (room.currentEntryId == null) {
+                    room.currentEntryId = entryId;
+                    room.positionMs = 0;
+                    room.playing = true;
+                    room.effectiveAt = now;
+                    scheduleEndLocked(room);
+                }
+                room.playlistRevision++;
+                room.revision++;
+                room.lastActiveAt = now;
+                broadcastPlaylistLocked(room, userId);
+                if (room.currentEntryId != null && room.playing) {
+                    broadcastPlaybackLocked(room, userId);
+                }
+            }
+            return;
+        }
+
         synchronized (room.lock) {
             requireMember(room, userId);
             beginOperationLocked(room, opId);

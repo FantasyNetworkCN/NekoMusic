@@ -224,4 +224,40 @@ class ListenTogetherServiceTest {
         assertEquals(serverNow, effectiveAt);
         assertEquals(10_000L, positionMs + (serverNow - effectiveAt));
     }
+
+    @Test
+    void roomScopedPlayListAndPlayNextStayServerAuthoritative() throws Exception {
+        ListenTogetherService service = newService(new MemoryTickets());
+        String token = service.createRoom(1);
+        ObjectMapper mapper = new ObjectMapper();
+
+        service.handleControl(token, 1, mapper.readTree("""
+                {"type":"control","action":"playlist.playList","opId":"list-1",
+                 "trackIds":[11,12,13],"startIndex":1}
+                """));
+        Map<?, ?> playlist = (Map<?, ?>) service.currentSnapshot(token, 1).get("playlist");
+        List<?> items = (List<?>) playlist.get("items");
+        assertEquals(3, items.size());
+        ListenTogetherService.Track selectedTrack =
+                (ListenTogetherService.Track) ((Map<?, ?>) items.get(1)).get("track");
+        assertEquals("Track 12", selectedTrack.title());
+
+        service.handleControl(token, 1, mapper.readTree("""
+                {"type":"control","action":"playlist.addNext","opId":"next-1","trackId":99}
+                """));
+        Map<?, ?> after = (Map<?, ?>) service.currentSnapshot(token, 1).get("playlist");
+        List<?> afterItems = (List<?>) after.get("items");
+        assertEquals(4, afterItems.size());
+        ListenTogetherService.Track queuedNext =
+                (ListenTogetherService.Track) ((Map<?, ?>) afterItems.get(2)).get("track");
+        assertEquals("Track 99", queuedNext.title());
+
+        service.handleControl(token, 1, mapper.readTree("""
+                {"type":"control","action":"playback.playTrack","opId":"track-1","trackId":77}
+                """));
+        Map<?, ?> playback = (Map<?, ?>) service.currentSnapshot(token, 1).get("playback");
+        assertEquals(true, playback.get("playing"));
+        Map<?, ?> finalPlaylist = (Map<?, ?>) service.currentSnapshot(token, 1).get("playlist");
+        assertEquals(5, ((List<?>) finalPlaylist.get("items")).size());
+    }
 }
