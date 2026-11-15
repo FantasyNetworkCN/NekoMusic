@@ -8,6 +8,50 @@ An online music platform for Web, Android, and PC. See
 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md) for the complete API reference
 (Simplified Chinese).
 
+<p align="center">
+  <img src="docs/images/readme/nekomusic-hero.png" alt="NekoMusic Web home, player, and mobile interfaces" width="100%">
+</p>
+
+## Overview
+
+NekoMusic is a self-hosted music platform backed by one shared server for Web, Android, and
+PC. It provides catalog search, playback, favorites, playlists, comments, daily
+recommendations, listen-together rooms, and acoustic music recognition. The project is free,
+ad-free, and open source, making it suitable for personal music libraries, private radio
+stations, and anime-music communities.
+
+- **One experience across platforms:** Web, Android, and PC share accounts, catalog data,
+  favorites, and playlists. The Web player adapts to both desktop and mobile screens.
+- **Private music catalog:** Audio, covers, lyrics, and fingerprint indexes are served by
+  your own backend. Music recognition does not depend on a third-party recognition API.
+- **NekoAuth single sign-on:** Accounts, passwords, devices, and avatars are managed by
+  NekoAuth. Native clients never store passwords.
+- **Playlist migration:** Web imports LX Music LXMC / `.lxmc` files, while Android and PC
+  import playlists from NetEase Cloud Music, QQ Music, and Kugou Music.
+- **Real-time recognition:** Clients stream 16 kHz PCM over WebSocket while the server
+  continuously matches the sample against the self-hosted catalog.
+- **Community features:** Song comments, threaded replies, IP region, daily
+  recommendations, recommended playlists, and listen-together rooms.
+
+### Supported Platforms
+
+| Platform | Form | Stack | Highlights |
+| --- | --- | --- | --- |
+| Web | Online player | Vue 3 + Vite | Responsive desktop/mobile UI; LXMC playlist import |
+| Android | Native app | Kotlin + Jetpack Compose | Background recognition; in-app NekoAuth login |
+| PC | Desktop app | Qt 6 + C++ | Windows / Linux / macOS; system-browser login |
+| Backend | Shared server | Java 27 + Jetty 12 | MySQL, Redis, FFmpeg, fingerprint index, and all APIs |
+
+### Screenshots
+
+| Web Home | Immersive Player |
+| --- | --- |
+| ![Web home](docs/images/readme/web-home.png) | ![Web player](docs/images/readme/web-player.png) |
+
+| Mobile Home | Client Downloads |
+| --- | --- |
+| ![Mobile home](docs/images/readme/mobile-home.png) | ![Client downloads](docs/images/readme/client-download.png) |
+
 ## Docker Deployment (Backend)
 
 The backend Docker configuration lives in `backend/` and listens on port `65535` by

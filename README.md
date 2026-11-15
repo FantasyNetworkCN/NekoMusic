@@ -6,6 +6,42 @@
 
 在线音乐平台（Web / Android / PC）。完整 API 说明见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md)。
 
+<p align="center">
+  <img src="docs/images/readme/nekomusic-hero.png" alt="Neko 歌姬计划 Web 首页、播放页与移动端界面" width="100%">
+</p>
+
+## 项目介绍
+
+NekoMusic（Neko 歌姬计划）是一套自托管的在线音乐平台：同一套后端同时服务 Web、
+Android 与 PC，支持站内曲库搜索、播放、收藏、歌单、评论、每日推荐、一起听和听歌识曲。
+项目完全免费、无广告，源码开放，适合自建音乐库、个人电台和二次元音乐社区。
+
+- **多端统一**：Web、Android、PC 共用账户、曲库、收藏与歌单；Web 同时适配桌面和手机屏幕。
+- **私有曲库**：音频、封面、歌词和声纹索引均由自己的后端提供，不依赖第三方识曲 API。
+- **NekoAuth 单点登录**：账号、密码、登录设备与头像统一由 NekoAuth 管理，客户端不保存密码。
+- **歌单迁移**：Web 支持落雪音乐 LXMC / `.lxmc` 导入，Android / PC 支持网易云、QQ 音乐、酷狗歌单迁入。
+- **实时听歌识曲**：客户端通过 WebSocket 持续发送 16 kHz PCM，服务端在自有曲库中实时匹配。
+- **社区能力**：歌曲评论、楼层回复、IP 归属地、每日推荐、推荐歌单与一起听。
+
+### 支持的平台
+
+| 平台 | 形态 | 技术栈 | 说明 |
+| --- | --- | --- | --- |
+| Web | 在线播放器 | Vue 3 + Vite | 桌面与移动端自适应，支持 LXMC 歌单导入 |
+| Android | 原生客户端 | Kotlin + Jetpack Compose | 后台识曲、应用内 NekoAuth 登录 |
+| PC | 桌面客户端 | Qt 6 + C++ | Windows / Linux / macOS，系统浏览器登录 |
+| Backend | 统一服务端 | Java 27 + Jetty 12 | MySQL、Redis、FFmpeg、声纹索引与全部 API |
+
+### 界面预览
+
+| Web 首页 | 沉浸式播放页 |
+| --- | --- |
+| ![Web 首页](docs/images/readme/web-home.png) | ![播放页](docs/images/readme/web-player.png) |
+
+| 移动端首页 | 客户端下载 |
+| --- | --- |
+| ![移动端首页](docs/images/readme/mobile-home.png) | ![客户端下载](docs/images/readme/client-download.png) |
+
 
 ## Docker 部署（后端）
 
