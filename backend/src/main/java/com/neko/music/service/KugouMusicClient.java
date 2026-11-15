@@ -75,6 +75,10 @@ public class KugouMusicClient {
     /** 移动端单曲分享链接（{@code /share/?action=single&hash=...}）。 */
     private static final Pattern SINGLE_SHARE_PATTERN =
             Pattern.compile("(?:/share/|action=single)", Pattern.CASE_INSENSITIVE);
+    /** 酷狗新版分享短链，形如 {@code https://t1.kugou.com/1hXk7bdG7V3}。 */
+    private static final String SHORT_LINK_HOST = "t1.kugou.com";
+    private static final Pattern SHORT_LINK_PATH_PATTERN =
+            Pattern.compile("^/([A-Za-z0-9_-]{3,64})/?$");
     /**
      * 唯一接受的歌单分享链接路径：{@code /songlist/<token>}。token 只允许字母数字下划线；
      * token 之后的尾巴（多余路径段、结尾斜杠、追踪参数等）一律丢弃——出站路径只用 token 重新拼出。
@@ -172,6 +176,11 @@ public class KugouMusicClient {
         }
         String trimmed = input.trim();
 
+        URI shortLink = shortLinkUri(trimmed);
+        if (shortLink != null) {
+            return fetchShortLink(shortLink);
+        }
+
         String globalId = resolveGlobalId(trimmed);
         if (globalId != null) {
             return fetchByGlobalId(globalId);
@@ -238,6 +247,24 @@ public class KugouMusicClient {
                 ? "songlist/" + input + "/"
                 : shareRelativePath(input);
         String html = httpGetString(relative);
+        return parseSharePage(input, html);
+    }
+
+    /** 跟随酷狗短链重定向，优先从落地地址解析全局歌单 ID，否则继续按分享页处理。 */
+    private KugouPlaylist fetchShortLink(URI shortLink) throws IOException {
+        SharePage page = httpGetSharePage(shortLink.toString());
+        String globalId = globalIdFromUri(page.uri());
+        if (globalId != null) {
+            return fetchByGlobalId(globalId);
+        }
+        String specialId = extractSpecialId(page.uri().toString());
+        if (specialId != null) {
+            return fetchBySpecialId(specialId);
+        }
+        return parseSharePage(page.uri().toString(), page.body());
+    }
+
+    private KugouPlaylist parseSharePage(String input, String html) throws IOException {
         JsonNode output = extractWindowOutput(html);
         if (output == null) {
             throw new IOException("酷狗分享页解析失败");
@@ -652,7 +679,11 @@ public class KugouMusicClient {
      * 公网），重定向不自动跟随、逐跳重新校验。</p>
      */
     private String httpGetString(String relativePathAndQuery) throws IOException {
-        String current = SHARE_PAGE_BASE + relativePathAndQuery;
+        return httpGetSharePage(SHARE_PAGE_BASE + relativePathAndQuery).body();
+    }
+
+    private SharePage httpGetSharePage(String absoluteUrl) throws IOException {
+        String current = absoluteUrl;
         for (int hop = 0; hop <= MAX_SHARE_REDIRECTS; hop++) {
             URI uri;
             try {
@@ -681,9 +712,12 @@ public class KugouMusicClient {
             if (!HttpTransport.isSuccess(response.statusCode())) {
                 throw new UpstreamException(response.statusCode());
             }
-            return response.body();
+            return new SharePage(uri, response.body());
         }
         throw new IOException("酷狗分享页重定向次数过多");
+    }
+
+    private record SharePage(URI uri, String body) {
     }
 
     /**
@@ -714,6 +748,48 @@ public class KugouMusicClient {
     /** 入参是裸 token（gcid / 单曲 hash）而不是分享链接时返回 true。 */
     private static boolean isBareShareToken(String input) {
         return BARE_TOKEN_PATTERN.matcher(input).matches();
+    }
+
+    /**
+     * 酷狗新版短链只接受 {@code t1.kugou.com/<token>}。返回规范化后的短链地址；
+     * 非短链输入返回 {@code null}，短链主机但路径不合法则直接拒绝。
+     */
+    static URI shortLinkUri(String input) throws InvalidInputException {
+        if (input == null || input.isBlank()) {
+            return null;
+        }
+        String candidate = input.trim();
+        if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) {
+            candidate = "https://" + candidate;
+        }
+        URI uri;
+        try {
+            uri = URI.create(candidate);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        String host = uri.getHost();
+        if (host == null || !SHORT_LINK_HOST.equalsIgnoreCase(host)) {
+            return null;
+        }
+        String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+        Matcher matcher = SHORT_LINK_PATH_PATTERN.matcher(path);
+        if (uri.getUserInfo() != null || uri.getPort() != -1 || !matcher.matches()) {
+            throw new InvalidInputException("酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）");
+        }
+        return URI.create("https://" + SHORT_LINK_HOST + "/" + matcher.group(1));
+    }
+
+    /** 从短链落地地址的查询参数中提取全局歌单 ID。 */
+    static String globalIdFromUri(URI uri) {
+        Map<String, String> params = parseRawQuery(uri.getRawQuery());
+        for (String key : new String[]{"global_specialid", "global_collection_id"}) {
+            String value = params.get(key);
+            if (value != null && GID_PATTERN.matcher(value).matches()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     /**

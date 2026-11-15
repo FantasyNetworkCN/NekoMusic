@@ -8,6 +8,7 @@ import java.net.URI;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -84,6 +85,25 @@ class KugouMusicClientSsrfTest {
     }
 
     @Test
+    @DisplayName("酷狗 t1 短链只保留官方主机与 token，并从落地地址提取全局歌单 ID")
+    void acceptsOfficialShortLinkAndExtractsGlobalId() throws Exception {
+        assertEquals(URI.create("https://t1.kugou.com/1hXk7bdG7V3"),
+                KugouMusicClient.shortLinkUri("https://t1.kugou.com/1hXk7bdG7V3"));
+        assertEquals(URI.create("https://t1.kugou.com/1hXk7bdG7V3"),
+                KugouMusicClient.shortLinkUri("t1.kugou.com/1hXk7bdG7V3?from=share"));
+        assertNull(KugouMusicClient.shortLinkUri("https://m.kugou.com/songlist/gcid_x/"));
+        assertNull(KugouMusicClient.shortLinkUri("https://t1.kugou.com.evil.com/1hXk7bdG7V3"));
+
+        String globalId = KugouMusicClient.globalIdFromUri(URI.create(
+                "https://activity.kugou.com/share/v-a00a45b0/index.html"
+                        + "?u=2263838310&specialid=-2147483648"
+                        + "&global_specialid=collection_3_2263838310_2_0&cType=0"));
+        assertEquals("collection_3_2263838310_2_0", globalId);
+        assertNull(KugouMusicClient.globalIdFromUri(
+                URI.create("https://activity.kugou.com/share/v-a00a45b0/index.html?u=1")));
+    }
+
+    @Test
     @DisplayName("官方域名下的其它路径 / 参数组合一律按非法入参拒绝")
     void rejectsOfficialDomainLinksOutsideKnownShapes() {
         String[] rejected = {
@@ -97,6 +117,8 @@ class KugouMusicClientSsrfTest {
             "https://www.kugou.com/songlist/%2e%2e%2fetc/",          // 编码穿越
             "https://www.kugou.com/yy/songlist/gcid_x/",             // songlist 前面还有别的段
             "https://www.kugou.com/yy/special/single/1234567.html",  // 其它路径形态
+            "https://t1.kugou.com/",                                  // 短链缺 token
+            "https://t1.kugou.com/a/b",                               // 短链多余路径
         };
         for (String payload : rejected) {
             assertThrows(KugouMusicClient.InvalidInputException.class,
