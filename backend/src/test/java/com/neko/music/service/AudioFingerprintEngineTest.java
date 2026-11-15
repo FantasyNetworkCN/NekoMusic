@@ -44,6 +44,78 @@ class AudioFingerprintEngineTest {
     }
 
     @Test
+    void keepsEnoughLandmarksToRecognizeShortClipFromLongTrack() {
+        AudioFingerprintEngine engine = new AudioFingerprintEngine();
+        short[] track = waveform(180, 0);
+        AudioFingerprintEngine.Fingerprint full = engine.fingerprint(track);
+        AudioFingerprintEngine.Fingerprint bounded = MusicRecognitionService.limitLandmarks(full);
+
+        assertEquals(MusicRecognitionService.MAX_LANDMARKS_PER_TRACK, bounded.landmarks().size());
+        AudioFingerprintEngine.Index index =
+                AudioFingerprintEngine.Index.build(Map.of(11, bounded));
+        AudioFingerprintEngine.Fingerprint query = engine.fingerprint(slice(track, 70, 8));
+
+        AudioFingerprintEngine.Match match = index.findBest(query, 6, 0.08).orElseThrow();
+        assertEquals(11, match.musicId());
+        assertTrue(match.alignedLandmarks() >= 6);
+    }
+
+    @Test
+    void allocatesMoreLandmarksToVeryLongTracks() {
+        List<AudioFingerprintEngine.Landmark> landmarks = new java.util.ArrayList<>();
+        for (int i = 0; i < 50_000; i++) {
+            landmarks.add(new AudioFingerprintEngine.Landmark(i, i));
+        }
+        AudioFingerprintEngine.Fingerprint longTrack = new AudioFingerprintEngine.Fingerprint(
+                landmarks, 700L * AudioFingerprintEngine.SAMPLE_RATE);
+
+        AudioFingerprintEngine.Fingerprint bounded =
+                MusicRecognitionService.limitLandmarks(longTrack);
+
+        assertEquals(MusicRecognitionService.MAX_LANDMARKS_PER_LONG_TRACK, bounded.landmarks().size());
+    }
+
+    @Test
+    void confidenceIgnoresQueryHashesMissingFromASparseIndex() {
+        AudioFingerprintEngine engine = new AudioFingerprintEngine();
+        short[] track = waveform(180, 0);
+        AudioFingerprintEngine.Fingerprint full = engine.fingerprint(track);
+        AudioFingerprintEngine.Fingerprint sparse = sparseLandmarks(full, 512);
+        AudioFingerprintEngine.Index index =
+                AudioFingerprintEngine.Index.build(Map.of(11, sparse));
+        AudioFingerprintEngine.Fingerprint query = engine.fingerprint(slice(track, 70, 8));
+
+        AudioFingerprintEngine.Match match = index.findBest(query, 6, 0.08).orElseThrow();
+        assertEquals(11, match.musicId());
+        assertTrue(match.confidence() >= 0.08);
+    }
+
+    @Test
+    void rejectsUnrelatedShortClipAgainstLongTrackBudget() {
+        AudioFingerprintEngine engine = new AudioFingerprintEngine();
+        short[] track = waveform(180, 0);
+        AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.build(Map.of(
+                11, MusicRecognitionService.limitLandmarks(engine.fingerprint(track))));
+        AudioFingerprintEngine.Fingerprint query = engine.fingerprint(noise(8, 42));
+
+        assertTrue(index.findBest(query, 6, 0.08).isEmpty());
+    }
+
+    @Test
+    void recognizesTheResampled16kWebSocketStreamUnderNoise() {
+        AudioFingerprintEngine engine = new AudioFingerprintEngine();
+        short[] track = waveform(180, 0);
+        AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.build(Map.of(
+                11, MusicRecognitionService.limitLandmarks(engine.fingerprint(track))));
+        short[] queryAt16k = waveformAtRate(16_000, 8, 0, 0.12d);
+        AudioFingerprintEngine.Fingerprint query =
+                engine.fingerprint(MusicRecognitionService.resample16kToEngineRate(queryAt16k));
+
+        AudioFingerprintEngine.Match match = index.findBest(query, 6, 0.08).orElseThrow();
+        assertEquals(11, match.musicId());
+    }
+
+    @Test
     void indexDeduplicatesLandmarksPerTrack() {
         AudioFingerprintEngine engine = new AudioFingerprintEngine();
         AudioFingerprintEngine.Fingerprint fp = engine.fingerprint(waveform(8, 0));
@@ -92,20 +164,27 @@ class AudioFingerprintEngineTest {
     }
 
     private static short[] waveform(int seconds, int variant) {
-        int count = seconds * AudioFingerprintEngine.SAMPLE_RATE;
+        return waveformAtRate(AudioFingerprintEngine.SAMPLE_RATE, seconds, variant, 0d);
+    }
+
+    private static short[] waveformAtRate(int sampleRate, int seconds, int variant, double noiseLevel) {
+        int count = seconds * sampleRate;
         short[] result = new short[count];
         double[] frequencies = variant == 0
                 ? new double[]{220, 330, 440, 554}
                 : variant == 1
                 ? new double[]{247, 371, 494, 622}
                 : new double[]{173, 281, 419, 691};
+        java.util.Random random = new java.util.Random(7);
         for (int i = 0; i < count; i++) {
-            double t = i / (double) AudioFingerprintEngine.SAMPLE_RATE;
+            double t = i / (double) sampleRate;
             double sweep = Math.sin(2 * Math.PI * (40 + 7 * t) * t);
             double signal = 0;
             for (int j = 0; j < frequencies.length; j++) {
                 signal += Math.sin(2 * Math.PI * (frequencies[j] + (j + 1) * 2 * t) * t + sweep * 0.4) / frequencies.length;
             }
+            signal += noiseLevel * (random.nextDouble() * 2d - 1d);
+            signal = Math.max(-1d, Math.min(1d, signal));
             result[i] = (short) Math.round(signal * 20_000);
         }
         return result;
@@ -117,5 +196,29 @@ class AudioFingerprintEngineTest {
         short[] result = new short[length];
         System.arraycopy(source, start, result, 0, length);
         return result;
+    }
+
+    private static short[] noise(int seconds, long seed) {
+        short[] result = new short[seconds * AudioFingerprintEngine.SAMPLE_RATE];
+        java.util.Random random = new java.util.Random(seed);
+        for (int i = 0; i < result.length; i++) {
+            result[i] = (short) random.nextInt(16_384);
+        }
+        return result;
+    }
+
+    private static AudioFingerprintEngine.Fingerprint sparseLandmarks(
+            AudioFingerprintEngine.Fingerprint fingerprint,
+            int maximum) {
+        List<AudioFingerprintEngine.Landmark> landmarks = fingerprint.landmarks();
+        if (landmarks.size() <= maximum) {
+            return fingerprint;
+        }
+        List<AudioFingerprintEngine.Landmark> sampled = new java.util.ArrayList<>(maximum);
+        double step = (landmarks.size() - 1d) / (maximum - 1d);
+        for (int i = 0; i < maximum; i++) {
+            sampled.add(landmarks.get((int) Math.round(i * step)));
+        }
+        return new AudioFingerprintEngine.Fingerprint(sampled, fingerprint.sampleCount());
     }
 }

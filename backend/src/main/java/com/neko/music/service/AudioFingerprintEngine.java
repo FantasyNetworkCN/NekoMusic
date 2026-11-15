@@ -23,16 +23,17 @@ public final class AudioFingerprintEngine {
     public static final int SAMPLE_RATE = 11_025;
     public static final int FFT_SIZE = 2_048;
     public static final int HOP_SIZE = 1_024;
-    // Bumped after increasing landmark density for better short-clip recall.
-    public static final int ALGORITHM_VERSION = 3;
+    // Bumped after increasing the per-track landmark budget and changing the
+    // confidence denominator; cached fingerprints must be regenerated.
+    public static final int ALGORITHM_VERSION = 4;
 
     private static final int TEMPORAL_RADIUS = 2;
     private static final int FREQUENCY_QUANTIZATION_BINS = 4;
     private static final double MIN_FRAME_RMS = 0.000_01d;
-    private static final int MAX_VOTE_COMPARISONS = 2_000_000;
+    private static final int MAX_VOTE_COMPARISONS = 8_000_000;
     /** Bounds the in-memory inverted index for very long tracks and large libraries. */
-    private static final int MAX_INDEX_POSTINGS_PER_HASH = 8_192;
-    private static final long MAX_INDEX_TOTAL_POSTINGS = 16_000_000L;
+    private static final int MAX_INDEX_POSTINGS_PER_HASH = 65_536;
+    private static final long MAX_INDEX_TOTAL_POSTINGS = 600_000_000L;
     private static final int[][] TARGET_WINDOWS = {
             {1, 4}, {5, 9}, {10, 17}, {18, 30}
     };
@@ -444,6 +445,7 @@ public final class AudioFingerprintEngine {
             int maximumPostingsPerHash = Math.max(512, musicCount * 64);
             Map<Long, Integer> offsetVotes = new HashMap<>();
             Set<Long> uniqueQueryLandmarks = new HashSet<>();
+            int comparableLandmarks = 0;
             int comparisons = 0;
             for (Landmark landmark : query.landmarks()) {
                 long queryKey = ((long) landmark.hash << 32) | (landmark.timeFrame & 0xffff_ffffL);
@@ -454,6 +456,7 @@ public final class AudioFingerprintEngine {
                 if (matches == null || matches.length > maximumPostingsPerHash) {
                     continue;
                 }
+                comparableLandmarks++;
                 for (long posting : matches) {
                     int musicId = (int) (posting >>> 32);
                     int indexedTime = (int) posting;
@@ -490,7 +493,9 @@ public final class AudioFingerprintEngine {
             ranked.sort((left, right) -> Integer.compare(right.getValue().votes, left.getValue().votes));
             Map.Entry<Integer, VotePeak> best = ranked.getFirst();
             int runnerUp = ranked.size() > 1 ? ranked.get(1).getValue().votes : 0;
-            double confidence = Math.min(1d, best.getValue().votes / (double) query.landmarks().size());
+            double confidence = comparableLandmarks == 0
+                    ? 0d
+                    : Math.min(1d, best.getValue().votes / (double) comparableLandmarks);
             int effectiveMinimum = Math.min(
                     minimumAlignedLandmarks,
                     Math.max(3, (query.landmarks().size() + 4) / 5));

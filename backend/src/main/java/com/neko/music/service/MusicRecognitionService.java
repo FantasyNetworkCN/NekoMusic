@@ -52,6 +52,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class MusicRecognitionService implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(MusicRecognitionService.class);
     private static final String INDEX_BUILD_RETRY_MESSAGE = "曲库声纹索引构建暂时失败，请稍后重试";
+    static final int MAX_LANDMARKS_PER_TRACK = 8_192;
+    static final int MAX_LANDMARKS_PER_LONG_TRACK = 32_768;
 
     private final ConfigManager config;
     private final TrackCatalog catalog;
@@ -204,7 +206,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                 query.durationSeconds()));
     }
 
-    private static short[] resample16kToEngineRate(short[] input) {
+    static short[] resample16kToEngineRate(short[] input) {
         int outputLength = (int) ((long) input.length * AudioFingerprintEngine.SAMPLE_RATE / 16_000L);
         short[] output = new short[outputLength];
         for (int i = 0; i < output.length; i++) {
@@ -390,6 +392,10 @@ public final class MusicRecognitionService implements AutoCloseable {
         }
 
         int pendingCount = pendingTasks.size();
+        int firstPassProcessed = cacheHits + failed;
+        int progressInterval = Math.max(1, pendingCount / 20);
+        logger.info("曲库声纹索引扫描完成，待生成={}，缓存命中={}，扫描失败={}",
+                pendingCount, cacheHits, failed);
         int generated = 0;
         try {
             for (int completed = 0; completed < pendingCount;) {
@@ -410,6 +416,11 @@ public final class MusicRecognitionService implements AutoCloseable {
                 } else {
                     failed++;
                     lastFailure = result.failure();
+                }
+                if (completed == pendingCount || completed % progressInterval == 0) {
+                    logIndexBuildProgress("曲库声纹索引生成",
+                            firstPassProcessed + completed, audioFileCount,
+                            cacheHits, generated, failed);
                 }
             }
         } catch (InterruptedException | ExecutionException e) {
@@ -464,6 +475,7 @@ public final class MusicRecognitionService implements AutoCloseable {
         int cacheHits = 0;
         int generated = 0;
         int failed = 0;
+        int audioFileCount = 0;
         Exception lastFailure = null;
 
         for (Track track : addedTracks) {
@@ -471,6 +483,7 @@ public final class MusicRecognitionService implements AutoCloseable {
             if (audio == null) {
                 continue;
             }
+            audioFileCount++;
             try {
                 Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
                 if (cached.isPresent()) {
@@ -486,6 +499,10 @@ public final class MusicRecognitionService implements AutoCloseable {
         }
 
         int pendingCount = pendingTasks.size();
+        int firstPassProcessed = cacheHits + failed;
+        int progressInterval = Math.max(1, pendingCount / 20);
+        logger.info("增量声纹索引扫描完成，待生成={}，缓存命中={}，扫描失败={}",
+                pendingCount, cacheHits, failed);
         try {
             for (int completed = 0; completed < pendingCount;) {
                 Future<FingerprintBuildResult> task = completion.poll(30, TimeUnit.SECONDS);
@@ -502,6 +519,11 @@ public final class MusicRecognitionService implements AutoCloseable {
                 } else {
                     failed++;
                     lastFailure = result.failure();
+                }
+                if (completed == pendingCount || completed % progressInterval == 0) {
+                    logIndexBuildProgress("增量曲库声纹索引生成",
+                            firstPassProcessed + completed, audioFileCount,
+                            cacheHits, generated, failed);
                 }
             }
         } catch (InterruptedException | ExecutionException e) {
@@ -520,6 +542,21 @@ public final class MusicRecognitionService implements AutoCloseable {
                 snapshot.index.musicCount(), snapshot.index.uniqueHashCount(), cacheHits, generated, failed,
                 System.currentTimeMillis() - started);
         return snapshot;
+    }
+
+    private void logIndexBuildProgress(
+            String phase,
+            int processed,
+            int total,
+            int cacheHits,
+            int generated,
+            int failed) {
+        if (total <= 0) {
+            return;
+        }
+        int percent = (int) Math.min(100L, processed * 100L / total);
+        logger.info("{}进度: {}/{} ({}%)，缓存命中={}，新生成={}，失败={}",
+                phase, processed, total, percent, cacheHits, generated, failed);
     }
 
     private static void abortFingerprintDrain(Exception failure,
@@ -593,11 +630,18 @@ public final class MusicRecognitionService implements AutoCloseable {
         indexedTracks.put(track.id(), track);
     }
 
-    private static AudioFingerprintEngine.Fingerprint limitLandmarks(
+    static AudioFingerprintEngine.Fingerprint limitLandmarks(
             AudioFingerprintEngine.Fingerprint fingerprint) {
-        // 512 landmarks per track provide better coverage for 3-20 second
-        // recognition queries while keeping a large catalog bounded.
-        final int maxLandmarks = 512;
+        // A short query only covers a small time window of a long track.
+        // Uniformly keeping 512 landmarks for the whole track leaves too few
+        // candidates in that window (a 3-second clip of a 4-minute song has
+        // roughly 6). Keep enough density for real microphone queries while
+        // the inverted index still has a global posting budget. Very long
+        // tracks use a larger per-track budget because their time window
+        // otherwise contains proportionally fewer landmarks.
+        int maxLandmarks = fingerprint.durationSeconds() > 600d
+                ? MAX_LANDMARKS_PER_LONG_TRACK
+                : MAX_LANDMARKS_PER_TRACK;
         List<AudioFingerprintEngine.Landmark> landmarks = fingerprint.landmarks();
         if (landmarks.size() <= maxLandmarks) {
             return fingerprint;
@@ -799,7 +843,7 @@ public final class MusicRecognitionService implements AutoCloseable {
         private static final int MAX_TRACKS = 1_000_000;
         private static final int MAX_HASHES = 10_000_000;
         private static final int MAX_POSTINGS_PER_HASH = 10_000_000;
-        private static final long MAX_TOTAL_POSTINGS = 100_000_000L;
+        private static final long MAX_TOTAL_POSTINGS = 600_000_000L;
         private static final int MAX_STRING_BYTES = 1024 * 1024;
 
         private final Path file;
