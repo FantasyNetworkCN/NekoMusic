@@ -52,6 +52,16 @@ stations, and anime-music communities.
 | --- | --- |
 | ![Mobile home](docs/images/readme/mobile-home.png) | ![Client downloads](docs/images/readme/client-download.png) |
 
+### Android App
+
+| Home and Daily Picks | Player and Word-by-Word Lyrics |
+| --- | --- |
+| ![Android home](docs/images/readme/android-home.png) | ![Android player](docs/images/readme/android-player.png) |
+
+| Playback Menu and Sleep Timer | Background Music Recognition |
+| --- | --- |
+| ![Android playback menu](docs/images/readme/android-player-menu.png) | ![Android music recognition](docs/images/readme/android-recognition.png) |
+
 ## Docker Deployment (Backend)
 
 The backend Docker configuration lives in `backend/` and listens on port `65535` by

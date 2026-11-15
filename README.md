@@ -42,6 +42,16 @@ Android 与 PC，支持站内曲库搜索、播放、收藏、歌单、评论、
 | --- | --- |
 | ![移动端首页](docs/images/readme/mobile-home.png) | ![客户端下载](docs/images/readme/client-download.png) |
 
+### Android 客户端
+
+| 首页与每日推荐 | 播放页与逐字歌词 |
+| --- | --- |
+| ![Android 首页](docs/images/readme/android-home.png) | ![Android 播放页](docs/images/readme/android-player.png) |
+
+| 播放菜单与定时关闭 | 后台听歌识曲 |
+| --- | --- |
+| ![Android 播放菜单](docs/images/readme/android-player-menu.png) | ![Android 听歌识曲](docs/images/readme/android-recognition.png) |
+
 
 ## Docker 部署（后端）
 
