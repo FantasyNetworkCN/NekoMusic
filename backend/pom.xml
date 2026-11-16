@@ -30,7 +30,7 @@
         <dependency>
             <groupId>org.eclipse.jetty.compression</groupId>
             <artifactId>jetty-compression-gzip</artifactId>
-            <version>12.1.14</version>
+            <version>12.1.15</version>
         </dependency>
         <dependency>
             <groupId>org.eclipse.jetty.ee10</groupId>
