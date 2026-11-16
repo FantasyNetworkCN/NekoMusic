@@ -196,7 +196,7 @@
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
-            <version>3.50.3.0</version>
+            <version>3.54.1.0</version>
         </dependency>
 
         <!-- Apache HttpClient 用于发送 HTTP 请求 -->
