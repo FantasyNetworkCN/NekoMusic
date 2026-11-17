@@ -25,9 +25,9 @@ class MusicRecognitionPersistenceTest {
                 entry(second, "2.flac", 202L, 2_000L));
 
         AudioFingerprintEngine.Fingerprint firstFingerprint = fingerprint(
-                landmark(100, 10), landmark(200, 20), landmark(300, 30));
+                landmark(100, 10), landmark(200, 210), landmark(300, 410));
         AudioFingerprintEngine.Fingerprint secondFingerprint = fingerprint(
-                landmark(400, 10), landmark(500, 20));
+                landmark(400, 10), landmark(500, 210));
         AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.build(Map.of(
                 1, firstFingerprint,
                 2, secondFingerprint));
@@ -42,7 +42,7 @@ class MusicRecognitionPersistenceTest {
         assertEquals(index.uniqueHashCount(), restored.index().uniqueHashCount());
         assertEquals("First", restored.tracks().get(1).title());
         AudioFingerprintEngine.Fingerprint query = fingerprint(
-                landmark(100, 1), landmark(200, 11), landmark(300, 21));
+                landmark(100, 1), landmark(200, 201), landmark(300, 401));
         AudioFingerprintEngine.Match match = restored.index().findBest(query, 2, 0.1).orElseThrow();
         assertEquals(1, match.musicId());
         assertEquals(9, match.offsetFrames());
@@ -90,7 +90,7 @@ class MusicRecognitionPersistenceTest {
     }
 
     private static AudioFingerprintEngine.Landmark landmark(int hash, int frame) {
-        return new AudioFingerprintEngine.Landmark(hash, frame);
+        return new AudioFingerprintEngine.Landmark(hash, frame, hash & 511);
     }
 
     private static AudioFingerprintEngine.Fingerprint fingerprint(AudioFingerprintEngine.Landmark... landmarks) {

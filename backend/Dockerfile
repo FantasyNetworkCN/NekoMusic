@@ -99,6 +99,7 @@ ENV JAVA_HOME=/opt/java \
 #   字符串周转量不大的服务只增加停顿时间，不省内存，故去掉。
 #   若要彻底消除这类停顿，可改用 ZGC（-XX:+UseZGC）并把下面所有 G1 专属参数一并删除。
 ENTRYPOINT ["java", "-server", \
+    "--enable-native-access=ALL-UNNAMED", \
     "-XX:+UseG1GC", \
     "-XX:MaxGCPauseMillis=25", \
     "-XX:InitialRAMPercentage=25.0", \

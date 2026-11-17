@@ -58,6 +58,7 @@ public final class MusicRecognitionService implements AutoCloseable {
     private final ConfigManager config;
     private final TrackCatalog catalog;
     private final FingerprintDecoder decoder;
+    private final FingerprintDecoder queryDecoder;
     private final AudioFingerprintEngine liveQueryEngine;
     private final FingerprintDiskCache diskCache;
     private final FullIndexDiskCache fullIndexCache;
@@ -76,7 +77,8 @@ public final class MusicRecognitionService implements AutoCloseable {
         this(
                 config,
                 new DatabaseTrackCatalog(databaseManager),
-                new FfmpegFingerprintDecoder(config, new AudioFingerprintEngine()),
+                new FfmpegFingerprintDecoder(config, new AudioFingerprintEngine(), false),
+                new FfmpegFingerprintDecoder(config, new AudioFingerprintEngine(), true),
                 new FingerprintDiskCache(MusicAssetLocator.baseDir().resolve("Music/.fingerprints")),
                 new FullIndexDiskCache(MusicAssetLocator.baseDir().resolve("Music/.fingerprints/library.nfi")));
     }
@@ -87,9 +89,20 @@ public final class MusicRecognitionService implements AutoCloseable {
             FingerprintDecoder decoder,
             FingerprintDiskCache diskCache,
             FullIndexDiskCache fullIndexCache) {
+        this(config, catalog, decoder, decoder, diskCache, fullIndexCache);
+    }
+
+    MusicRecognitionService(
+            ConfigManager config,
+            TrackCatalog catalog,
+            FingerprintDecoder decoder,
+            FingerprintDecoder queryDecoder,
+            FingerprintDiskCache diskCache,
+            FullIndexDiskCache fullIndexCache) {
         this.config = config;
         this.catalog = catalog;
         this.decoder = decoder;
+        this.queryDecoder = queryDecoder;
         this.liveQueryEngine = new AudioFingerprintEngine();
         this.diskCache = diskCache;
         this.fullIndexCache = fullIndexCache;
@@ -129,7 +142,7 @@ public final class MusicRecognitionService implements AutoCloseable {
         }
         try {
             IndexSnapshot snapshot = getUsableIndex();
-            AudioFingerprintEngine.Fingerprint query = decoder.decode(
+            AudioFingerprintEngine.Fingerprint query = queryDecoder.decode(
                     uploadedAudio,
                     config.getMusicRecognitionMaxSampleDurationSeconds(),
                     Duration.ofSeconds(config.getMusicRecognitionFfmpegTimeoutSeconds()));
@@ -207,6 +220,9 @@ public final class MusicRecognitionService implements AutoCloseable {
     }
 
     static short[] resample16kToEngineRate(short[] input) {
+        if (AudioFingerprintEngine.SAMPLE_RATE == 16_000) {
+            return input;
+        }
         int outputLength = (int) ((long) input.length * AudioFingerprintEngine.SAMPLE_RATE / 16_000L);
         short[] output = new short[outputLength];
         for (int i = 0; i < output.length; i++) {
@@ -768,10 +784,15 @@ public final class MusicRecognitionService implements AutoCloseable {
     private static final class FfmpegFingerprintDecoder implements FingerprintDecoder {
         private final ConfigManager config;
         private final AudioFingerprintEngine engine;
+        private final boolean queryMode;
 
-        private FfmpegFingerprintDecoder(ConfigManager config, AudioFingerprintEngine engine) {
+        private FfmpegFingerprintDecoder(
+                ConfigManager config,
+                AudioFingerprintEngine engine,
+                boolean queryMode) {
             this.config = config;
             this.engine = engine;
+            this.queryMode = queryMode;
         }
 
         @Override
@@ -807,7 +828,9 @@ public final class MusicRecognitionService implements AutoCloseable {
                 long maxSamples = (long) maxDurationSeconds * AudioFingerprintEngine.SAMPLE_RATE;
                 AudioFingerprintEngine.Fingerprint fingerprint;
                 try {
-                    fingerprint = engine.fingerprint(stdout, maxSamples);
+                    fingerprint = queryMode
+                            ? engine.fingerprintQuery(stdout, maxSamples)
+                            : engine.fingerprint(stdout, maxSamples);
                 } catch (AudioFingerprintEngine.SampleLimitExceededException e) {
                     process.destroyForcibly();
                     throw new AudioTooLongException("音频时长不得超过 " + maxDurationSeconds + " 秒", e);
@@ -839,9 +862,11 @@ public final class MusicRecognitionService implements AutoCloseable {
     /** Persistent, directly loadable inverted index plus a catalog/audio validity manifest. */
     static final class FullIndexDiskCache {
         private static final int MAGIC = 0x4e464931; // NFI1
-        private static final int FORMAT_VERSION = 1;
+        private static final int FORMAT_VERSION = 2;
         private static final int MAX_TRACKS = 1_000_000;
-        private static final int MAX_HASHES = 10_000_000;
+        // Panako 的 34-bit 哈希在数万首曲库中会产生大量唯一键；
+        // 旧的 1000 万上限会让新索引每次重启都被拒绝并触发全量重建。
+        private static final int MAX_HASHES = 400_000_000;
         private static final int MAX_POSTINGS_PER_HASH = 10_000_000;
         private static final long MAX_TOTAL_POSTINGS = 600_000_000L;
         private static final int MAX_STRING_BYTES = 1024 * 1024;
@@ -897,10 +922,10 @@ public final class MusicRecognitionService implements AutoCloseable {
                 }
 
                 int hashCount = readCount(input, MAX_HASHES, "unique hashes");
-                Map<Integer, long[]> postings = new HashMap<>(hashCount);
+                Map<Long, long[]> postings = new HashMap<>(hashCount);
                 long totalPostings = 0;
                 for (int i = 0; i < hashCount; i++) {
-                    int hash = input.readInt();
+                    long hash = input.readLong();
                     int postingCount = readCount(input, MAX_POSTINGS_PER_HASH, "hash postings");
                     if (postingCount == 0 || totalPostings + postingCount > MAX_TOTAL_POSTINGS) {
                         throw new IOException("invalid total posting count");
@@ -956,10 +981,10 @@ public final class MusicRecognitionService implements AutoCloseable {
                         output.writeInt(musicId);
                     }
 
-                    Map<Integer, long[]> postings = new TreeMap<>(snapshot.index.postingsView());
+                    Map<Long, long[]> postings = new TreeMap<>(snapshot.index.postingsView());
                     output.writeInt(postings.size());
-                    for (Map.Entry<Integer, long[]> entry : postings.entrySet()) {
-                        output.writeInt(entry.getKey());
+                    for (Map.Entry<Long, long[]> entry : postings.entrySet()) {
+                        output.writeLong(entry.getKey());
                         output.writeInt(entry.getValue().length);
                         for (long posting : entry.getValue()) {
                             output.writeLong(posting);
@@ -1056,7 +1081,10 @@ public final class MusicRecognitionService implements AutoCloseable {
                 }
                 List<AudioFingerprintEngine.Landmark> landmarks = new ArrayList<>(count);
                 for (int i = 0; i < count; i++) {
-                    landmarks.add(new AudioFingerprintEngine.Landmark(input.readInt(), input.readInt()));
+                    landmarks.add(new AudioFingerprintEngine.Landmark(
+                            input.readLong(),
+                            input.readInt(),
+                            input.readInt()));
                 }
                 return Optional.of(new AudioFingerprintEngine.Fingerprint(landmarks, sampleCount));
             } catch (Exception e) {
@@ -1081,8 +1109,9 @@ public final class MusicRecognitionService implements AutoCloseable {
                     output.writeLong(fingerprint.sampleCount());
                     output.writeInt(fingerprint.landmarks().size());
                     for (AudioFingerprintEngine.Landmark landmark : fingerprint.landmarks()) {
-                        output.writeInt(landmark.hash());
+                        output.writeLong(landmark.hash());
                         output.writeInt(landmark.timeFrame());
+                        output.writeInt(landmark.frequencyBin());
                     }
                 }
                 moveAtomically(temp, target);

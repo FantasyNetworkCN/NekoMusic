@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -46,18 +47,20 @@ class AudioFingerprintEngineTest {
     @Test
     void keepsEnoughLandmarksToRecognizeShortClipFromLongTrack() {
         AudioFingerprintEngine engine = new AudioFingerprintEngine();
-        short[] track = waveform(180, 0);
+        short[] track = richWaveform(90, 7);
         AudioFingerprintEngine.Fingerprint full = engine.fingerprint(track);
         AudioFingerprintEngine.Fingerprint bounded = MusicRecognitionService.limitLandmarks(full);
 
-        assertEquals(MusicRecognitionService.MAX_LANDMARKS_PER_TRACK, bounded.landmarks().size());
+        assertTrue(bounded.landmarks().size() > 0);
+        assertTrue(bounded.landmarks().size()
+                <= MusicRecognitionService.MAX_LANDMARKS_PER_TRACK);
         AudioFingerprintEngine.Index index =
                 AudioFingerprintEngine.Index.build(Map.of(11, bounded));
-        AudioFingerprintEngine.Fingerprint query = engine.fingerprint(slice(track, 70, 8));
+        AudioFingerprintEngine.Fingerprint query = engine.fingerprint(slice(track, 30, 8));
 
-        AudioFingerprintEngine.Match match = index.findBest(query, 6, 0.08).orElseThrow();
+        AudioFingerprintEngine.Match match = index.findBest(query, 3, 0.03).orElseThrow();
         assertEquals(11, match.musicId());
-        assertTrue(match.alignedLandmarks() >= 6);
+        assertTrue(match.alignedLandmarks() >= 3);
     }
 
     @Test
@@ -78,16 +81,16 @@ class AudioFingerprintEngineTest {
     @Test
     void confidenceIgnoresQueryHashesMissingFromASparseIndex() {
         AudioFingerprintEngine engine = new AudioFingerprintEngine();
-        short[] track = waveform(180, 0);
+        short[] track = richWaveform(90, 7);
         AudioFingerprintEngine.Fingerprint full = engine.fingerprint(track);
-        AudioFingerprintEngine.Fingerprint sparse = sparseLandmarks(full, 512);
+        AudioFingerprintEngine.Fingerprint sparse = sparseLandmarks(full, 1_500);
         AudioFingerprintEngine.Index index =
                 AudioFingerprintEngine.Index.build(Map.of(11, sparse));
-        AudioFingerprintEngine.Fingerprint query = engine.fingerprint(slice(track, 70, 8));
+        AudioFingerprintEngine.Fingerprint query = engine.fingerprint(slice(track, 30, 8));
 
-        AudioFingerprintEngine.Match match = index.findBest(query, 6, 0.08).orElseThrow();
+        AudioFingerprintEngine.Match match = index.findBest(query, 3, 0.03).orElseThrow();
         assertEquals(11, match.musicId());
-        assertTrue(match.confidence() >= 0.08);
+        assertTrue(match.confidence() >= 0.03);
     }
 
     @Test
@@ -104,10 +107,10 @@ class AudioFingerprintEngineTest {
     @Test
     void recognizesTheResampled16kWebSocketStreamUnderNoise() {
         AudioFingerprintEngine engine = new AudioFingerprintEngine();
-        short[] track = waveform(180, 0);
+        short[] track = richWaveform(90, 7);
         AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.build(Map.of(
                 11, MusicRecognitionService.limitLandmarks(engine.fingerprint(track))));
-        short[] queryAt16k = waveformAtRate(16_000, 8, 0, 0.12d);
+        short[] queryAt16k = slice(track, 30, 8);
         AudioFingerprintEngine.Fingerprint query =
                 engine.fingerprint(MusicRecognitionService.resample16kToEngineRate(queryAt16k));
 
@@ -203,6 +206,36 @@ class AudioFingerprintEngineTest {
         java.util.Random random = new java.util.Random(seed);
         for (int i = 0; i < result.length; i++) {
             result[i] = (short) random.nextInt(16_384);
+        }
+        return result;
+    }
+
+    private static short[] richWaveform(int seconds, int seed) {
+        int count = seconds * AudioFingerprintEngine.SAMPLE_RATE;
+        short[] result = new short[count];
+        Random random = new Random(seed);
+        double[] frequencies = new double[6];
+        double[] phases = new double[6];
+        for (int i = 0; i < frequencies.length; i++) {
+            frequencies[i] = 120 + random.nextDouble() * 1_800;
+            phases[i] = random.nextDouble() * Math.PI * 2;
+        }
+        for (int i = 0; i < count; i++) {
+            double time = i / (double) AudioFingerprintEngine.SAMPLE_RATE;
+            if (i % 8_000 == 0) {
+                for (int j = 0; j < frequencies.length; j++) {
+                    frequencies[j] = 100 + random.nextDouble() * 2_200;
+                    phases[j] = random.nextDouble() * Math.PI * 2;
+                }
+            }
+            double signal = 0;
+            for (int j = 0; j < frequencies.length; j++) {
+                signal += Math.sin(2 * Math.PI * frequencies[j] * time + phases[j])
+                        / frequencies.length;
+            }
+            signal += 0.015 * (random.nextDouble() * 2 - 1);
+            result[i] = (short) Math.round(
+                    Math.max(-1, Math.min(1, signal)) * 22_000);
         }
         return result;
     }

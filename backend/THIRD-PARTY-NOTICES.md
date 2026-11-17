@@ -8,8 +8,20 @@
 | 组件 | 版本 | 许可证 | 说明 |
 |---|---|---|---|
 | `org.xerial:sqlite-jdbc` | 3.50.3.0 | **Apache-2.0** | 进程内 SQLite 驱动，自带含 FTS5 的原生库；用于构建 / 查询 `search.db` |
+| `be.ugent.jgaborator:jgaborator` | 0.7 | **AGPL-3.0-or-later** | Panako 算法使用的高分辨率 Constant-Q / Gabor 变换，JAR 内含 Linux 原生库 |
+| `be.tarsos.dsp:core` / `be.tarsos.dsp:jvm` | 2.5 | **AGPL-3.0-or-later** | JGaborator 的音频处理接口依赖 |
 
 SQLite 本体为 **public domain**，FTS5 亦属之。
+
+## Panako 算法移植
+
+`src/main/java/com/neko/music/service/PanakoSpectrumExtractor.java` 以及
+`AudioFingerprintEngine.java` 中的三点指纹、哈希和时间对齐思路参考并移植自
+[Panako](https://github.com/JorenSix/Panako) 2.1（Copyright (C) 2014-2022 Joren Six / IPEM，
+AGPL-3.0-or-later），未引入其 CLI、LMDB、文件 ID 和配置单例。
+
+分发包含该移植代码的版本时，须继续以 AGPL-3.0 提供完整对应源码，并保留 Panako 与
+JGaborator 的版权及许可声明。
 
 ## 移植代码
 

@@ -16,7 +16,31 @@
         <neko.frontend.skip>false</neko.frontend.skip>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>tarsos-repository</id>
+            <url>https://mvn.0110.be/releases</url>
+        </repository>
+    </repositories>
+
     <dependencies>
+        <!-- Panako 的 Gabor/Constant-Q 前端，原生库随 JAR 打入。 -->
+        <dependency>
+            <groupId>be.ugent.jgaborator</groupId>
+            <artifactId>jgaborator</artifactId>
+            <version>0.7</version>
+        </dependency>
+        <dependency>
+            <groupId>be.tarsos.dsp</groupId>
+            <artifactId>core</artifactId>
+            <version>2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>be.tarsos.dsp</groupId>
+            <artifactId>jvm</artifactId>
+            <version>2.5</version>
+        </dependency>
+
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-server</artifactId>
@@ -415,6 +439,14 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>
