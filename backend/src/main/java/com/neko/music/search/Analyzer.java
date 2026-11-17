@@ -30,9 +30,9 @@ public final class Analyzer {
 
     /**
      * 分析器语义版本；任何影响词元输出的变更都必须递增（触发全量重建）。
-     * 采用 analyzer v12：数据表结构与算法版本固定。
+     * 采用 analyzer v13：CJK 全平面按码点切分与索引。
      */
-    public static final int ANALYZER_VERSION = 12;
+    public static final int ANALYZER_VERSION = 13;
 
     /** 查询侧跨语言候选合并去重后的总预算。 */
     public static final int CROSS_LINGUAL_BUDGET = 32;
@@ -65,6 +65,9 @@ public final class Analyzer {
         private final List<String> pinyin = new ArrayList<>();
         private final List<String> crossLingual = new ArrayList<>();
         private String pinyinInitials;
+        private boolean hasCjk;
+        private boolean pinyinComplete;
+        private boolean hasNonIndexedLetterOrDigit;
 
         public List<String> lexical() {
             return lexical;
@@ -81,6 +84,21 @@ public final class Analyzer {
 
         public List<String> crossLingual() {
             return crossLingual;
+        }
+
+        /** 查询是否包含 CJK；用于判断拼音兜底是否能代表完整查询。 */
+        public boolean hasCjk() {
+            return hasCjk;
+        }
+
+        /** CJK 每个码点都成功产出拼音音节时为 true；含无读音扩展汉字时为 false。 */
+        public boolean pinyinComplete() {
+            return pinyinComplete;
+        }
+
+        /** 查询是否含不属于 CJK / 假名 / 谚文索引脚本的字母或数字（如拉丁字母、阿拉伯数字）。 */
+        public boolean hasNonIndexedLetterOrDigit() {
+            return hasNonIndexedLetterOrDigit;
         }
     }
 
@@ -99,6 +117,11 @@ public final class Analyzer {
     /** 汉字判定，供索引 / 查询 / 歌词层共用。 */
     public static boolean isCjk(char c) {
         return ScriptRanges.isCjk(c);
+    }
+
+    /** 汉字判定；扩展 B 及之后必须使用该入口。 */
+    public static boolean isCjk(int codePoint) {
+        return ScriptRanges.isCjk(codePoint);
     }
 
     /**
@@ -132,6 +155,10 @@ public final class Analyzer {
         }
 
         query.pinyinInitials = parts.hasCjk ? String.join(" ", parts.initials) : null;
+        query.hasCjk = parts.hasCjk;
+        query.pinyinComplete = !parts.hasCjk
+                || parts.cjkPinyinSyllables == parts.cjkCodePoints;
+        query.hasNonIndexedLetterOrDigit = parts.hasNonIndexedLetterOrDigit;
         query.crossLingual().addAll(collectCrossLingual(text));
         removePinyinCollisions(query);
         return query;
@@ -159,10 +186,12 @@ public final class Analyzer {
 
         for (Segment segment : splitSegments(normalize(text))) {
             if (segment.kind() == ScriptKind.CJK) {
-                for (int i = 0; i < segment.text().length(); i++) {
-                    int cp = segment.text().charAt(i);
+                String textSegment = segment.text();
+                for (int i = 0; i < textSegment.length(); ) {
+                    int cp = textSegment.codePointAt(i);
                     List<String> words = HanziData.glossWords(cp);
                     if (words == null) {
+                        i += Character.charCount(cp);
                         continue;
                     }
                     for (String word : words) {
@@ -173,6 +202,7 @@ public final class Analyzer {
                             result.add(word);
                         }
                     }
+                    i += Character.charCount(cp);
                 }
             } else {
                 List<Integer> codes = HanziData.glossHanzi(segment.text());
@@ -200,6 +230,9 @@ public final class Analyzer {
         final List<String> pinyin = new ArrayList<>();
         final List<String> initials = new ArrayList<>();
         boolean hasCjk;
+        int cjkCodePoints;
+        int cjkPinyinSyllables;
+        boolean hasNonIndexedLetterOrDigit;
     }
 
     private static Parts analyzeCore(String text) {
@@ -216,6 +249,7 @@ public final class Analyzer {
                 }
                 case SUBSTRING -> addSubstringSegment(segment.text(), parts);
                 default -> {
+                    parts.hasNonIndexedLetterOrDigit = true;
                     parts.tokens.add(segment.text());
                     parts.pinyin.add(segment.text());
                     parts.initials.add(segment.text());
@@ -227,16 +261,18 @@ public final class Analyzer {
 
     /** CJK 段：bigram 在前（短语连续）、unigram 在后；拼音整段词级消歧；首字母合并为一个 token。 */
     private static void addCjkSegment(String segment, Parts parts) {
-        if (segment.length() >= 2) {
-            for (int i = 0; i + 1 < segment.length(); i++) {
-                parts.tokens.add(segment.substring(i, i + 2));
-            }
+        List<String> units = codePointUnits(segment);
+        for (int i = 0; i + 1 < units.size(); i++) {
+            parts.tokens.add(units.get(i) + units.get(i + 1));
         }
-        for (int i = 0; i < segment.length(); i++) {
-            parts.tokens.add(String.valueOf(segment.charAt(i)));
+        for (String unit : units) {
+            parts.tokens.add(unit);
         }
 
-        parts.pinyin.addAll(PinyinFacade.fromCjkRun(segment));
+        List<String> pinyin = PinyinFacade.fromCjkRun(segment);
+        parts.pinyin.addAll(pinyin);
+        parts.cjkCodePoints += units.size();
+        parts.cjkPinyinSyllables += pinyin.size();
         String initials = PinyinFacade.initials(segment);
         if (!initials.isEmpty()) {
             parts.initials.add(initials);
@@ -245,14 +281,23 @@ public final class Analyzer {
 
     /** 假名 / 谚文段：与 CJK 同构的 bigram + unigram，不产出拼音 / 首字母。 */
     private static void addSubstringSegment(String segment, Parts parts) {
-        if (segment.length() >= 2) {
-            for (int i = 0; i + 1 < segment.length(); i++) {
-                parts.tokens.add(segment.substring(i, i + 2));
-            }
+        List<String> units = codePointUnits(segment);
+        for (int i = 0; i + 1 < units.size(); i++) {
+            parts.tokens.add(units.get(i) + units.get(i + 1));
         }
-        for (int i = 0; i < segment.length(); i++) {
-            parts.tokens.add(String.valueOf(segment.charAt(i)));
+        for (String unit : units) {
+            parts.tokens.add(unit);
         }
+    }
+
+    private static List<String> codePointUnits(String text) {
+        List<String> units = new ArrayList<>();
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            units.add(new String(Character.toChars(cp)));
+            i += Character.charCount(cp);
+        }
+        return units;
     }
 
     /**
@@ -305,15 +350,16 @@ public final class Analyzer {
         StringBuilder builder = new StringBuilder();
         ScriptKind kind = ScriptKind.NONE;
 
-        for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            ScriptKind current = classify(ch);
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            ScriptKind current = classify(cp);
             if (current == ScriptKind.NONE) {
                 if (builder.length() > 0) {
                     segments.add(new Segment(kind, builder.toString()));
                     builder.setLength(0);
                     kind = ScriptKind.NONE;
                 }
+                i += Character.charCount(cp);
                 continue;
             }
             if (current != kind) {
@@ -323,7 +369,8 @@ public final class Analyzer {
                 }
             }
             kind = current;
-            builder.append(ch);
+            builder.appendCodePoint(cp);
+            i += Character.charCount(cp);
         }
         if (builder.length() > 0) {
             segments.add(new Segment(kind, builder.toString()));
@@ -331,17 +378,17 @@ public final class Analyzer {
         return segments;
     }
 
-    private static ScriptKind classify(char c) {
-        if (ScriptRanges.isCjk(c)) {
+    private static ScriptKind classify(int codePoint) {
+        if (ScriptRanges.isCjk(codePoint)) {
             return ScriptKind.CJK;
         }
-        if (ScriptRanges.isSubstringScript(c)) {
+        if (ScriptRanges.isSubstringScript(codePoint)) {
             return ScriptKind.SUBSTRING;
         }
-        if (Character.isDigit(c)) {
+        if (Character.isDigit(codePoint)) {
             return ScriptKind.DIGIT;
         }
-        if (Character.isLetter(c)) {
+        if (Character.isLetter(codePoint)) {
             return ScriptKind.LATIN;
         }
         return ScriptKind.NONE;

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NeteaseSearchFillServiceTest {
@@ -31,6 +32,26 @@ class NeteaseSearchFillServiceTest {
         } finally {
             service.shutdown();
         }
+    }
+
+    @Test
+    void externalCandidateMustMatchAllRequestedTerms() {
+        assertTrue(NeteaseSearchFillService.isCandidateRelevant(
+                "晴天", "周杰伦", "叶惠美", "晴天 周杰伦", ""));
+        assertFalse(NeteaseSearchFillService.isCandidateRelevant(
+                "晴天", "张杰", "叶惠美", "晴天 周杰伦", ""));
+        assertFalse(NeteaseSearchFillService.isCandidateRelevant(
+                "歌", "测试歌手", "测试专辑", "不存在的歌", ""));
+        assertFalse(NeteaseSearchFillService.isCandidateRelevant(
+                "❀", "", "", "𪛖", ""));
+        assertFalse(NeteaseSearchFillService.isCandidateRelevant(
+                "Turn All The Lights On", "T-Pain", "rEVOLVEr", "𪛖a", ""));
+    }
+
+    @Test
+    void externalCandidateKeepsExactSupplementaryTitle() {
+        assertTrue(NeteaseSearchFillService.isCandidateRelevant(
+                "𪛖a", "测试歌手", "测试专辑", "𪛖a", ""));
     }
 
     private static final class FillEnabledConfig extends ConfigManager {

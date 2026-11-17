@@ -76,7 +76,7 @@ public final class SearchSession implements AutoCloseable {
     /** 单次查询请求。 */
     public record SearchRequest(
             String query,
-            boolean metadata,
+            SearchScope scope,
             int limit,
             int offset,
             boolean fuzzy,
@@ -84,7 +84,8 @@ public final class SearchSession implements AutoCloseable {
             int candidateCap) {
 
         public static SearchRequest of(String query, int limit) {
-            return new SearchRequest(query, false, limit, 0, false, 1, FtsStore.DEFAULT_CANDIDATE_CAP);
+            return new SearchRequest(query, SearchScope.ALL, limit, 0, false, 1,
+                    FtsStore.DEFAULT_CANDIDATE_CAP);
         }
     }
 
@@ -215,7 +216,7 @@ public final class SearchSession implements AutoCloseable {
         String query = request.query() == null ? "" : request.query().trim().toLowerCase(Locale.ROOT);
         return String.join("\u0001",
                 query,
-                request.metadata() ? "meta" : "all",
+                request.scope().name(),
                 Integer.toString(request.limit()),
                 Integer.toString(request.offset()),
                 request.fuzzy() ? "fuzzy" : "exact",
@@ -240,28 +241,30 @@ public final class SearchSession implements AutoCloseable {
         final FtsStore.StoreMeta profile = meta;
 
         // 主趟：精确表达式（词法 / 拼音 / 首字母）。
-        merge(result, seen, SearchQuery.compileMatch(tokens, request.metadata(), false), null, request);
+        merge(result, seen, SearchQuery.compileMatch(tokens, request.scope(), false), null, request);
 
         if (result.items().size() < request.minExact()) {
-            String expression = SearchQuery.compilePinyinLoose(tokens, request.metadata());
+            String expression = SearchQuery.compilePinyinLoose(tokens, request.scope());
             if (expression != null) {
                 result.passes().pinyinLoose = 1;
                 merge(result, seen, expression, null, request);
             }
         }
         if (result.items().size() < request.minExact() && (profile.hasJapanese || profile.hasKorean)) {
-            String expression = SearchQuery.compileReading(tokens, request.metadata());
+            String expression = SearchQuery.compileReading(tokens, request.scope());
             if (expression != null) {
                 result.passes().reading = 1;
                 merge(result, seen, expression, SearchQuery.readingSequences(tokens), request);
             }
         }
-        if (result.items().size() < request.minExact()) {
+        boolean mixedIndexedAndOtherScripts = tokens.hasCjk()
+                && tokens.hasNonIndexedLetterOrDigit();
+        if (result.items().size() < request.minExact() && !mixedIndexedAndOtherScripts) {
             List<String> candidates = filterCrossLingual(tokens.crossLingual(), profile);
             if (!candidates.isEmpty()) {
                 tokens.crossLingual().clear();
                 tokens.crossLingual().addAll(candidates);
-                String expression = SearchQuery.compileCrossLingual(tokens, request.metadata());
+                String expression = SearchQuery.compileCrossLingual(tokens, request.scope());
                 if (expression != null) {
                     result.passes().crossLingual = 1;
                     merge(result, seen, expression, null, request);
@@ -276,7 +279,7 @@ public final class SearchSession implements AutoCloseable {
         if (SearchQuery.hasFuzzyEligible(tokens)) {
             result.passes().fuzzy = 1;
             merge(result, seen,
-                    SearchQuery.compileFuzzy(tokens, request.metadata(),
+                    SearchQuery.compileFuzzy(tokens, request.scope(),
                             store.loadFuzzyVocabulary(), SearchQuery.DEFAULT_MAX_FUZZY_VARIANTS),
                     null, request);
         }
@@ -292,7 +295,8 @@ public final class SearchSession implements AutoCloseable {
 
         List<String> parts = new ArrayList<>(variants.size());
         for (String variant : variants) {
-            String expression = SearchQuery.compileMatch(Analyzer.analyzeQuery(variant), false, false);
+            String expression = SearchQuery.compileMatch(Analyzer.analyzeQuery(variant),
+                    SearchScope.ALL, false);
             if (expression != null) {
                 parts.add(expression);
             }
@@ -300,7 +304,7 @@ public final class SearchSession implements AutoCloseable {
         if (!parts.isEmpty()) {
             String joined = parts.size() == 1 ? parts.get(0) : "(" + String.join(" OR ", parts) + ")";
             merge(result, seen,
-                    request.metadata() ? "{" + SearchQuery.METADATA_COLUMNS + "} : (" + joined + ")" : joined,
+                    SearchQuery.scopeExpression(joined, request.scope()),
                     null, request);
         }
         return result;
@@ -314,11 +318,13 @@ public final class SearchSession implements AutoCloseable {
         List<String> output = new ArrayList<>(candidates.size());
         for (String candidate : candidates) {
             boolean han = false;
-            for (int i = 0; i < candidate.length(); i++) {
-                if (ScriptRanges.isCjk(candidate.charAt(i))) {
+            for (int i = 0; i < candidate.length(); ) {
+                int cp = candidate.codePointAt(i);
+                if (ScriptRanges.isCjk(cp)) {
                     han = true;
                     break;
                 }
+                i += Character.charCount(cp);
             }
             if (han ? !meta.hasHan : !meta.hasLatin) {
                 continue;

@@ -109,6 +109,50 @@ class MusicSearchRankerTest {
     }
 
     @Test
+    void confidentScoreRequiresEveryQueryTerm() {
+        List<String> terms = MusicSearchRanker.splitTerms("晴天 周杰伦");
+
+        assertTrue(MusicSearchRanker.scoreConfident(
+                fields("晴天", "周杰伦", "叶惠美"), terms) > 0);
+        assertEquals(0, MusicSearchRanker.scoreConfident(
+                fields("晴天", "张杰", "叶惠美"), terms),
+                "只命中歌名、歌手完全不匹配的候选不能进入正式结果");
+    }
+
+    @Test
+    void confidentScoreRejectsLowInformationContains() {
+        assertEquals(0, MusicSearchRanker.scoreConfident(
+                fields("Turn All The Lights On", "T-Pain", "rEVOLVEr"), List.of("a")));
+        assertEquals(0, MusicSearchRanker.scoreConfident(
+                fields("不存在的歌", "测试歌手", "测试专辑"), List.of("歌")));
+        assertEquals(0, MusicSearchRanker.scoreConfident(
+                fields("The Other Side", "测试歌手", "测试专辑"), List.of("the")));
+        assertTrue(MusicSearchRanker.scoreConfident(
+                fields("A", "测试歌手", "测试专辑"), List.of("a")) > 0,
+                "精确单字母标题仍应可搜");
+    }
+
+    @Test
+    void confidentScoreUsesCoverageForLongTitles() {
+        assertTrue(MusicSearchRanker.scoreConfident(
+                fields("我的晴天", "周杰伦", "叶惠美"), List.of("晴天")) > 0);
+        assertEquals(0, MusicSearchRanker.scoreConfident(
+                fields("我的晴天娃娃演唱会", "周杰伦", "叶惠美"), List.of("晴天")),
+                "短词只覆盖长标题很小一部分时不能算强命中");
+        assertTrue(MusicSearchRanker.scoreConfident(
+                fields("Turn All The Lights On", "T-Pain", "rEVOLVEr"), List.of("light")) > 0,
+                "完整拉丁单词前缀应保留命中能力");
+    }
+
+    @Test
+    void supplementaryMixedQueryDoesNotScoreUnrelatedLatinSong() {
+        assertEquals(0, MusicSearchRanker.scoreConfident(
+                fields("Turn All The Lights On", "T-Pain", "rEVOLVEr"), List.of("𪛖a")));
+        assertTrue(MusicSearchRanker.scoreConfident(
+                fields("𪛖a", "测试歌手", "测试专辑"), List.of("𪛖a")) > 0);
+    }
+
+    @Test
     void wholeQueryStrengthOnlyCountsUnsplittedQuery() {
         assertTrue(MusicSearchRanker.wholeQueryStrength(fields("晴天", "周杰伦", "叶惠美"), "晴天") >= 80);
         assertEquals(0, MusicSearchRanker.wholeQueryStrength(fields("晴天", "周杰伦", "叶惠美"), "晴天 周杰伦"));

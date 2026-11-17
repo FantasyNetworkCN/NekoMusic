@@ -515,20 +515,21 @@ public final class SearchIndexBuilder implements AutoCloseable {
             if (text == null || text.isEmpty()) {
                 continue;
             }
-            for (int i = 0; i < text.length(); i++) {
-                char ch = text.charAt(i);
-                if (ScriptRanges.isCjk(ch)) {
+            for (int i = 0; i < text.length(); ) {
+                int cp = text.codePointAt(i);
+                if (ScriptRanges.isCjk(cp)) {
                     meta.hasHan = true;
                 }
-                if (ScriptRanges.isKana(ch)) {
+                if (ScriptRanges.isKana(cp)) {
                     meta.hasJapanese = true;
                 }
-                if (KoreanRomanizer.isHangul(ch)) {
+                if (KoreanRomanizer.isHangul(cp)) {
                     meta.hasKorean = true;
                 }
-                if (ScriptRanges.isLatinLetter(ch)) {
+                if (ScriptRanges.isLatinLetter(cp)) {
                     meta.hasLatin = true;
                 }
+                i += Character.charCount(cp);
             }
         }
     }

@@ -43,16 +43,22 @@ final class KoreanRomanizer {
     };
 
     static boolean containsHangul(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            if (isHangul(text.charAt(i))) {
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            if (isHangul(cp)) {
                 return true;
             }
+            i += Character.charCount(cp);
         }
         return false;
     }
 
     static boolean isHangul(char c) {
-        return (c >= '\uAC00' && c <= '\uD7A3') || (c >= '\u3131' && c <= '\u3163');
+        return isHangul((int) c);
+    }
+
+    static boolean isHangul(int codePoint) {
+        return ScriptRanges.isHangul(codePoint);
     }
 
     /** 谚文串 → RR 罗马字（非谚文字符丢弃；调用方只传连续谚文段）。 */

@@ -11,6 +11,7 @@ package com.neko.music.service;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.search.SearchIndexBuilder;
+import com.neko.music.search.SearchScope;
 import com.neko.music.search.SearchSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,6 +118,21 @@ public final class SearchIndexService implements AutoCloseable {
      * 索引未就绪 / 未启用时返回空列表，调用方可安全回退到旧检索。
      */
     public List<SearchSession.SearchHit> search(String query, int limit, int minExact) {
+        return search(query, limit, minExact, SearchScope.ALL);
+    }
+
+    /** 只查歌名 / 歌手 / 专辑等元数据列。 */
+    public List<SearchSession.SearchHit> searchMetadata(String query, int limit, int minExact) {
+        return search(query, limit, minExact, SearchScope.METADATA);
+    }
+
+    /** 只查歌词正文及其拼音 / 首字母 / 音译列。 */
+    public List<SearchSession.SearchHit> searchLyrics(String query, int limit, int minExact) {
+        return search(query, limit, minExact, SearchScope.LYRICS);
+    }
+
+    private List<SearchSession.SearchHit> search(
+            String query, int limit, int minExact, SearchScope scope) {
         if (!enabled() || query == null || query.isBlank() || closed) {
             return List.of();
         }
@@ -130,7 +146,7 @@ public final class SearchIndexService implements AutoCloseable {
         }
         try {
             SearchSession.SearchResult result = SearchSession.run(indexPath.toString(),
-                    new SearchSession.SearchRequest(query, false, limit, 0, true, minExact,
+                    new SearchSession.SearchRequest(query, scope, limit, 0, true, minExact,
                             com.neko.music.search.FtsStore.DEFAULT_CANDIDATE_CAP));
             return result.items();
         } catch (Exception e) {

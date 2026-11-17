@@ -45,19 +45,23 @@ final class JapaneseReadings {
 
     /** 文本是否含假名（平 / 片 / 半角）。 */
     static boolean containsKana(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            if (ScriptRanges.isKana(text.charAt(i))) {
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            if (ScriptRanges.isKana(cp)) {
                 return true;
             }
+            i += Character.charCount(cp);
         }
         return false;
     }
 
     private static boolean containsCjk(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            if (ScriptRanges.isCjk(text.charAt(i))) {
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            if (ScriptRanges.isCjk(cp)) {
                 return true;
             }
+            i += Character.charCount(cp);
         }
         return false;
     }
@@ -80,21 +84,21 @@ final class JapaneseReadings {
         List<String> bigrams = new ArrayList<>();
         int i = 0;
         while (i < text.length()) {
-            char ch = text.charAt(i);
+            int cp = text.codePointAt(i);
 
-            if (ScriptRanges.isKana(ch)) {
+            if (ScriptRanges.isKana(cp)) {
                 int start = i;
-                while (i < text.length() && ScriptRanges.isKana(text.charAt(i))) {
-                    i++;
+                while (i < text.length() && ScriptRanges.isKana(text.codePointAt(i))) {
+                    i += Character.charCount(text.codePointAt(i));
                 }
                 addKanaRunBigrams(text.substring(start, i), bigrams);
                 continue;
             }
 
-            if (KoreanRomanizer.isHangul(ch)) {
+            if (KoreanRomanizer.isHangul(cp)) {
                 int start = i;
-                while (i < text.length() && KoreanRomanizer.isHangul(text.charAt(i))) {
-                    i++;
+                while (i < text.length() && KoreanRomanizer.isHangul(text.codePointAt(i))) {
+                    i += Character.charCount(text.codePointAt(i));
                 }
                 String romaji = KoreanRomanizer.romanize(text.substring(start, i));
                 if (!romaji.isEmpty()) {
@@ -103,8 +107,7 @@ final class JapaneseReadings {
                 continue;
             }
 
-            if (includeKanjiReadings && ScriptRanges.isCjk(ch)) {
-                int cp = text.codePointAt(i);
+            if (includeKanjiReadings && ScriptRanges.isCjk(cp)) {
                 String[] readings = KanjiHolder.READINGS.get(cp);
                 if (readings != null) {
                     for (String reading : readings) {
@@ -118,7 +121,7 @@ final class JapaneseReadings {
                 continue;
             }
 
-            i++;
+            i += Character.charCount(cp);
         }
         return String.join(" ", bigrams);
     }

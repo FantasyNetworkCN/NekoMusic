@@ -65,6 +65,12 @@ class MusicSearchHandlerTest {
     }
 
     @Test
+    void supplementaryMixedQueryCannotTriggerLyricsSearch() {
+        assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("𪛖", 0, false));
+        assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("𪛖a", 0, false));
+    }
+
+    @Test
     void searchResultCarriesMaxQuality() throws Exception {
         // 搜索结果必须带 max_quality：客户端直接用它决定可选音质档位，不再逐条查详情。
         Map<String, Object> columns = new HashMap<>();

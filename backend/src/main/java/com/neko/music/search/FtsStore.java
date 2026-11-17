@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * SQLite FTS5 索引存储（schema v7 / analyzer v12）。
+ * SQLite FTS5 索引存储（schema v7 / analyzer v13）。
  *
  * <p>要点：
  * <ul>

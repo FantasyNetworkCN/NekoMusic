@@ -23,10 +23,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -359,6 +361,14 @@ public class NeteaseSearchFillService {
                 return FillAttempt.nonMusic();
             }
 
+            candidates.removeIf(candidate -> !isCandidateRelevant(
+                    candidate.title(), candidate.artist(), candidate.album(), reqTitle, reqArtist));
+            if (candidates.isEmpty()) {
+                logger.info("网易云候选与查询不相关，放弃补全: title={} artist={}", reqTitle, reqArtist);
+                return fallbackToQq(reqTitle, reqArtist,
+                        new FillAttempt(Optional.empty(), FillReason.NOT_FOUND));
+            }
+
             candidates.sort(Comparator.comparingInt(c -> scoreCandidate(c, reqTitle, reqArtist)));
 
             RuntimeDiskGuard.logStorageForOperation(
@@ -686,6 +696,12 @@ public class NeteaseSearchFillService {
             if (candidates.isEmpty()) {
                 logger.info("QQ 候选均命中非音乐黑名单: title={} artist={}", reqTitle, reqArtist);
                 return FillAttempt.nonMusic();
+            }
+            candidates.removeIf(candidate -> !isCandidateRelevant(
+                    candidate.title(), candidate.artist(), candidate.album(), reqTitle, reqArtist));
+            if (candidates.isEmpty()) {
+                logger.info("QQ 候选与查询不相关，放弃补全: title={} artist={}", reqTitle, reqArtist);
+                return new FillAttempt(Optional.empty(), FillReason.NOT_FOUND);
             }
             candidates.sort(Comparator.comparingInt(c -> scoreQqCandidate(c, reqTitle, reqArtist)));
 
@@ -1063,6 +1079,38 @@ public class NeteaseSearchFillService {
         int score = BatchMusicMatchUtil.scoreTitleContribution(reqTitle, c.title())
                 + BatchMusicMatchUtil.scoreArtistContribution(reqArtist, c.artist());
         return score <= 0 ? 999 : -score;
+    }
+
+    /**
+     * 外站候选必须与用户输入达到强相关：所有有效词条都要命中候选元数据，
+     * 且单个通用字或单字母不能靠子串命中把候选带过门槛。
+     */
+    static boolean isCandidateRelevant(
+            String candidateTitle,
+            String candidateArtist,
+            String candidateAlbum,
+            String reqTitle,
+            String reqArtist
+    ) {
+        List<String> terms = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (String term : MusicSearchRanker.splitTerms(reqTitle)) {
+            if (seen.add(term)) {
+                terms.add(term);
+            }
+        }
+        for (String term : MusicSearchRanker.splitTerms(reqArtist)) {
+            if (seen.add(term)) {
+                terms.add(term);
+            }
+        }
+        if (terms.isEmpty()) {
+            return false;
+        }
+        MusicSearchRanker.MusicFields fields = new MusicSearchRanker.MusicFields(
+                candidateTitle, candidateArtist, candidateAlbum,
+                null, null, null, null, null, null, null);
+        return MusicSearchRanker.scoreConfident(fields, terms) > 0;
     }
 
     private static String pickNonEmpty(String primary, String fallback) {

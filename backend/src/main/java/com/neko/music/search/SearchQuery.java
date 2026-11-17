@@ -30,6 +30,8 @@ final class SearchQuery {
 
     static final String METADATA_COLUMNS =
             "title_tok artist_tok album_tok filename_tok pinyin_meta_tok initials_meta_tok reading_meta_tok";
+    static final String LYRICS_COLUMNS =
+            "lyrics_tok lyrics_tr_tok lyrics_rom_tok pinyin_lyrics_tok initials_lyrics_tok";
     static final String PINYIN_COLUMNS = "pinyin_meta_tok pinyin_lyrics_tok";
     static final String INITIALS_COLUMNS = "initials_meta_tok initials_lyrics_tok";
     static final String READING_COLUMNS = "reading_meta_tok lyrics_rom_tok";
@@ -91,32 +93,35 @@ final class SearchQuery {
     }
 
     /** 编译主趟表达式；无可匹配内容返回 {@code null}。 */
-    static String compileMatch(Analyzer.QueryTokens tokens, boolean metadata, boolean includeCrossLingual) {
+    static String compileMatch(Analyzer.QueryTokens tokens, SearchScope scope, boolean includeCrossLingual) {
         List<String> branches = new ArrayList<>();
-        add(branches, lexicalBranch(tokens.lexical()));
-        add(branches, pinyinBranch(tokens.pinyin()));
-        add(branches, initialsBranch(tokens.pinyinInitials()));
+        add(branches, scopeExpression(lexicalBranch(tokens.lexical()), scope));
+        add(branches, pinyinBranch(tokens, scope));
+        add(branches, initialsBranch(tokens, scope));
         if (includeCrossLingual) {
-            add(branches, crossLingualBranch(tokens.crossLingual()));
+            add(branches, scopeExpression(crossLingualBranch(tokens.crossLingual()), scope));
         }
-        return joinBranches(branches, metadata);
+        return joinBranches(branches);
     }
 
     /** 跨语言候选分支：候选逐字加引号后 OR。 */
-    static String compileCrossLingual(Analyzer.QueryTokens tokens, boolean metadata) {
-        String branch = crossLingualBranch(tokens.crossLingual());
-        if (branch == null) {
-            return null;
-        }
-        return metadata ? "{" + METADATA_COLUMNS + "} : " + branch : branch;
+    static String compileCrossLingual(Analyzer.QueryTokens tokens, SearchScope scope) {
+        return scopeExpression(crossLingualBranch(tokens.crossLingual()), scope);
     }
 
     /**
      * 拼音宽松兜底支：音节位置无关 AND，末音节 ≥3 字符前缀；&lt;2 音节返回 {@code null}。
      */
-    static String compilePinyinLoose(Analyzer.QueryTokens tokens, boolean metadata) {
+    static String compilePinyinLoose(Analyzer.QueryTokens tokens, SearchScope scope) {
+        // 该兜底只服务用户直接输入的拼音；中文查询再做无序拼音音节 AND 会把整句拆散。
+        if (tokens.hasCjk()) {
+            return null;
+        }
         List<String> clean = clean(tokens.pinyin());
         if (clean.size() < 2) {
+            return null;
+        }
+        if (clean.stream().anyMatch(token -> !PinyinSegmenter.isSyllable(token))) {
             return null;
         }
 
@@ -140,9 +145,7 @@ final class SearchQuery {
         }
 
         String body = String.join(" AND ", chunks);
-        return metadata
-                ? "{" + METADATA_COLUMNS + "} : (" + body + ")"
-                : "{" + PINYIN_COLUMNS + "} : (" + body + ")";
+        return scopedColumns(pinyinColumns(scope), body);
     }
 
     private static List<String> pinyinFuzzyVariants(String syllable, int maxVariants) {
@@ -196,7 +199,7 @@ final class SearchQuery {
     }
 
     /** 日文读音兜底支：拉丁 / 数字词元的字母 bigram 短语 AND 到读音列。 */
-    static String compileReading(Analyzer.QueryTokens tokens, boolean metadata) {
+    static String compileReading(Analyzer.QueryTokens tokens, SearchScope scope) {
         List<String> parts = new ArrayList<>();
         for (String token : tokens.lexical()) {
             List<String[]> sequences = readingSequencesOf(token);
@@ -213,9 +216,7 @@ final class SearchQuery {
             return null;
         }
         String body = String.join(" AND ", parts);
-        return metadata
-                ? "{" + METADATA_COLUMNS + "} : (" + body + ")"
-                : "{" + READING_COLUMNS + "} : (" + body + ")";
+        return scopedColumns(readingColumns(scope), body);
     }
 
     /** 查询中可走读音趟的词元的规范形 bigram 序列（供 ReadingRanker 分档）。 */
@@ -261,23 +262,28 @@ final class SearchQuery {
         return false;
     }
 
-    static String compileFuzzy(Analyzer.QueryTokens tokens, boolean metadata, int maxVariants) {
-        return compileFuzzy(tokens, metadata, null, maxVariants);
+    static String compileFuzzy(Analyzer.QueryTokens tokens, SearchScope scope, int maxVariants) {
+        return compileFuzzy(tokens, scope, null, maxVariants);
     }
 
-    static String compileFuzzy(Analyzer.QueryTokens tokens, boolean metadata,
+    static String compileFuzzy(Analyzer.QueryTokens tokens, SearchScope scope,
                                List<String> vocabulary, int maxVariants) {
         List<String> branches = new ArrayList<>();
-        add(branches, fuzzyLexicalBranch(tokens.lexical(), maxVariants, vocabulary));
-        add(branches, pinyinBranch(tokens.pinyin()));
-        add(branches, initialsBranch(tokens.pinyinInitials()));
-        return joinBranches(branches, metadata);
+        add(branches, scopeExpression(fuzzyLexicalBranch(tokens.lexical(), maxVariants, vocabulary), scope));
+        add(branches, pinyinBranch(tokens, scope));
+        add(branches, initialsBranch(tokens, scope));
+        return joinBranches(branches);
     }
 
     /** 生成 CJK 编辑距离 ≤1 变体（删除任一字符 / 相邻换位），不含原串，去重保序。 */
     static List<String> cjkVariants(String query, int maxVariants) {
+        if (hasNonIndexedLetterOrDigit(query)) {
+            // 中文容错只能覆盖 CJK / 假名 / 谚文；混入数字或拉丁词时丢弃它们会改变原查询。
+            return new ArrayList<>();
+        }
         String sequence = cjkSubsequence(query);
-        if (sequence.length() < 2 || sequence.length() > MAX_CJK_QUERY_LENGTH) {
+        List<Integer> points = sequence.codePoints().boxed().toList();
+        if (points.size() < 2 || points.size() > MAX_CJK_QUERY_LENGTH) {
             return new ArrayList<>();
         }
 
@@ -286,19 +292,31 @@ final class SearchQuery {
         seen.add(sequence);
 
         // 删除：去掉任一字符（用户多打一字）。
-        for (int i = 0; i < sequence.length(); i++) {
-            addCandidate(output, seen, sequence.substring(0, i) + sequence.substring(i + 1));
+        for (int i = 0; i < points.size(); i++) {
+            StringBuilder candidate = new StringBuilder(sequence.length());
+            for (int j = 0; j < points.size(); j++) {
+                if (j != i) {
+                    candidate.appendCodePoint(points.get(j));
+                }
+            }
+            addCandidate(output, seen, candidate.toString());
         }
         // 相邻换位（跳过相同字符对）。
-        for (int i = 0; i + 1 < sequence.length(); i++) {
-            if (sequence.charAt(i) == sequence.charAt(i + 1)) {
+        for (int i = 0; i + 1 < points.size(); i++) {
+            if (points.get(i).equals(points.get(i + 1))) {
                 continue;
             }
-            char[] chars = sequence.toCharArray();
-            char tmp = chars[i];
-            chars[i] = chars[i + 1];
-            chars[i + 1] = tmp;
-            addCandidate(output, seen, new String(chars));
+            StringBuilder candidate = new StringBuilder(sequence.length());
+            for (int j = 0; j < points.size(); j++) {
+                if (j == i) {
+                    candidate.appendCodePoint(points.get(i + 1));
+                } else if (j == i + 1) {
+                    candidate.appendCodePoint(points.get(i));
+                } else {
+                    candidate.appendCodePoint(points.get(j));
+                }
+            }
+            addCandidate(output, seen, candidate.toString());
         }
 
         if (output.size() > maxVariants) {
@@ -349,19 +367,28 @@ final class SearchQuery {
         return String.join(" AND ", chunks);
     }
 
-    private static String pinyinBranch(List<String> terms) {
+    private static String pinyinBranch(Analyzer.QueryTokens tokens, SearchScope scope) {
+        if (tokens.hasCjk() && !tokens.pinyinComplete()) {
+            return null;
+        }
+        List<String> terms = tokens.pinyin();
         List<String> clean = clean(terms);
         if (clean.isEmpty()) {
             return null;
         }
         if (clean.size() == 1) {
             String last = clean.get(0);
-            return "{" + PINYIN_COLUMNS + "} : " + quotedAnd(clean, last.length() >= MIN_PREFIX_TOKEN_LENGTH);
+            return scopedColumns(pinyinColumns(scope),
+                    quotedAnd(clean, last.length() >= MIN_PREFIX_TOKEN_LENGTH));
         }
-        return "{" + PINYIN_COLUMNS + "} : " + quote(String.join(" ", clean));
+        return scopedColumns(pinyinColumns(scope), quote(String.join(" ", clean)));
     }
 
-    private static String initialsBranch(String initials) {
+    private static String initialsBranch(Analyzer.QueryTokens tokens, SearchScope scope) {
+        if (tokens.hasCjk() && !tokens.pinyinComplete()) {
+            return null;
+        }
+        String initials = tokens.pinyinInitials();
         if (initials == null || initials.isBlank()) {
             return null;
         }
@@ -376,7 +403,7 @@ final class SearchQuery {
         }
         boolean prefixLast = terms.get(terms.size() - 1).length() >= MIN_INITIALS_PREFIX_LENGTH;
         String body = quotedAnd(terms, prefixLast);
-        return "({" + INITIALS_COLUMNS + "} : " + body + ")";
+        return scopedColumns(initialsColumns(scope), body);
     }
 
     private static String crossLingualBranch(List<String> terms) {
@@ -518,15 +545,55 @@ final class SearchQuery {
     /* 工具                                                                */
     /* ------------------------------------------------------------------ */
 
-    private static String joinBranches(List<String> branches, boolean metadata) {
+    private static String joinBranches(List<String> branches) {
         if (branches.isEmpty()) {
             return null;
         }
         String joined = String.join(" OR ", branches);
-        if (metadata) {
-            return "{" + METADATA_COLUMNS + "} : (" + joined + ")";
-        }
         return branches.size() == 1 ? joined : "(" + joined + ")";
+    }
+
+    /** 把任意完整表达式限制到指定 FTS 列；ALL 不额外包裹。 */
+    static String scopeExpression(String body, SearchScope scope) {
+        if (body == null || body.isBlank() || scope == null || scope == SearchScope.ALL) {
+            return body;
+        }
+        String columns = scope == SearchScope.METADATA ? METADATA_COLUMNS : LYRICS_COLUMNS;
+        return scopedColumns(columns, body);
+    }
+
+    private static String scopedColumns(String columns, String body) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        if (columns == null || columns.isBlank()) {
+            return body;
+        }
+        return "{" + columns + "} : (" + body + ")";
+    }
+
+    private static String pinyinColumns(SearchScope scope) {
+        return switch (scope) {
+            case METADATA -> "pinyin_meta_tok";
+            case LYRICS -> "pinyin_lyrics_tok";
+            default -> PINYIN_COLUMNS;
+        };
+    }
+
+    private static String initialsColumns(SearchScope scope) {
+        return switch (scope) {
+            case METADATA -> "initials_meta_tok";
+            case LYRICS -> "initials_lyrics_tok";
+            default -> INITIALS_COLUMNS;
+        };
+    }
+
+    private static String readingColumns(SearchScope scope) {
+        return switch (scope) {
+            case METADATA -> "reading_meta_tok";
+            case LYRICS -> "lyrics_rom_tok";
+            default -> READING_COLUMNS;
+        };
     }
 
     private static void add(List<String> branches, String branch) {
@@ -602,11 +669,11 @@ final class SearchQuery {
         if (count != 2) {
             return false;
         }
-        return token.codePoints().allMatch(cp -> cp <= Character.MAX_VALUE && isIndexedScript((char) cp));
+        return token.codePoints().allMatch(SearchQuery::isIndexedScript);
     }
 
     private static boolean isPrefixable(String token) {
-        return token.codePoints().noneMatch(cp -> cp <= Character.MAX_VALUE && isIndexedScript((char) cp));
+        return token.codePoints().noneMatch(SearchQuery::isIndexedScript);
     }
 
     private static boolean isFuzzyEligible(String token) {
@@ -622,22 +689,37 @@ final class SearchQuery {
         return true;
     }
 
-    private static boolean isIndexedScript(char c) {
-        return ScriptRanges.isCjk(c) || ScriptRanges.isSubstringScript(c);
+    private static boolean isIndexedScript(int codePoint) {
+        return ScriptRanges.isCjk(codePoint) || ScriptRanges.isSubstringScript(codePoint);
     }
 
     private static boolean hasIndexedScript(String token) {
-        return token.codePoints().anyMatch(cp -> cp <= Character.MAX_VALUE && isIndexedScript((char) cp));
+        return token.codePoints().anyMatch(SearchQuery::isIndexedScript);
     }
 
     private static String cjkSubsequence(String query) {
         StringBuilder builder = new StringBuilder(query.length());
-        for (int i = 0; i < query.length(); i++) {
-            char ch = query.charAt(i);
-            if (isIndexedScript(ch)) {
-                builder.append(ch);
+        for (int i = 0; i < query.length(); ) {
+            int cp = query.codePointAt(i);
+            if (isIndexedScript(cp)) {
+                builder.appendCodePoint(cp);
             }
+            i += Character.charCount(cp);
         }
         return builder.toString();
+    }
+
+    private static boolean hasNonIndexedLetterOrDigit(String text) {
+        if (text == null) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            if (Character.isLetterOrDigit(cp) && !isIndexedScript(cp)) {
+                return true;
+            }
+            i += Character.charCount(cp);
+        }
+        return false;
     }
 }

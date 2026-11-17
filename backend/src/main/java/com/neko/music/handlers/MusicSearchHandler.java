@@ -41,12 +41,6 @@ public class MusicSearchHandler extends ApiServlet {
     private static final int STRONG_METADATA_SCORE = 80;
     /** 索引召回的单次取回上限；与旧歌词索引的合并上限保持一致。 */
     private static final int MAX_INDEX_HITS = 80;
-    private static final Set<String> LOW_INFORMATION_ENGLISH_WORDS = Set.of(
-            "a", "an", "and", "are", "be", "do", "for", "i", "in", "is", "it", "its",
-            "la", "me", "my", "na", "of", "oh", "on", "or", "the", "to", "we",
-            "with", "ya", "yeah", "you", "your"
-    );
-
     private static final String MUSIC_BASE_COLUMNS =
             "id, title, artist, album, duration, upload_user_id, created_at, max_quality";
     private static final String MUSIC_SEARCH_COLUMNS = MUSIC_BASE_COLUMNS + ", " +
@@ -324,11 +318,12 @@ public class MusicSearchHandler extends ApiServlet {
             }
 
             // 歌词正文 / 拼音 / 首字母命中走本地索引库；短查询且元数据已有结果时不必再跑一遍索引。
-            if (shouldSearchLyricsForQuery(query, topMetadataScore, !scoredResults.isEmpty())
-                    || scoredResults.isEmpty()) {
+            boolean allowLyrics = shouldSearchLyricsForQuery(
+                    query, topMetadataScore, !scoredResults.isEmpty());
+            if (allowLyrics || scoredResults.isEmpty()) {
                 // 索引召回 / 回表失败只降级：已经拿到的元数据结果必须照常返回。
                 try {
-                    mergeIndexSearchResults(conn, query, scoredResults);
+                    mergeIndexSearchResults(conn, query, scoredResults, allowLyrics);
                 } catch (Exception e) {
                     logger.warn("索引召回失败，继续使用元数据结果: query='{}', error={}",
                             query, e.toString());
@@ -394,8 +389,8 @@ public class MusicSearchHandler extends ApiServlet {
 
                     MusicSearchRanker.MusicFields fields = toRankerFields(music);
                     int score = concatenations == null
-                            ? MusicSearchRanker.score(fields, terms)
-                            : MusicSearchRanker.concatenatedScore(fields, concatenations);
+                            ? MusicSearchRanker.scoreConfident(fields, terms)
+                            : MusicSearchRanker.concatenatedConfidentScore(fields, concatenations);
                     if (score > 0) {
                         collected.add(new ScoredMusic(music, score));
                         // 歌词兜底只看用户输入的完整串，与拆分出的词条无关
@@ -477,27 +472,21 @@ public class MusicSearchHandler extends ApiServlet {
      *
      * @return 本次新增的候选数；索引未启用 / 无命中时返回 0
      */
-    private int mergeIndexSearchResults(Connection conn, String query, List<ScoredMusic> scoredResults)
+    private int mergeIndexSearchResults(
+            Connection conn, String query, List<ScoredMusic> scoredResults, boolean allowLyrics)
             throws SQLException {
         SearchIndexService indexService = Main.getSearchIndexService();
         if (indexService == null || !indexService.enabled()) {
             return 0;
         }
-        List<SearchSession.SearchHit> hits = indexService.search(query, MAX_INDEX_HITS, 1);
-        if (hits.isEmpty()) {
-            return 0;
-        }
 
         Set<Integer> seenIds = new HashSet<>();
-        List<Integer> ids = new ArrayList<>(hits.size());
-        for (SearchSession.SearchHit hit : hits) {
+        List<Integer> metadataIds = new ArrayList<>();
+        for (SearchSession.SearchHit hit : indexService.searchMetadata(query, MAX_INDEX_HITS, 1)) {
             int id = parseTrackId(hit.trackId());
             if (id > 0 && seenIds.add(id)) {
-                ids.add(id);
+                metadataIds.add(id);
             }
-        }
-        if (ids.isEmpty()) {
-            return 0;
         }
 
         Set<Integer> existingIds = new HashSet<>();
@@ -505,26 +494,57 @@ public class MusicSearchHandler extends ApiServlet {
             existingIds.add(scored.music.getId());
         }
 
-        Map<Integer, Music> hitMusicById = fetchMusicByIdsWithPinyin(conn, ids);
         List<String> terms = MusicSearchRanker.splitTerms(query);
         int lyricsScore = calculateLyricsMatchScore(query);
 
         int added = 0;
-        for (Integer id : ids) {
-            if (existingIds.contains(id)) {
-                continue;
+        if (!metadataIds.isEmpty()) {
+            Map<Integer, Music> hitMusicById = fetchMusicByIdsWithPinyin(conn, metadataIds);
+            for (Integer id : metadataIds) {
+                if (existingIds.contains(id)) {
+                    continue;
+                }
+                Music music = hitMusicById.get(id);
+                if (music == null) {
+                    continue;
+                }
+                int metadataScore = terms.isEmpty()
+                        ? 0
+                        : MusicSearchRanker.scoreConfident(toRankerFields(music), terms);
+                if (metadataScore <= 0) {
+                    continue;
+                }
+                scoredResults.add(new ScoredMusic(music, metadataScore));
+                existingIds.add(id);
+                added++;
             }
-            Music music = hitMusicById.get(id);
+        }
+
+        if (!allowLyrics) {
+            return added;
+        }
+
+        List<Integer> lyricIds = new ArrayList<>();
+        seenIds.clear();
+        for (SearchSession.SearchHit hit : indexService.searchLyrics(query, MAX_INDEX_HITS, 1)) {
+            int id = parseTrackId(hit.trackId());
+            if (id > 0 && seenIds.add(id) && !existingIds.contains(id)) {
+                lyricIds.add(id);
+            }
+        }
+        if (lyricIds.isEmpty()) {
+            return added;
+        }
+
+        Map<Integer, Music> lyricMusicById = fetchMusicByIdsWithPinyin(conn, lyricIds);
+        for (Integer id : lyricIds) {
+            Music music = lyricMusicById.get(id);
             if (music == null) {
                 continue;
             }
-            int metadataScore = terms.isEmpty() ? 0 : MusicSearchRanker.score(toRankerFields(music), terms);
-            if (metadataScore > 0) {
-                scoredResults.add(new ScoredMusic(music, metadataScore));
-            } else {
-                music.setLrc(true);
-                scoredResults.add(new ScoredMusic(music, lyricsScore));
-            }
+            music.setLrc(true);
+            scoredResults.add(new ScoredMusic(music, lyricsScore));
+            existingIds.add(id);
             added++;
         }
         return added;
@@ -692,7 +712,7 @@ public class MusicSearchHandler extends ApiServlet {
         }
         if (script == Character.UnicodeScript.LATIN) {
             String lower = token.toLowerCase(Locale.ROOT);
-            boolean meaningful = lower.length() >= 3 && !LOW_INFORMATION_ENGLISH_WORDS.contains(lower);
+            boolean meaningful = lower.length() >= 3 && !MusicSearchRanker.isLowInformationTerm(lower);
             return new TokenStats(1, 1, meaningful ? lower : null);
         }
         return new TokenStats(1, 0, null);

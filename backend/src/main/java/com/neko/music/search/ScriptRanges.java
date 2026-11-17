@@ -20,11 +20,31 @@ public final class ScriptRanges {
     private ScriptRanges() {
     }
 
-    /** 汉字：CJK 统一表意主区 + 扩展 A + 兼容表意区。 */
+    /**
+     * 汉字：覆盖基本区、扩展 A～I、兼容表意区及其补充平面。
+     *
+     * <p>搜索链必须按 Unicode code point 判断；扩展 B 及之后的汉字在 Java 中是代理对，
+     * 任何按 {@code char} 判断的入口都会把它们误当成两个未知字符。
+     */
+    public static boolean isCjk(int codePoint) {
+        return codePoint == 0x3007
+                || (codePoint >= 0x3400 && codePoint <= 0x4DBF)
+                || (codePoint >= 0x4E00 && codePoint <= 0x9FFF)
+                || (codePoint >= 0xF900 && codePoint <= 0xFAFF)
+                || (codePoint >= 0x20000 && codePoint <= 0x2A6DF)
+                || (codePoint >= 0x2A700 && codePoint <= 0x2B73F)
+                || (codePoint >= 0x2B740 && codePoint <= 0x2B81F)
+                || (codePoint >= 0x2B820 && codePoint <= 0x2CEAF)
+                || (codePoint >= 0x2CEB0 && codePoint <= 0x2EBEF)
+                || (codePoint >= 0x2EBF0 && codePoint <= 0x2EE5F)
+                || (codePoint >= 0x2F800 && codePoint <= 0x2FA1F)
+                || (codePoint >= 0x30000 && codePoint <= 0x3134F)
+                || (codePoint >= 0x31350 && codePoint <= 0x323AF);
+    }
+
+    /** 兼容旧调用；代理项会自然返回 false。 */
     public static boolean isCjk(char c) {
-        return (c >= '\u3400' && c <= '\u4DBF')
-                || (c >= '\u4E00' && c <= '\u9FFF')
-                || (c >= '\uF900' && c <= '\uFAFF');
+        return isCjk((int) c);
     }
 
     /**
@@ -32,29 +52,47 @@ public final class ScriptRanges {
      *
      * <p>这些脚本与汉字同样以 bigram + unigram 入索引，但**不进拼音 / 首字母列**。
      */
-    public static boolean isSubstringScript(char c) {
-        return isKana(c) || isHangul(c);
+    public static boolean isSubstringScript(int codePoint) {
+        return isKana(codePoint) || isHangul(codePoint);
     }
 
-    /** 假名：平假名 / 片假名 / 片假名音标扩展 / 半角片假名。 */
+    /** 兼容旧调用；代理项会自然返回 false。 */
+    public static boolean isSubstringScript(char c) {
+        return isSubstringScript((int) c);
+    }
+
+    /** 假名：平假名 / 片假名 / 音标扩展 / 半角片假名 / 补充平面假名。 */
+    public static boolean isKana(int codePoint) {
+        return (codePoint >= 0x3040 && codePoint <= 0x309F)
+                || (codePoint >= 0x30A0 && codePoint <= 0x30FF)
+                || (codePoint >= 0x31F0 && codePoint <= 0x31FF)
+                || (codePoint >= 0xFF66 && codePoint <= 0xFF9D)
+                || (codePoint >= 0x1AFF0 && codePoint <= 0x1AFFF)
+                || (codePoint >= 0x1B000 && codePoint <= 0x1B16F);
+    }
+
     public static boolean isKana(char c) {
-        return (c >= '\u3040' && c <= '\u309F')
-                || (c >= '\u30A0' && c <= '\u30FF')
-                || (c >= '\u31F0' && c <= '\u31FF')
-                || (c >= '\uFF66' && c <= '\uFF9D');
+        return isKana((int) c);
     }
 
     /** 谚文：音节 + 字母（Jamo）+ 兼容字母。 */
-    public static boolean isHangul(char c) {
-        return (c >= '\uAC00' && c <= '\uD7AF')
-                || (c >= '\u1100' && c <= '\u11FF')
-                || (c >= '\u3130' && c <= '\u318F');
+    public static boolean isHangul(int codePoint) {
+        return (codePoint >= 0xAC00 && codePoint <= 0xD7AF)
+                || (codePoint >= 0x1100 && codePoint <= 0x11FF)
+                || (codePoint >= 0x3130 && codePoint <= 0x318F);
     }
 
-    /** 拉丁字母（含 Latin-1 补充与 Latin 扩展 A/B）——用于「这一行是不是罗马音」的判定。 */
+    public static boolean isHangul(char c) {
+        return isHangul((int) c);
+    }
+
+    /** 拉丁字母——用于「这一行是不是罗马音」的判定。 */
+    public static boolean isLatinLetter(int codePoint) {
+        return Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.LATIN;
+    }
+
     public static boolean isLatinLetter(char c) {
-        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-                || (c >= '\u00C0' && c <= '\u024F');
+        return isLatinLetter((int) c);
     }
 
     /**
@@ -65,14 +103,15 @@ public final class ScriptRanges {
             return false;
         }
         boolean hasLatin = false;
-        for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            if (isCjk(ch) || isSubstringScript(ch)) {
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            if (isCjk(cp) || isSubstringScript(cp)) {
                 return false;
             }
-            if (isLatinLetter(ch)) {
+            if (isLatinLetter(cp)) {
                 hasLatin = true;
             }
+            i += Character.charCount(cp);
         }
         return hasLatin;
     }
