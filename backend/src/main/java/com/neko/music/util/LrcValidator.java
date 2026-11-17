@@ -281,9 +281,9 @@ public class LrcValidator {
                         int milliseconds = Integer.parseInt(timeParts[1]);
 
                         // 验证数值范围
-                        if (minutes < 0 || minutes > 59) {
+                        if (minutes < 0 || minutes > 60) {
                             return ValidationResult.fail(
-                                    String.format("第%d行时间戳的分钟数无效（0-59）", i + 1)
+                                    String.format("第%d行时间戳的分钟数无效（0-60）", i + 1)
                             );
                         }
                         if (seconds < 0 || seconds > 60) {
