@@ -3,6 +3,7 @@ package com.neko.music.service;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.model.User;
 import com.neko.music.util.DbTimeUtil;
+import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.RequestScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -291,6 +292,11 @@ public class UserAuthService {
 
     /** 通过 NekoAuth introspection 验证令牌，并把稳定 Auth 用户 ID 映射到本地资料。 */
     public Optional<Integer> validateToken(String token) {
+        return resolveIdentity(token).map(AuthenticatedIdentity::localUserId);
+    }
+
+    /** 校验令牌并返回 Auth 权威角色与本地用户映射（后台鉴权使用）。 */
+    public Optional<AuthenticatedIdentity> resolveIdentity(String token) {
         Optional<NekoAuthAccountService.Introspection> introspection = introspectToken(token);
         if (introspection.isEmpty()) {
             return Optional.empty();
@@ -298,12 +304,26 @@ public class UserAuthService {
         NekoAuthAccountService.Introspection identity = introspection.get();
         try {
             User user = findOrLinkNekoAuthUser(identity.userId(), identity.email(), identity.nickname());
-            return Optional.of(user.id());
+            return Optional.of(new AuthenticatedIdentity(
+                    user.id(),
+                    identity.userId(),
+                    user.nickname(),
+                    user.email(),
+                    identity.role()));
         } catch (RuntimeException exception) {
             logger.warn("NekoAuth 令牌有效但本地资料映射失败: authUserId={} error={}",
                     identity.userId(), exception.getMessage());
             return Optional.empty();
         }
+    }
+
+    public record AuthenticatedIdentity(
+            int localUserId,
+            long authUserId,
+            String username,
+            String email,
+            String role
+    ) {
     }
     
     /**
@@ -353,10 +373,10 @@ public class UserAuthService {
             return Optional.empty();
         }
         // 兼容两种 Authorization 写法：`<token>` 与 `Bearer <token>`。
-        // 旧实现走 RedisTokenStore（内部会归一化），迁移到 NekoAuth introspection 后
-        // 若只 trim，则所有直接把原始 Authorization 头传进来的处理器（UserFavoriteHandler
+        // 迁移到 NekoAuth introspection 后若只 trim，则所有直接把原始
+        // Authorization 头传进来的处理器（UserFavoriteHandler
         // 等）会带着 "Bearer " 去 introspect，导致「登录成功但受保护接口一律 401」。
-        String normalized = RedisTokenStore.normalizeBearerToken(token);
+        String normalized = RequestAuthUtil.normalizeBearerToken(token);
         if (sharedWebSessionService != null
                 && sharedWebSessionService.isSharedSessionToken(normalized)) {
             try {

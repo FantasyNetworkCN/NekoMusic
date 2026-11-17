@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.filter.SanitizedErrorHandler;
-import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
 import com.neko.music.database.CommentDatabaseManager;
@@ -79,10 +78,8 @@ public class Main {
     private static Server server;
     private static DatabaseManager databaseManager;
     private static ConfigManager configManager;
-    private static AdminDatabaseManager adminDatabaseManager;
-    private static AdminAuthService adminAuthService;
+    private static AdminAccessService adminAccessService;
     private static UserManagementService userManagementService;
-    private static AdminLoginThrottleService adminLoginThrottleService;
     private static AuthAbuseLimiter authAbuseLimiter;
     private static ExternalFillQuotaService externalFillQuotaService;
     private static SourceBanService sourceBanService;
@@ -200,8 +197,6 @@ public class Main {
         userNotificationDatabaseManager = new UserNotificationDatabaseManager(databaseManager);
         userNotificationService = new UserNotificationService(userNotificationDatabaseManager, redisService);
         ipRegionService = new IpRegionService();
-        RedisTokenStore tokenStore = new RedisTokenStore(redisService);
-
         VideoRenderArtifactCleanup videoRenderArtifactCleanup =
                 new VideoRenderArtifactCleanup(configManager.getVideoRenderArtifactRetentionHours());
         videoRenderJobStore = new VideoRenderJobStore(
@@ -210,11 +205,6 @@ public class Main {
         videoRenderService = new VideoRenderService(configManager, videoRenderJobStore, videoRenderArtifactCleanup);
         Runtime.getRuntime().addShutdownHook(new Thread(videoRenderService::shutdown, "video-render-shutdown"));
 
-        // 初始化管理员数据库管理器和认证服务
-        adminDatabaseManager = new AdminDatabaseManager(databaseManager);
-        adminAuthService = new AdminAuthService(adminDatabaseManager, tokenStore);
-        adminLoginThrottleService =
-                new AdminLoginThrottleService(new AdminLoginThrottleService.RedisStore(redisService));
         authAbuseLimiter = new AuthAbuseLimiter(new AuthAbuseLimiter.RedisStore(redisService));
         // 外站补全来源配额（复用认证限流的 Redis 固定窗口实现，阈值是类常量）
         externalFillQuotaService =
@@ -229,6 +219,7 @@ public class Main {
         nicknameResolver = new NicknameResolver(databaseManager, nekoAuthAccountService);
         userAuthService = new UserAuthService(
                 databaseManager, nekoAuthAccountService, nicknameResolver, sharedWebSessionService);
+        adminAccessService = new AdminAccessService(userAuthService);
         listenTogetherService = new ListenTogetherService(
                 new ListenTogetherService.TicketStore() {
                     @Override
@@ -250,18 +241,6 @@ public class Main {
                 configManager, redisService, userAuthService, objectMapper);
         userManagementService = new UserManagementService(
                 new com.neko.music.database.JdbcUserAccountStore(databaseManager),
-                new UserManagementService.SessionRevoker() {
-                    @Override
-                    public void revokeAdmin(int adminId) {
-                        adminAuthService.revokeAllAdminTokens(adminId);
-                    }
-
-                    @Override
-                    public void revokeUser(int userId) {
-                        userAuthService.revokeAllTokensForUser(userId);
-                    }
-                },
-                nekoAuthAccountService,
                 nicknameResolver);
         // 扫码登录会话（Redis 短 TTL，PC 轮询取 token）
         qrLoginService = new QrLoginService(redisService, objectMapper);
@@ -320,12 +299,6 @@ public class Main {
         neteaseLoginMonitor = new NeteaseLoginMonitor(configManager, neteaseCloudMusicClient, notificationService);
         // QQ 音乐登录掉线告警（同样事件驱动，由 QQ 补全失败时探测上报）
         qqLoginMonitor = new QQLoginMonitor(configManager, qqMusicClient, notificationService);
-        
-        // 创建默认管理员账号（如果不存在）
-        createDefaultAdminIfNotExists();
-
-        // 确保至少有一个超级管理员
-        ensureSuperAdminExists();
         
         QueuedThreadPool threadPool = new QueuedThreadPool();
         threadPool.setName("jetty-worker");
@@ -516,49 +489,6 @@ public class Main {
         }
     }
 
-    private static void createDefaultAdminIfNotExists() {
-        String defaultUsername = "admin";
-        String defaultPassword = "admin";
-
-        // 检查管理员表是否为空，仅在首次初始化时创建默认管理员
-        if (adminDatabaseManager.getAllAdmins().isEmpty()) {
-            boolean created = adminAuthService.createAdmin(defaultUsername, defaultPassword, "admin@nekomusic.com");
-            if (created) {
-                logger.info("默认管理员账号已创建: {}/{}", defaultUsername, defaultPassword);
-                // 将默认管理员设置为超级管理员
-                try (Connection conn = databaseManager.getConnection();
-                     PreparedStatement stmt = conn.prepareStatement("UPDATE admins SET role = 'super_admin' WHERE username = ?")) {
-                    stmt.setString(1, defaultUsername);
-                    stmt.executeUpdate();
-                    logger.info("已将默认管理员设置为超级管理员");
-                } catch (Exception e) {
-                    logger.error("设置默认管理员角色失败", e);
-                }
-            } else {
-                logger.error("创建默认管理员账号失败");
-            }
-        } else {
-            logger.info("管理员表中已有数据，跳过创建默认管理员账号");
-        }
-    }
-
-    private static void ensureSuperAdminExists() {
-        try (Connection conn = databaseManager.getConnection();
-             Statement stmt = conn.createStatement()) {
-            
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM admins WHERE role = 'super_admin'");
-            if (rs.next() && rs.getInt(1) == 0) {
-                // 没有超级管理员，将第一个管理员设置为super_admin
-                int updated = stmt.executeUpdate("UPDATE admins SET role = 'super_admin' WHERE id = (SELECT MIN(id) FROM admins)");
-                if (updated > 0) {
-                    logger.info("已将第一个管理员设置为超级管理员");
-                }
-            }
-        } catch (Exception e) {
-            logger.error("确保超级管理员存在时出错", e);
-        }
-    }
-    
     public static DatabaseManager getDatabaseManager() {
         return databaseManager;
     }
@@ -567,20 +497,12 @@ public class Main {
         return configManager;
     }
     
-    public static AdminDatabaseManager getAdminDatabaseManager() {
-        return adminDatabaseManager;
-    }
-    
-    public static AdminAuthService getAdminAuthService() {
-        return adminAuthService;
+    public static AdminAccessService getAdminAccessService() {
+        return adminAccessService;
     }
 
     public static UserManagementService getUserManagementService() {
         return userManagementService;
-    }
-
-    public static AdminLoginThrottleService getAdminLoginThrottleService() {
-        return adminLoginThrottleService;
     }
 
     public static AuthAbuseLimiter getAuthAbuseLimiter() {

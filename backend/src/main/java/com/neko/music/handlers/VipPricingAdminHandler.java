@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.model.VipPriceItem;
-import com.neko.music.util.AdminPermissionUtil;
 import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,12 +38,7 @@ public class VipPricingAdminHandler extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setContentType("application/json;charset=UTF-8");
 
-        if (!isAdminTokenPresent(request)) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.permission_required") + "\"}");
-            return;
-        }
-        if (!PermissionHelper.checkPermission(request, response, AdminPermissionUtil.Permission.USER_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
 
@@ -142,15 +136,6 @@ public class VipPricingAdminHandler extends HttpServlet {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.update_failed") + "\"}");
         }
-    }
-
-    private static boolean isAdminTokenPresent(HttpServletRequest request) {
-        String h = request.getHeader("Authorization");
-        if (h == null || !h.startsWith("Bearer ")) {
-            return false;
-        }
-        String token = h.substring(7);
-        return Main.getAdminAuthService().validateAdminToken(token);
     }
 
     private static void applyCors(HttpServletResponse response) {

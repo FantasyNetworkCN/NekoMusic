@@ -30,21 +30,8 @@ public class ChartDataHandler extends ApiServlet {
             return;
         }
 
-        // 验证管理员登录状态
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            sendErrorResponse(response, 401, "admin.permission_required");
-            return;
-        }
-        
-        String token = authHeader.substring(7); // 移除 "Bearer " 前缀
-        if (!Main.getAdminAuthService().validateAdminToken(token)) {
-            sendErrorResponse(response, 401, "admin.permission_required");
-            return;
-        }
-        
         // 检查是否有统计查看权限
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.STATS_VIEW)) {
+        if (!com.neko.music.util.PermissionHelper.checkAdmin(request, response)) {
             logger.warn("权限不足，无统计查看权限");
             return;
         }

@@ -19,7 +19,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
@@ -209,7 +208,9 @@ public class EmailService {
             String rawLyrics,
             String validationReason
     ) {
-        List<String> recipients = new ArrayList<>(new LinkedHashSet<>(Main.getAdminDatabaseManager().getActiveAdminEmails()));
+        String adminMailbox = configManager.getSmtpUsername() == null
+                ? "" : configManager.getSmtpUsername().trim();
+        List<String> recipients = adminMailbox.isEmpty() ? List.of() : List.of(adminMailbox);
         if (recipients.isEmpty()) {
             logger.warn("网易云歌词校验失败，但无可用管理员邮箱，跳过邮件通知 neteaseSongId={} musicId={}",
                     neteaseSongId, ingestedMusicId);

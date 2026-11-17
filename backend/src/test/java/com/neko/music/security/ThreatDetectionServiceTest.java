@@ -120,8 +120,8 @@ class ThreatDetectionServiceTest {
     @DisplayName("同一 IP 反复认证失败升级为攻击")
     void authFailureBurstIsAttack() {
         ThreatAssessment result = null;
-        for (int i = 0; i < 8; i++) {
-            result = assess("POST", "/api/admin/login", null, null, "admin", 401,
+        for (int i = 0; i < 12; i++) {
+            result = assess("POST", "/api/user/qrlogin/status", null, null, "client", 403,
                     "203.0.113.20", BROWSER_UA, "browser", null);
         }
         assertEquals(ThreatAssessment.ATTACK, result.level());

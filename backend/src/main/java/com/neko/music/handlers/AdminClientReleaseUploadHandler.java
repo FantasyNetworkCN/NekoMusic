@@ -7,6 +7,7 @@ import com.neko.music.service.AppReleaseService;
 import com.neko.music.util.ApkUploadValidator;
 import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.JsonResponseCache;
+import com.neko.music.util.PermissionHelper;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -33,15 +34,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        String token = request.getHeader("Authorization");
-        if (token == null || token.isBlank()) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            writeJson(response, false, "auth.unauthorized");
-            return;
-        }
-        if (!Main.getAdminAuthService().canUploadClientReleaseByToken(token)) {
-            response.setStatus(HttpStatus.FORBIDDEN_403);
-            writeJson(response, false, "admin.release.permission_required");
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
 

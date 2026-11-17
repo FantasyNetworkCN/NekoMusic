@@ -1,6 +1,5 @@
 package com.neko.music.database;
 
-import com.neko.music.model.AdminAccount;
 import com.neko.music.model.UserAccount;
 import com.neko.music.model.UserProfile;
 import com.neko.music.util.DbTimeUtil;
@@ -25,115 +24,6 @@ public final class JdbcUserAccountStore implements UserAccountStore {
 
     public JdbcUserAccountStore(DatabaseManager databaseManager) {
         this.databaseManager = databaseManager;
-    }
-
-    @Override
-    public List<AdminAccount> listAdmins() throws SQLException {
-        String sql = "SELECT id, username, email, role, created_at FROM admins ORDER BY created_at DESC, id DESC";
-        List<AdminAccount> accounts = new ArrayList<>();
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                long createdAt = rs.getLong("created_at");
-                accounts.add(new AdminAccount(
-                        rs.getInt("id"),
-                        rs.getString("username"),
-                        rs.getString("email"),
-                        rs.getString("role"),
-                        new Timestamp(createdAt).toString()));
-            }
-        }
-        return accounts;
-    }
-
-    @Override
-    public Optional<AdminAccount> findAdmin(int id) throws SQLException {
-        String sql = "SELECT id, username, email, role, created_at FROM admins WHERE id = ?";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (!rs.next()) {
-                    return Optional.empty();
-                }
-                return Optional.of(new AdminAccount(
-                        rs.getInt("id"),
-                        rs.getString("username"),
-                        rs.getString("email"),
-                        rs.getString("role"),
-                        new Timestamp(rs.getLong("created_at")).toString()));
-            }
-        }
-    }
-
-    @Override
-    public boolean adminUsernameExists(String username) throws SQLException {
-        return exists("SELECT 1 FROM admins WHERE username = ? LIMIT 1", username);
-    }
-
-    @Override
-    public void createAdmin(String username, String passwordHash, String email, String role, long createdAt)
-            throws SQLException {
-        String sql = """
-                INSERT INTO admins (username, password_hash, email, active, role, created_at)
-                VALUES (?, ?, ?, TRUE, ?, ?)
-                """;
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            stmt.setString(2, passwordHash);
-            stmt.setString(3, email);
-            stmt.setString(4, role);
-            stmt.setLong(5, createdAt);
-            stmt.executeUpdate();
-        }
-    }
-
-    @Override
-    public boolean updateAdminPassword(int id, String passwordHash) throws SQLException {
-        String sql = "UPDATE admins SET password_hash = ? WHERE id = ?";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, passwordHash);
-            stmt.setInt(2, id);
-            return stmt.executeUpdate() > 0;
-        }
-    }
-
-    @Override
-    public AdminDeletionResult deleteAdmin(int id) throws SQLException {
-        try (Connection conn = databaseManager.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // 先按固定顺序锁住全部超级管理员行，再锁目标行：否则两个超管并发删除时
-                // 容易各自持有目标行后再去等对方，形成死锁。
-                int superAdminCount = countSuperAdminsForUpdate(conn);
-                String role = selectAdminRoleForUpdate(conn, id);
-                if (role == null) {
-                    conn.rollback();
-                    return AdminDeletionResult.NOT_FOUND;
-                }
-                if ("super_admin".equals(role) && superAdminCount <= 1) {
-                    conn.rollback();
-                    return AdminDeletionResult.LAST_SUPER_ADMIN;
-                }
-                try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM admins WHERE id = ?")) {
-                    stmt.setInt(1, id);
-                    if (stmt.executeUpdate() == 0) {
-                        conn.rollback();
-                        return AdminDeletionResult.NOT_FOUND;
-                    }
-                }
-                conn.commit();
-                return AdminDeletionResult.DELETED;
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        }
     }
 
     @Override
@@ -332,28 +222,6 @@ public final class JdbcUserAccountStore implements UserAccountStore {
                 return rs.next() ? Optional.ofNullable(rs.getString(1)) : Optional.empty();
             }
         }
-    }
-
-    private static String selectAdminRoleForUpdate(Connection conn, int id) throws SQLException {
-        try (PreparedStatement stmt = conn.prepareStatement(
-                "SELECT role FROM admins WHERE id = ? FOR UPDATE")) {
-            stmt.setInt(1, id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next() ? rs.getString("role") : null;
-            }
-        }
-    }
-
-    private static int countSuperAdminsForUpdate(Connection conn) throws SQLException {
-        String sql = "SELECT id FROM admins WHERE role = 'super_admin' ORDER BY id FOR UPDATE";
-        int count = 0;
-        try (PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                count++;
-            }
-        }
-        return count;
     }
 
     private static Long nullableLong(ResultSet rs, String column) throws SQLException {

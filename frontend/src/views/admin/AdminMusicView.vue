@@ -1024,7 +1024,7 @@ const adminInfo = ref({})
 
 // 检查管理员登录状态
 onMounted(() => {
-  const storedToken = localStorage.getItem('adminToken')
+  const storedToken = localStorage.getItem('userToken')
   const storedAdminInfo = localStorage.getItem('adminInfo')
   
   if (storedToken && storedAdminInfo) {
@@ -1044,31 +1044,10 @@ onMounted(() => {
 })
 
 // 权限检查计算属性
-const canEditMusic = ref(false)
-const canDeleteMusic = ref(false)
-const canAddMusic = ref(false)
-
-// 根据管理员角色更新权限
-watch(adminInfo, (newAdminInfo) => {
-  const role = newAdminInfo.role || 'admin'
-  
-  if (role === 'super_admin') {
-    // 超级管理员拥有所有权限
-    canEditMusic.value = true
-    canDeleteMusic.value = true
-    canAddMusic.value = true
-  } else if (role === 'admin') {
-    // 管理员拥有音乐管理的所有权限
-    canEditMusic.value = true
-    canDeleteMusic.value = true
-    canAddMusic.value = true
-  } else if (role === 'auditor') {
-    // 审核员没有音乐管理权限
-    canEditMusic.value = false
-    canDeleteMusic.value = false
-    canAddMusic.value = false
-  }
-}, { immediate: true })
+// 当前只有 ADMIN 一个后台角色，通过路由守卫后拥有全部后台能力。
+const canEditMusic = ref(true)
+const canDeleteMusic = ref(true)
+const canAddMusic = ref(true)
 
 // 音乐数据
 const musicList = ref([])
@@ -1116,7 +1095,7 @@ const fetchMusicList = async () => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`
       }
     })
 
@@ -1179,7 +1158,7 @@ const addMusic = async () => {
       method: 'POST',
       headers: {
         // 注意：使用FormData时，不要设置Content-Type，浏览器会自动设置
-        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`
       },
       body: formData
     })
@@ -1331,7 +1310,7 @@ const saveEdit = async () => {
       method: 'PUT',
       headers: {
         // 注意：使用FormData时，不要设置Content-Type，浏览器会自动设置
-        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`
       },
       body: formData
     })
@@ -1374,7 +1353,7 @@ const deleteMusic = async (id) => {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          'Authorization': `Bearer ${localStorage.getItem('userToken')}`
         }
       })
       
@@ -1417,7 +1396,7 @@ const searchMusicAPI = async (query) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`
       },
       body: JSON.stringify({ query: query })
     })

@@ -83,7 +83,7 @@ let trendChart = null
 
 // 初始化管理员信息
 onMounted(() => {
-  const storedToken = localStorage.getItem('adminToken')
+  const storedToken = localStorage.getItem('userToken')
   const storedAdminInfo = localStorage.getItem('adminInfo')
   
   if (storedToken && storedAdminInfo) {
@@ -103,7 +103,7 @@ onMounted(() => {
 
 // 组件激活时（例如路由切换回来时）重新获取数据
 onActivated(() => {
-  const storedToken = localStorage.getItem('adminToken')
+  const storedToken = localStorage.getItem('userToken')
   const storedAdminInfo = localStorage.getItem('adminInfo')
   
   if (storedToken && storedAdminInfo) {
@@ -120,7 +120,7 @@ onUnmounted(() => {
 
 const fetchStats = async () => {
   try {
-    const storedToken = localStorage.getItem('adminToken')
+    const storedToken = localStorage.getItem('userToken')
     
     // 获取总体统计数据
     const statsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/admin/stats`, {

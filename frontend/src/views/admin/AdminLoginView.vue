@@ -10,40 +10,23 @@
           <div class="auth__logo">
             <NIcon name="shield-check" :size="26" />
           </div>
-          <h1 class="auth__title">管理员登录</h1>
-          <p class="auth__subtitle">请输入您的管理员凭据</p>
+          <h1 class="auth__title">管理中心</h1>
+          <p class="auth__subtitle">使用 NekoAuth 账号登录，仅管理员角色可进入</p>
         </header>
 
-        <form class="auth__body" @submit.prevent="handleLogin">
-          <div class="auth__field">
-            <label class="auth__label" for="admin-username">用户名</label>
-            <NInput
-              id="admin-username"
-              v-model="username"
-              icon="user"
-              placeholder="请输入用户名"
-              autocomplete="username"
-            />
+        <div class="auth__body">
+          <div v-if="isLoading" class="auth__checking">
+            <NSpinner :size="24" />
+            <span>正在确认 NekoAuth 权限…</span>
           </div>
-
-          <div class="auth__field">
-            <label class="auth__label" for="admin-password">密码</label>
-            <NInput
-              id="admin-password"
-              v-model="password"
-              type="password"
-              icon="lock"
-              placeholder="请输入密码"
-              autocomplete="current-password"
-            />
-          </div>
-
-          <p class="auth__error" role="alert">{{ errorMessage || '\u00A0' }}</p>
-
-          <NButton type="submit" variant="primary" size="lg" block :loading="isLoading">
-            登录
-          </NButton>
-        </form>
+          <template v-else>
+            <p class="auth__hint">后台不再提供独立管理员账号和密码。</p>
+            <p class="auth__error" role="alert">{{ errorMessage || '\u00A0' }}</p>
+            <NButton type="button" variant="primary" size="lg" block @click="loginWithAuth">
+              {{ errorMessage ? '切换 NekoAuth 账号' : '使用 NekoAuth 登录' }}
+            </NButton>
+          </template>
+        </div>
 
         <p class="auth__foot">
           <RouterLink to="/" class="auth__link">
@@ -57,60 +40,53 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import API_CONFIG from '@/config/apiConfig.js'
+import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import NIcon from '@/icons/NIcon.vue'
-import { NButton, NCard, NInput, NModal, NSpinner, NTag } from '@/ui'
+import { NButton, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
+import { openAuthDialog } from '@/composables/useAuthDialog'
+import { clearAdminIdentity, refreshAdminIdentity } from '@/api/adminAuth.js'
+import { logoutUserGlobally } from '@/api/session.js'
 
 const router = useRouter()
-const username = ref('')
-const password = ref('')
-const isLoading = ref(false)
+const route = useRoute()
+const isLoading = ref(true)
 const errorMessage = ref('')
 
-const handleLogin = async () => {
-  if (!username.value.trim() || !password.value.trim()) {
-    errorMessage.value = '请输入用户名和密码'
-    return
-  }
-  
+function returnTo() {
+  const raw = Array.isArray(route.query.returnTo) ? route.query.returnTo[0] : route.query.returnTo
+  return typeof raw === 'string' && raw.startsWith('/admin') && !raw.startsWith('//')
+    ? raw
+    : '/admin'
+}
+
+async function checkAccess() {
+  isLoading.value = true
   try {
-    isLoading.value = true
-    errorMessage.value = ''
-    
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        username: username.value,
-        password: password.value
-      })
-    })
-    
-    const data = await response.json()
-    
-    if (response.ok && data.success) {
-      // 登录成功，保存令牌到本地存储
-      localStorage.setItem('adminToken', data.token)  // 存储会话令牌，而不是管理员信息
-      localStorage.setItem('isAdminLoggedIn', 'true')
-      localStorage.setItem('adminInfo', JSON.stringify(data.admin))  // 保留管理员信息用于显示
-      
-      // 跳转到管理员面板
-      router.push('/admin')
-    } else {
-      errorMessage.value = data.message || '登录失败，请检查用户名和密码'
+    const status = await refreshAdminIdentity()
+    if (status === 'admin') {
+      await router.replace(returnTo())
+    } else if (status === 'forbidden') {
+      errorMessage.value = '当前 NekoAuth 账号不是管理员'
+    } else if (status === 'unavailable') {
+      errorMessage.value = '暂时无法确认后台权限，请稍后重试'
+    } else if (route.query.denied) {
+      errorMessage.value = '当前 NekoAuth 账号没有后台权限'
     }
-  } catch (error) {
-    console.error('登录请求失败:', error)
-    errorMessage.value = '网络错误，请稍后重试'
   } finally {
     isLoading.value = false
   }
 }
+
+async function loginWithAuth() {
+  await logoutUserGlobally()
+  localStorage.removeItem('userToken')
+  clearAdminIdentity()
+  openAuthDialog('login', returnTo())
+}
+
+onMounted(checkAccess)
 </script>
 
 <style scoped>
@@ -217,6 +193,23 @@ const handleLogin = async () => {
 
 .auth__body {
   padding: var(--n-space-6) var(--n-space-8) 0;
+}
+
+.auth__checking {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n-space-3);
+  min-height: 92px;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+.auth__hint {
+  margin: 0 0 var(--n-space-3);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  text-align: center;
 }
 
 .auth__field {

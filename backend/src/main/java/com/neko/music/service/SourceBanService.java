@@ -18,7 +18,7 @@ import java.util.function.LongSupplier;
  * （且不受代理轮换影响），本类只是把「一个来源持续爆破」的成本继续抬高、并让处置变得可见。</p>
  *
  * <p><b>为什么必需</b>：{@link AuthAbuseLimiter} 只做「请求速率」闸门——超限当前请求被拒，窗口一过
- * 又能继续；{@link LoginThrottleService} 的来源维度锁定窗口只有 15 分钟。二者对「长时间、跨窗口
+ * 又能继续；普通来源限流窗口通常只有 15 分钟。二者对「长时间、跨窗口
  * 的持续爆破」都只是短暂降温。递增退避让同一来源的复发代价越来越大，直至单次封禁 24 小时；
  * 每次触发封禁还会经可注入的告警出口异步投递通知（生产复用通知服务的 Webhook），让处置可见。</p>
  *
@@ -104,7 +104,7 @@ public class SourceBanService {
     /**
      * 记录一次认证失败，并带上触发入口标签。
      *
-     * @param scope 触发入口的短标签（如 {@code admin-login} / {@code register}），仅用于日志与告警
+     * @param scope 触发入口的短标签（如 {@code login} / {@code register}），仅用于日志与告警
      * @return 本次触发的封禁秒数；未触发或存储不可用返回 {@code 0}
      */
     public long recordAuthFailure(String clientIp, String scope) {
@@ -188,7 +188,7 @@ public class SourceBanService {
 
     /**
      * 计数与封禁的存储抽象：生产实现是 Redis（{@link RedisStore}），测试注入内存实现，
-     * 单元测试因此不依赖真实 Redis——与 {@link LoginThrottleService}/{@link AuthAbuseLimiter} 同构。
+     * 单元测试因此不依赖真实 Redis——与 {@link AuthAbuseLimiter} 同构。
      */
     public interface Store {
 

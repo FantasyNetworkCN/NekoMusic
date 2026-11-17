@@ -1,7 +1,8 @@
 package com.neko.music.util;
 
 import com.neko.music.Main;
-import com.neko.music.model.Admin;
+import com.neko.music.model.AuthPrincipal;
+import com.neko.music.service.AdminAccessService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -9,87 +10,45 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
-/**
- * 权限验证辅助类
- * 用于在各个 Handler 中验证管理员权限
- */
+/** 统一后台鉴权：NekoAuth access token + ADMIN 角色。 */
 public class PermissionHelper {
     private static final Logger logger = LoggerFactory.getLogger(PermissionHelper.class);
     
-    /**
-     * 从请求中获取管理员信息
-     * @param request HTTP请求
-     * @return 管理员对象，如果未登录或令牌无效则返回null
-     */
-    public static Admin getAdminFromRequest(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return null;
+    public static AdminAccessService.AccessResult authorize(HttpServletRequest request) {
+        AdminAccessService service = Main.getAdminAccessService();
+        if (service == null) {
+            return AdminAccessService.AccessResult.unauthorized();
         }
-        
-        String token = authHeader.substring(7);
-        return Main.getAdminAuthService().getAdminByToken(token);
+        return service.authorize(RequestAuthUtil.extractToken(request));
+    }
+
+    /** 当前请求对应的管理员身份；无有效令牌或角色不是 ADMIN 时返回 null。 */
+    public static AuthPrincipal getAdminFromRequest(HttpServletRequest request) {
+        AdminAccessService.AccessResult result = authorize(request);
+        return result.allowedAccess() ? result.principal() : null;
     }
 
     /**
      * 校验请求是否携带有效的管理员令牌。
      *
-     * <p>原先 6 个处理器各自复制了一份同名的私有方法，收敛到这里。
-     *
      * @param request HTTP请求
-     * @return 是否已通过管理员令牌校验
+     * @return 是否已通过 NekoAuth 管理员角色校验
      */
     public static boolean isAdminAuthorized(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return false;
-        }
-        String token = authHeader.substring(7);
-        return Main.getAdminAuthService().validateAdminToken(token);
+        return authorize(request).allowedAccess();
     }
     
-    /**
-     * 验证管理员是否有指定权限
-     * @param request HTTP请求
-     * @param response HTTP响应
-     * @param permission 需要的权限
-     * @return 是否有权限
-     */
-    public static boolean checkPermission(HttpServletRequest request, HttpServletResponse response, AdminPermissionUtil.Permission permission) {
-        Admin admin = getAdminFromRequest(request);
-        
-        if (admin == null) {
+    /** 校验后台访问；当前没有权限分级，ADMIN 角色即可访问全部后台能力。 */
+    public static boolean checkAdmin(HttpServletRequest request, HttpServletResponse response) {
+        AdminAccessService.AccessResult result = authorize(request);
+        if (result.status() == AdminAccessService.AccessStatus.UNAUTHORIZED) {
             sendUnauthorizedResponse(response);
             return false;
         }
-        
-        if (!AdminPermissionUtil.hasPermission(admin, permission)) {
+        if (result.status() == AdminAccessService.AccessStatus.FORBIDDEN) {
             sendForbiddenResponse(response);
             return false;
         }
-        
-        return true;
-    }
-    
-    /**
-     * 验证管理员是否为超级管理员
-     * @param request HTTP请求
-     * @param response HTTP响应
-     * @return 是否为超级管理员
-     */
-    public static boolean checkSuperAdmin(HttpServletRequest request, HttpServletResponse response) {
-        Admin admin = getAdminFromRequest(request);
-        
-        if (admin == null) {
-            sendUnauthorizedResponse(response);
-            return false;
-        }
-        
-        if (!AdminPermissionUtil.isSuperAdmin(admin)) {
-            sendForbiddenResponse(response);
-            return false;
-        }
-        
         return true;
     }
     

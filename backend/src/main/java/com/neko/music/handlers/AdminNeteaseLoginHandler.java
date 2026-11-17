@@ -2,9 +2,8 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
-import com.neko.music.model.Admin;
+import com.neko.music.model.AuthPrincipal;
 import com.neko.music.service.NeteaseCloudMusicClient;
-import com.neko.music.util.AdminPermissionUtil;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.PermissionHelper;
 import com.neko.music.util.QrCodeRenderer;
@@ -68,8 +67,7 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
 
     /** 当前登录状态：Cookie 是否已配置 + 实际登录账号资料。 */
     private void handleStatus(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         noStore(response);
@@ -80,8 +78,7 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
 
     /** 申请二维码：返回 unikey 与二维码图像（服务端渲染 PNG）。 */
     private void handleQrKey(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         noStore(response);
@@ -107,8 +104,7 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
 
     /** 轮询扫码状态；803 确认时把登录 Cookie 写入系统设置并返回账号资料。 */
     private void handleQrCheck(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         noStore(response);
@@ -139,8 +135,8 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
                 sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "source.netease.no_credential");
                 return;
             }
-            Admin admin = PermissionHelper.getAdminFromRequest(request);
-            if (!persistCookie(check.cookie(), admin == null ? null : admin.id())) {
+            AuthPrincipal admin = PermissionHelper.getAdminFromRequest(request);
+            if (!persistCookie(check.cookie(), admin == null ? null : admin.userId())) {
                 sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "source.qq.save_credential_failed");
                 return;
             }
@@ -160,13 +156,12 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
 
     /** 退出登录：清空网易云 Cookie（不影响其它设置）。 */
     private void handleLogout(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         noStore(response);
-        Admin admin = PermissionHelper.getAdminFromRequest(request);
-        if (!persistCookie("", admin == null ? null : admin.id())) {
+        AuthPrincipal admin = PermissionHelper.getAdminFromRequest(request);
+        if (!persistCookie("", admin == null ? null : admin.userId())) {
             sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "source.qq.logout_failed");
             return;
         }

@@ -26,7 +26,6 @@ class RequestAuditFilterTest {
         assertRule("POST", "/api/admin/audit/reject/37", "审核管理", "审核驳回");
         assertRule("PUT", "/api/admin/lyrics-files/file/148.lrc", "歌词管理", "修改歌词");
         assertRule("DELETE", "/api/admin/lyrics-files/file/148.lrc", "歌词管理", "删除歌词");
-        assertRule("POST", "/api/admin/create", "管理员管理", "创建管理员账号");
         assertRule("PUT", "/api/admin/releases", "客户端更新", "更新客户端版本号");
         assertRule("POST", "/api/admin/releases/upload", "客户端更新", "上传客户端安装包");
         assertRule("PUT", "/api/admin/vip/pricing", "VIP 定价", "修改 VIP 价目");
@@ -34,8 +33,6 @@ class RequestAuditFilterTest {
         assertRule("POST", "/api/admin/netease/logout", "外站补全", "退出网易云登录");
         assertRule("POST", "/api/admin/qq/qr/key", "外站补全", "申请 QQ 音乐扫码登录");
         assertRule("POST", "/api/admin/qq/logout", "外站补全", "退出 QQ 音乐登录");
-        assertRule("POST", "/api/admin/login", "管理员登录", "登录");
-        assertRule("POST", "/api/admin/logout", "管理员登录", "登出");
     }
 
     @Test
@@ -59,6 +56,8 @@ class RequestAuditFilterTest {
         assertNull(RequestAuditFilter.resolveRule("/api/admin/settings", "GET"));
         assertNull(RequestAuditFilter.resolveRule("/api/admin/audit/pending", "GET"));
         assertNull(RequestAuditFilter.resolveRule("/api/admin/logs/access", "GET"));
+        assertNull(RequestAuditFilter.resolveRule("/api/admin/login", "POST"));
+        assertNull(RequestAuditFilter.resolveRule("/api/admin/logout", "POST"));
     }
 
     @Test

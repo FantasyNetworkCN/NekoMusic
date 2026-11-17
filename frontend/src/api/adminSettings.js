@@ -9,7 +9,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 
 /** 取管理员令牌；缺失时抛错，由页面跳回登录页 */
 function requireAdminToken() {
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
   if (!token) {
     throw new Error('请先登录管理员账号')
   }

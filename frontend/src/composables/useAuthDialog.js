@@ -11,13 +11,19 @@ const initialTab = ref('login')
 let redirecting = false
 
 /** 直接跳转 NekoAuth；tab='register' 时打开 Auth 注册页。 */
-export async function openAuthDialog(tab = 'login') {
+export async function openAuthDialog(tab = 'login', returnToOverride = '') {
   if (redirecting || typeof window === 'undefined') return
   redirecting = true
   initialTab.value = tab === 'register' ? 'register' : 'login'
   isOpen.value = false
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  const returnTo = current.startsWith('/oauth/nekocore/') || current.startsWith('/sso/') ? '/' : current
+  const safeOverride = typeof returnToOverride === 'string'
+    && returnToOverride.startsWith('/')
+    && !returnToOverride.startsWith('//')
+    ? returnToOverride
+    : ''
+  const returnTo = safeOverride
+    || (current.startsWith('/oauth/nekocore/') || current.startsWith('/sso/') ? '/' : current)
   try {
     const response = tab === 'register'
       ? await fetch(`${API_CONFIG.BASE_URL}/api/user/sso/portal-url?target=register`, {

@@ -8,7 +8,7 @@ import API_CONFIG from '@/config/apiConfig.js'
  */
 
 function adminAuthHeader() {
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
   if (!token) {
     throw new Error('请先登录管理后台')
   }

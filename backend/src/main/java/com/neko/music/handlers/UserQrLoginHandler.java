@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.QrLoginService;
-import com.neko.music.service.RedisTokenStore;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.QrCodeRenderer;
 import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.VipUtil;
@@ -310,7 +310,7 @@ public class UserQrLoginHandler extends ApiServlet {
         }
 
         String currentToken = RequestAuthUtil.extractToken(request);
-        String token = RedisTokenStore.normalizeBearerToken(currentToken);
+        String token = RequestAuthUtil.normalizeBearerToken(currentToken);
         if (token.isBlank()) {
             logger.warn("扫码登录缺少当前 NekoAuth 令牌: userId={}", userId);
             sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "qr.login_failed", null);

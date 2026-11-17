@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.service.AppReleaseService;
 import com.neko.music.util.ClientReleaseStorage;
+import com.neko.music.util.PermissionHelper;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -166,18 +167,7 @@ public class AdminClientReleaseHandler extends ApiServlet {
     }
 
     private boolean authorize(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String token = request.getHeader("Authorization");
-        if (token == null || token.isBlank()) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            sendErrorResponse(response, "auth.unauthorized");
-            return false;
-        }
-        if (!Main.getAdminAuthService().canUploadClientReleaseByToken(token)) {
-            response.setStatus(HttpStatus.FORBIDDEN_403);
-            sendErrorResponse(response, "admin.release.permission_required");
-            return false;
-        }
-        return true;
+        return PermissionHelper.checkAdmin(request, response);
     }
 
     private static boolean isValidVersionToken(String ver) {

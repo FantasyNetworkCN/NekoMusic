@@ -3,7 +3,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 function adminAuthHeader() {
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
   if (!token) {
     throw new Error('请先登录管理后台')
   }

@@ -11,7 +11,7 @@
       </div>
     </header>
 
-    <AccessLogPanel v-if="canViewAccessLog" />
+    <AccessLogPanel />
   </div>
 </template>
 
@@ -22,25 +22,7 @@
  * 从首页「统计分析」拆出来单独成页：访问日志是排查异常流量的第一现场，
  * 和业务数据趋势不是一回事，混在同一页会让两边都要滚动。
  */
-import { computed, onMounted, ref } from 'vue'
 import AccessLogPanel from '@/views/admin/components/AccessLogPanel.vue'
-
-const adminInfo = ref({})
-
-/** 访问日志对「除普通用户外的角色」开放，与后端 ACCESS_LOG_VIEW 一致 */
-const canViewAccessLog = computed(() =>
-  ['super_admin', 'admin', 'auditor'].includes(adminInfo.value?.role || 'admin')
-)
-
-onMounted(() => {
-  const stored = localStorage.getItem('adminInfo')
-  if (!stored) return
-  try {
-    adminInfo.value = JSON.parse(stored)
-  } catch {
-    adminInfo.value = {}
-  }
-})
 </script>
 
 <style scoped>

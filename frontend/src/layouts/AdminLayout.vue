@@ -12,7 +12,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminSidebar from '@/components/AdminSidebar.vue'
 import NIcon from '@/icons/NIcon.vue'
-import { logoutAdminSession } from '@/api/session.js'
+import { logoutUserGlobally } from '@/api/session.js'
+import { clearAdminIdentity } from '@/api/adminAuth.js'
 
 const router = useRouter()
 const sidebarRef = ref(null)
@@ -31,12 +32,11 @@ function loadAdminInfo() {
 
 const toggleSidebar = () => sidebarRef.value?.toggleSidebar()
 
-function logout() {
-  // 先让服务端吊销 admin_token（24h TTL 内否则一直有效），失败也不阻塞本地登出
-  logoutAdminSession()
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('adminInfo')
-  localStorage.removeItem('isAdminLoggedIn')
+async function logout() {
+  // 后台与前台共用 NekoAuth 会话，退出后台即退出当前 NekoAuth 用户会话。
+  await logoutUserGlobally()
+  localStorage.removeItem('userToken')
+  clearAdminIdentity()
   router.push('/admin/login')
 }
 

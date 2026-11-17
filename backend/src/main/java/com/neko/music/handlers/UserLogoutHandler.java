@@ -2,10 +2,10 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.service.NekoAuthAccountService;
-import com.neko.music.service.RedisTokenStore;
 import com.neko.music.service.SharedWebSessionService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.RequestAuthUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,7 +38,7 @@ public class UserLogoutHandler extends ApiServlet {
         response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
 
         UserAuthService service = userAuthService != null ? userAuthService : Main.getUserAuthService();
-        String token = RedisTokenStore.normalizeBearerToken(request.getHeader("Authorization"));
+        String token = RequestAuthUtil.normalizeBearerToken(request.getHeader("Authorization"));
         String ssoSession = readCookie(request, "nekoauth_sso_session");
         if (service == null) {
             sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "auth.logout.failed");

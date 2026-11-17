@@ -1,7 +1,6 @@
 package com.neko.music.handlers;
 
 import com.neko.music.database.UserAccountStore;
-import com.neko.music.model.AdminAccount;
 import com.neko.music.model.UserAccount;
 import com.neko.music.model.UserProfile;
 import com.neko.music.service.UserManagementService;
@@ -18,7 +17,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +33,7 @@ class UserProfileHandlersTest {
         FakeStore store = new FakeStore();
         store.vipExpiresAt = Timestamp.from(Instant.parse("2027-01-01T00:00:00Z"));
         UserInfoHandler handler = new UserInfoHandler(
-                new UserManagementService(store, new RecordingRevoker()), request -> 7);
+                new UserManagementService(store), request -> 7);
         CapturingResponse capture = new CapturingResponse();
 
         handler.doGet(request(null), responseProxy(capture));
@@ -50,7 +48,7 @@ class UserProfileHandlersTest {
     @Test
     void userInfoMissingUserIsNotFound() throws Exception {
         UserInfoHandler handler = new UserInfoHandler(
-                new UserManagementService(new FakeStore(), new RecordingRevoker()), request -> 99);
+                new UserManagementService(new FakeStore()), request -> 99);
         CapturingResponse capture = new CapturingResponse();
 
         handler.doGet(request(null), responseProxy(capture));
@@ -65,19 +63,6 @@ class UserProfileHandlersTest {
             case "getReader" -> new BufferedReader(new StringReader(body == null ? "" : body));
             default -> defaultValue(method);
         });
-    }
-
-    private static final class RecordingRevoker implements UserManagementService.SessionRevoker {
-        private final List<Integer> users = new ArrayList<>();
-
-        @Override
-        public void revokeAdmin(int adminId) {
-        }
-
-        @Override
-        public void revokeUser(int userId) {
-            users.add(userId);
-        }
     }
 
     private static final class CapturingResponse {
@@ -111,35 +96,6 @@ class UserProfileHandlersTest {
     private static final class FakeStore implements UserAccountStore {
         private String nickname = "listener";
         private Timestamp vipExpiresAt;
-
-        @Override
-        public List<AdminAccount> listAdmins() {
-            return List.of();
-        }
-
-        @Override
-        public Optional<AdminAccount> findAdmin(int id) {
-            return Optional.empty();
-        }
-
-        @Override
-        public boolean adminUsernameExists(String username) {
-            return false;
-        }
-
-        @Override
-        public void createAdmin(String username, String passwordHash, String email, String role, long createdAt) {
-        }
-
-        @Override
-        public boolean updateAdminPassword(int id, String passwordHash) {
-            return false;
-        }
-
-        @Override
-        public AdminDeletionResult deleteAdmin(int id) {
-            return AdminDeletionResult.NOT_FOUND;
-        }
 
         @Override
         public List<UserAccount> listUsers() {

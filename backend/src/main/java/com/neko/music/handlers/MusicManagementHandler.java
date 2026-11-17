@@ -40,7 +40,7 @@ public class MusicManagementHandler extends HttpServlet {
         }
         
         // 检查是否有音乐查看权限
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.MUSIC_VIEW)) {
+        if (!com.neko.music.util.PermissionHelper.checkAdmin(request, response)) {
             logger.warn("权限不足，无音乐查看权限");
             return;
         }
@@ -64,7 +64,7 @@ public class MusicManagementHandler extends HttpServlet {
         }
         
         // 检查是否有音乐添加权限
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.MUSIC_ADD)) {
+        if (!com.neko.music.util.PermissionHelper.checkAdmin(request, response)) {
             logger.warn("权限不足，无音乐添加权限");
             return;
         }
@@ -81,7 +81,7 @@ public class MusicManagementHandler extends HttpServlet {
         }
         
         // 检查是否有音乐编辑权限
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.MUSIC_EDIT)) {
+        if (!com.neko.music.util.PermissionHelper.checkAdmin(request, response)) {
             logger.warn("权限不足，无音乐编辑权限");
             return;
         }
@@ -99,7 +99,7 @@ public class MusicManagementHandler extends HttpServlet {
         }
         
         // 检查是否有音乐删除权限
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.MUSIC_DELETE)) {
+        if (!com.neko.music.util.PermissionHelper.checkAdmin(request, response)) {
             logger.warn("权限不足，无音乐删除权限");
             return;
         }

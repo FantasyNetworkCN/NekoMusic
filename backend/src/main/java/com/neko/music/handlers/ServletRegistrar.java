@@ -79,25 +79,13 @@ public final class ServletRegistrar {
         ServletHolder musicManagementHolder = new ServletHolder(new MusicManagementHandler());
         context.addServlet(musicManagementHolder, "/api/music/*");         // 处理所有音乐管理请求
         
-        // 注册管理员登录API处理器
-        ServletHolder adminLoginHolder = new ServletHolder(new AdminLoginHandler());
-        context.addServlet(adminLoginHolder, "/api/admin/login");
-
-        // 注册管理员登出API处理器（服务端吊销 admin_token）
-        ServletHolder adminLogoutHolder = new ServletHolder(new AdminLogoutHandler());
-        context.addServlet(adminLogoutHolder, "/api/admin/logout");
-        
-        // 注册管理员当前信息API处理器
+        // 当前 NekoAuth 用户的管理员身份确认（不再有独立管理员登录）
         ServletHolder adminCurrentHolder = new ServletHolder(new AdminCurrentHandler());
         context.addServlet(adminCurrentHolder, "/api/admin/current");
         
         // 注册管理员统计API处理器
         ServletHolder adminStatsHolder = new ServletHolder(new AdminStatsHandler());
         context.addServlet(adminStatsHolder, "/api/admin/stats");
-
-        // 注册管理员创建API处理器
-        ServletHolder adminCreateHolder = new ServletHolder(new AdminCreateHandler());
-        context.addServlet(adminCreateHolder, "/api/admin/create");
 
         // 注册图表数据API处理器
         ServletHolder chartDataHolder = new ServletHolder(new ChartDataHandler());

@@ -6,7 +6,6 @@ import com.neko.music.Main;
 import com.neko.music.database.LyricsDatabaseManager;
 import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.SearchIndexService;
-import com.neko.music.util.AdminPermissionUtil;
 import com.neko.music.util.PermissionHelper;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -39,7 +38,7 @@ public class AdminLyricsFileHandler extends ApiServlet {
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response, AdminPermissionUtil.Permission.MUSIC_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
 
@@ -60,7 +59,7 @@ public class AdminLyricsFileHandler extends ApiServlet {
 
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response, AdminPermissionUtil.Permission.MUSIC_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
 
@@ -119,7 +118,7 @@ public class AdminLyricsFileHandler extends ApiServlet {
 
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response, AdminPermissionUtil.Permission.MUSIC_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
 

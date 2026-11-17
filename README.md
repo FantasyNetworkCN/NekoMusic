@@ -149,6 +149,9 @@ Web 会周期校验登录态；Android 与 PC 回到前台时会重新请求 `GE
 
 浏览器与旧客户端使用同一个 `localStorage.userToken` / `Authorization` 字段，但 token 已由 NekoMusic 本地随机串改为 NekoAuth access token。NekoMusic 每个受保护请求通过 NekoAuth introspection 校验身份，登出通过 NekoAuth revoke 吊销令牌。密码修改、管理员重置密码和账号停用会推进 NekoAuth 的 token 版本，使旧 token 立即失效。
 
+管理后台不再维护独立管理员账号、密码或 `admin_token`。后台与普通业务共用同一个 NekoAuth access token，
+仅在 introspection 返回角色 `ADMIN` 时放行；当前没有超级管理员、审核员等细分角色，所有管理员拥有相同后台权限。
+
 ### 账号操作流程
 
 - 登录：Web、Android 与 PC 新版本统一使用 NekoAuth OIDC 单点登录；成功后只保存 NekoAuth 签发的 access token，并用 `sub` 关联本地业务资料。

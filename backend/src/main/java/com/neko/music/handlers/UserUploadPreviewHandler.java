@@ -1,8 +1,8 @@
 package com.neko.music.handlers;
 
-import com.neko.music.Main;
 import com.neko.music.util.ClientAborts;
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,18 +36,8 @@ public class UserUploadPreviewHandler extends HttpServlet {
         }
         
         // 验证管理员权限
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            logger.warn("未授权访问预览接口，缺少Authorization头");
-            response.sendError(401, "auth.unauthorized");
-            return;
-        }
-        
-        String token = authHeader.substring(7);
-        boolean isValid = Main.getAdminAuthService().validateAdminToken(token);
-        if (!isValid) {
-            logger.warn("未授权访问预览接口，无效的token");
-            response.sendError(401, "auth.unauthorized");
+        if (!PermissionHelper.checkAdmin(request, response)) {
+            logger.warn("未授权访问审核预览接口");
             return;
         }
         

@@ -315,7 +315,7 @@ const copyText = async (value, label) => {
 const fetchPendingUploads = async () => {
   isLoading.value = true
   try {
-    const token = localStorage.getItem('adminToken')
+    const token = localStorage.getItem('userToken')
     if (!token) {
       toast.error('请先登录管理员账号')
       router.push('/admin/login')
@@ -354,7 +354,7 @@ const fetchPendingUploads = async () => {
 const approveUpload = async (uploadId) => {
   if (actionLoading.value[uploadId]) return
 
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
   if (!token) {
     toast.error('请先登录管理员账号')
     router.push('/admin/login')
@@ -424,7 +424,7 @@ const confirmReject = async () => {
   const uploadId = rejectUploadId.value
   if (!uploadId || actionLoading.value[uploadId]) return
 
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
   if (!token) {
     toast.error('请先登录管理员账号')
     router.push('/admin/login')
@@ -493,7 +493,7 @@ const playPreview = async (uploadId, musicFilePath) => {
   loadingAudios.value[uploadId] = true
   
   try {
-    const token = localStorage.getItem('adminToken')
+    const token = localStorage.getItem('userToken')
     if (!token) {
       toast.error('请先登录管理员账号')
       currentPlayingId.value = null
@@ -611,7 +611,7 @@ const loadCoverImage = async (uploadId, coverFilePath) => {
   loadingCovers.value[uploadId] = true
 
   try {
-    const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
     if (!token) {
       console.error('未找到管理员token')
       return
@@ -714,7 +714,7 @@ const loadLyricsForUpload = async (uploadId) => {
   loadingLyrics.value[uploadId] = true
   
   try {
-    const token = localStorage.getItem('adminToken')
+    const token = localStorage.getItem('userToken')
     if (!token) {
       toast.error('请先登录管理员账号')
       return

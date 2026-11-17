@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { watch } from 'vue'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import { t, locale } from '@/i18n'
+import { refreshAdminIdentity } from '@/api/adminAuth.js'
 import {
   applyPageSeo,
   DEFAULT_DESCRIPTION,
@@ -12,40 +13,19 @@ import {
   SITE_ORIGIN,
 } from '@/utils/seoMeta'
 
-// 检查管理员是否已登录
-function isAdminLoggedIn() {
-  return localStorage.getItem('isAdminLoggedIn') === 'true';
-}
-
 // 管理员路由守卫（router v5：用返回值代替已弃用的 next 回调）
-const adminGuard = (to) => {
+const adminGuard = async (to) => {
   if (!to.path.startsWith('/admin') || to.path === '/admin/login') return true
 
-  if (!isAdminLoggedIn()) return '/admin/login'
-
-  // 检查用户权限
-  const stored = localStorage.getItem('adminInfo')
-  if (stored) {
-    try {
-      const role = JSON.parse(stored).role || 'admin'
-      // 审核员不能访问音乐/歌词/VIP 价目/客户端更新页面
-      if (role === 'auditor') {
-        if (to.path.startsWith('/admin/music')
-          || (to.path.startsWith('/admin/lyrics') && !to.path.startsWith('/admin/lyrics-reports'))) {
-          return '/admin'
-        }
-        if (to.path.startsWith('/admin/vip-pricing')) return '/admin'
-        if (to.path.startsWith('/admin/releases')) return '/admin'
-        if (to.path.startsWith('/admin/settings')) return '/admin'
-        // 操作日志仅管理员及以上；审核员可看「安全」页里的访问日志（安全分析需要）
-        if (to.path.startsWith('/admin/logs')) return '/admin'
-      }
-    } catch {
-      /* adminInfo 损坏时按已登录处理，交由页面自行兜底 */
-    }
+  const status = await refreshAdminIdentity()
+  if (status === 'admin') return true
+  return {
+    path: '/admin/login',
+    query: {
+      returnTo: to.fullPath,
+      ...(status === 'forbidden' ? { denied: '1' } : {}),
+    },
   }
-
-  return true
 }
 
 const router = createRouter({

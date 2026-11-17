@@ -57,13 +57,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
         if (!verifyAdmin(request, response)) {
             return;
         }
-        
-        // 检查是否有审核查看权限
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.AUDIT_VIEW)) {
-            logger.warn("权限不足，无审核查看权限");
-            return;
-        }
-        
+
         String pathInfo = request.getPathInfo();
         
         if (pathInfo == null || pathInfo.equals("/") || pathInfo.equals("/pending")) {
@@ -85,11 +79,6 @@ public class AdminUploadAuditHandler extends ApiServlet {
         
         if (pathInfo != null && pathInfo.startsWith("/approve/")) {
             // 审核通过
-            // 检查是否有审核通过权限
-            if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.AUDIT_APPROVE)) {
-                logger.warn("权限不足，无审核通过权限");
-                return;
-            }
             int uploadId = parseUploadId(pathInfo.substring(9), response);
             if (uploadId < 0) {
                 return;
@@ -97,11 +86,6 @@ public class AdminUploadAuditHandler extends ApiServlet {
             handleApproveUpload(uploadId, request, response);
         } else if (pathInfo != null && pathInfo.startsWith("/reject/")) {
             // 审核拒绝
-            // 检查是否有审核拒绝权限
-            if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.AUDIT_REJECT)) {
-                logger.warn("权限不足，无审核拒绝权限");
-                return;
-            }
             int uploadId = parseUploadId(pathInfo.substring(8), response);
             if (uploadId < 0) {
                 return;
@@ -116,20 +100,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
      * 验证管理员权限
      */
     private boolean verifyAdmin(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            sendErrorResponse(response, 401, "auth.unauthorized");
-            return false;
-        }
-        
-        String token = authHeader.substring(7);
-        boolean isValid = Main.getAdminAuthService().validateAdminToken(token);
-        if (!isValid) {
-            sendErrorResponse(response, 401, "auth.unauthorized");
-            return false;
-        }
-        
-        return true;
+        return com.neko.music.util.PermissionHelper.checkAdmin(request, response);
     }
     
     /**
@@ -559,13 +530,13 @@ public class AdminUploadAuditHandler extends ApiServlet {
 
     /** 审核通过/拒绝共用的前置校验：令牌有效。返回 adminId；无效时写出 401 并返回 -1。 */
     private int requireAdminId(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String authHeader = request.getHeader("Authorization");
-        String token = authHeader.substring(7);
-        int adminId = getAdminIdByToken(token);
-        if (adminId <= 0) {
-            sendErrorResponse(response, 401, "auth.unauthorized");
+        com.neko.music.model.AuthPrincipal admin =
+                com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
+        if (admin == null) {
+            sendErrorResponse(response, 403, "common.forbidden");
+            return -1;
         }
-        return adminId;
+        return admin.userId();
     }
 
     /** 加载待审核上传记录；不存在/已审核时写出 404/400 并返回 null（与原两处内联一致）。 */
@@ -644,13 +615,6 @@ public class AdminUploadAuditHandler extends ApiServlet {
         return artist == null || artist.isBlank() ? "" : "（" + artist.trim() + "）";
     }
 
-    /**
-     * 根据token获取管理员ID
-     */
-    private int getAdminIdByToken(String token) {
-        return Main.getAdminAuthService().getAdminIdByToken(token).orElse(-1);
-    }
-    
     /**
      * 根据用户ID获取用户邮箱
      */

@@ -111,7 +111,7 @@ const validate = () => {
 
 const saveRows = async () => {
   if (!validate()) return
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
   if (!token) {
     router.push('/admin/login')
     return
@@ -134,7 +134,7 @@ const saveRows = async () => {
 }
 
 onMounted(async () => {
-  const storedToken = localStorage.getItem('adminToken')
+  const storedToken = localStorage.getItem('userToken')
   const storedAdminInfo = localStorage.getItem('adminInfo')
   if (!storedToken || !storedAdminInfo) {
     router.push('/admin/login')
@@ -144,12 +144,6 @@ onMounted(async () => {
     adminInfo.value = JSON.parse(storedAdminInfo)
   } catch {
     router.push('/admin/login')
-    return
-  }
-  const role = adminInfo.value.role || 'admin'
-  if (role === 'auditor') {
-    toast.info('无权限访问价目管理')
-    router.replace('/admin')
     return
   }
   await loadRows()

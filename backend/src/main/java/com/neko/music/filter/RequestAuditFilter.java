@@ -2,8 +2,8 @@ package com.neko.music.filter;
 
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
-import com.neko.music.model.Admin;
 import com.neko.music.model.AccessLogRecord;
+import com.neko.music.model.AuthPrincipal;
 import com.neko.music.model.OperationLogRecord;
 import com.neko.music.model.ThreatAssessment;
 import com.neko.music.security.ThreatDetectionService;
@@ -115,8 +115,6 @@ public class RequestAuditFilter implements Filter {
             new OperationRule("/api/music", Set.of("POST"), "音乐管理", "新增音乐"),
             new OperationRule("/api/music", Set.of("PUT"), "音乐管理", "修改音乐"),
             new OperationRule("/api/music", Set.of("DELETE"), "音乐管理", "删除音乐"),
-            // 管理员账号
-            new OperationRule("/api/admin/create", Set.of("POST"), "管理员管理", "创建管理员账号"),
             // 客户端更新
             new OperationRule("/api/admin/releases/upload", Set.of("POST"), "客户端更新", "上传客户端安装包"),
             new OperationRule("/api/admin/releases", Set.of("PUT"), "客户端更新", "更新客户端版本号"),
@@ -126,10 +124,7 @@ public class RequestAuditFilter implements Filter {
             new OperationRule("/api/admin/netease/qr/key", Set.of("POST"), "外站补全", "申请网易云扫码登录"),
             new OperationRule("/api/admin/netease/logout", Set.of("POST"), "外站补全", "退出网易云登录"),
             new OperationRule("/api/admin/qq/qr/key", Set.of("POST"), "外站补全", "申请 QQ 音乐扫码登录"),
-            new OperationRule("/api/admin/qq/logout", Set.of("POST"), "外站补全", "退出 QQ 音乐登录"),
-            // 管理员会话
-            new OperationRule("/api/admin/login", Set.of("POST"), "管理员登录", "登录"),
-            new OperationRule("/api/admin/logout", Set.of("POST"), "管理员登录", "登出"));
+            new OperationRule("/api/admin/qq/logout", Set.of("POST"), "外站补全", "退出 QQ 音乐登录"));
 
     /** 模块兜底表：没有命中操作规则的后台路径按它归类（只用于模块名）。 */
     private static final List<String[]> ADMIN_MODULES = List.of(
@@ -142,9 +137,6 @@ public class RequestAuditFilter implements Filter {
             new String[] { "/api/admin/vip/pricing", "VIP 定价" },
             new String[] { "/api/admin/music", "音乐管理" },
             new String[] { "/api/admin/audit", "审核管理" },
-            new String[] { "/api/admin/create", "管理员管理" },
-            new String[] { "/api/admin/login", "管理员登录" },
-            new String[] { "/api/admin/logout", "管理员登录" },
             new String[] { "/api/admin/current", "管理员会话" },
             new String[] { "/api/admin/stats", "数据统计" },
             new String[] { "/api/admin/chart-data", "数据统计" },
@@ -220,7 +212,7 @@ public class RequestAuditFilter implements Filter {
         boolean logOperation = operationEnabled && mutating && (isAdminPath || rule != null);
 
         boolean adminContext = isAdminPath || rule != null;
-        Admin admin = (adminContext && (logOperation || accessEnabled)) ? resolveAdmin(token) : null;
+        AuthPrincipal admin = (adminContext && (logOperation || accessEnabled)) ? resolveAdmin(token) : null;
 
         // 管理员另有 admin_* 两列；普通用户在这里落 user_id / user_name，两者互不覆盖。
         String userName = accessEnabled && userId != null
@@ -240,7 +232,7 @@ public class RequestAuditFilter implements Filter {
                                               String path, String category, String method, int status,
                                               long occurredAt, long durationUs,
                                               boolean authenticated, Integer userId, String userName,
-                                              Admin admin, ThreatAssessment threat) {
+                                              AuthPrincipal admin, ThreatAssessment threat) {
         String userAgent = request.getHeader("User-Agent");
         String clientIp = resolveClientIp(request);
         return new AccessLogRecord(
@@ -261,7 +253,7 @@ public class RequestAuditFilter implements Filter {
                 authenticated,
                 userId,
                 userName,
-                admin == null ? null : admin.id(),
+                admin == null ? null : admin.userId(),
                 admin == null ? null : admin.username(),
                 request.getHeader("Host"),
                 request.getScheme(),
@@ -326,11 +318,11 @@ public class RequestAuditFilter implements Filter {
 
     private OperationLogRecord buildOperationRecord(HttpServletRequest request, String path, String method,
                                                     int status, long occurredAt, long durationUs,
-                                                    Admin admin, String clientIp, OperationRule rule) {
+                                                    AuthPrincipal admin, String clientIp, OperationRule rule) {
         String userAgent = request.getHeader("User-Agent");
         return new OperationLogRecord(
                 occurredAt,
-                admin == null ? null : admin.id(),
+                admin == null ? null : admin.userId(),
                 admin == null ? null : admin.username(),
                 admin == null ? null : admin.role(),
                 moduleFor(path, rule),
@@ -509,15 +501,16 @@ public class RequestAuditFilter implements Filter {
         }
     }
 
-    private static Admin resolveAdmin(String token) {
+    private static AuthPrincipal resolveAdmin(String token) {
         if (token == null || token.isEmpty()) {
             return null;
         }
         try {
-            if (Main.getAdminAuthService() == null) {
+            if (Main.getAdminAccessService() == null) {
                 return null;
             }
-            return Main.getAdminAuthService().getAdminByToken(token);
+            var result = Main.getAdminAccessService().authorize(token);
+            return result.allowedAccess() ? result.principal() : null;
         } catch (Exception e) {
             return null;
         }

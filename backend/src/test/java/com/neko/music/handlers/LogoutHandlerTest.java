@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.UserAuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -40,20 +39,6 @@ class LogoutHandlerTest {
         }
     }
 
-    private static final class StubAdminAuthService extends AdminAuthService {
-        final List<String> revoked = new ArrayList<>();
-
-        StubAdminAuthService() {
-            super(null, null);
-        }
-
-        @Override
-        public boolean logout(String token) {
-            revoked.add(token);
-            return true;
-        }
-    }
-
     private record Result(int status, String body, Map<String, String> headers) {
     }
 
@@ -80,17 +65,6 @@ class LogoutHandlerTest {
         StubUserAuthService noToken = new StubUserAuthService();
         assertEquals(401, post(new UserLogoutHandler(), "userAuthService", noToken, null).status());
         assertTrue(noToken.revoked.isEmpty(), "没有令牌时不应触碰服务端会话");
-    }
-
-    @Test
-    @DisplayName("管理端登出同样吊销 admin_token")
-    void adminLogoutRevokesToken() throws Exception {
-        StubAdminAuthService auth = new StubAdminAuthService();
-        Result result = post(new AdminLogoutHandler(), "adminAuthService", auth, "Bearer admin-tok");
-
-        assertEquals(200, result.status());
-        assertEquals(List.of("admin-tok"), auth.revoked);
-        assertEquals("private, no-store", result.headers().get("cache-control"));
     }
 
     private Result post(Object handler, String field, Object stub, String authHeader) throws Exception {
@@ -126,11 +100,7 @@ class LogoutHandlerTest {
                     default -> method.getReturnType() == boolean.class ? false : null;
                 });
 
-        if (handler instanceof UserLogoutHandler userLogout) {
-            userLogout.doPost(request, response);
-        } else {
-            ((AdminLogoutHandler) handler).doPost(request, response);
-        }
+        ((UserLogoutHandler) handler).doPost(request, response);
         writer.flush();
         return new Result(status[0], body.toString(), headers);
     }

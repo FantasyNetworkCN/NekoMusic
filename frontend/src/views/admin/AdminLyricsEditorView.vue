@@ -160,10 +160,7 @@ const newFilePath = ref('')
 const editorRef = ref(null)
 const lineGutterRef = ref(null)
 
-const canEditLyrics = computed(() => {
-  const role = adminInfo.value.role || 'admin'
-  return role === 'super_admin' || role === 'admin'
-})
+const canEditLyrics = computed(() => true)
 
 const hasUnsavedChanges = computed(() => lyricsContent.value !== originalContent.value)
 const isDraftFile = computed(() => selectedFile.value && !findFileByPath(selectedFile.value.path))
@@ -191,7 +188,7 @@ const lineNumbers = computed(() => {
 })
 
 onMounted(() => {
-  const storedToken = localStorage.getItem('adminToken')
+  const storedToken = localStorage.getItem('userToken')
   const storedAdminInfo = localStorage.getItem('adminInfo')
 
   if (!storedToken || !storedAdminInfo) {
@@ -215,7 +212,7 @@ const fetchTree = async () => {
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/lyrics-files/tree`, {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('adminToken')}`
+        Authorization: `Bearer ${localStorage.getItem('userToken')}`
       }
     })
     const data = await response.json()
@@ -256,7 +253,7 @@ const selectFile = async (file) => {
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/lyrics-files/file/${encodePath(file.path)}`, {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('adminToken')}`
+        Authorization: `Bearer ${localStorage.getItem('userToken')}`
       }
     })
     const data = await response.json()
@@ -289,7 +286,7 @@ const saveSelectedFile = async () => {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('adminToken')}`
+        Authorization: `Bearer ${localStorage.getItem('userToken')}`
       },
       body: JSON.stringify({ content: lyricsContent.value })
     })
@@ -319,7 +316,7 @@ const deleteSelectedFile = async () => {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/lyrics-files/file/${encodePath(selectedFile.value.path)}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('adminToken')}`
+        Authorization: `Bearer ${localStorage.getItem('userToken')}`
       }
     })
     const data = await response.json()

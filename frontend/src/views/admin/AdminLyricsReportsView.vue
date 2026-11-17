@@ -128,7 +128,7 @@ onMounted(loadPending)
 function adminHeaders(json = false) {
   return {
     ...(json ? { 'Content-Type': 'application/json' } : {}),
-    Authorization: `Bearer ${localStorage.getItem('adminToken') || ''}`,
+    Authorization: `Bearer ${localStorage.getItem('userToken') || ''}`,
   }
 }
 

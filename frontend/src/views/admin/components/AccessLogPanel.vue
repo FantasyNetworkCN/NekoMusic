@@ -371,7 +371,7 @@ function closeLiveStream() {
 }
 
 function liveTransportReady() {
-  return typeof EventSource !== 'undefined' && Boolean(localStorage.getItem('adminToken'))
+  return typeof EventSource !== 'undefined' && Boolean(localStorage.getItem('userToken'))
 }
 
 /** 新日志插入表格顶部：翻页或带筛选时不动表格（那会把不属于当前视图的行混进来）。 */

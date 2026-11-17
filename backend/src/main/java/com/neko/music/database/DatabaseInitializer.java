@@ -16,7 +16,11 @@ public class DatabaseInitializer {
         
         try (Connection conn = databaseManager.getConnection();
              Statement stmt = conn.createStatement()) {
-            
+
+            // 管理员身份已统一由 NekoAuth 的 ADMIN 角色提供，旧本地管理员表不再使用。
+            // 主动删除，避免遗留本地口令哈希继续占据数据库。
+            stmt.execute("DROP TABLE IF EXISTS admins");
+
             // 创建用户收藏表
             String createFavoritesTable = """
                 CREATE TABLE IF NOT EXISTS user_favorites (

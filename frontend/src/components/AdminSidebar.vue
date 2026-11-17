@@ -7,14 +7,13 @@
  *  - 悬浮态为中性 onSurface@5%
  *  - 分组标题（概览 / 内容 / 运营）
  *  - 顶部 Logo 字标
- * 权限：保留原有 hasPermission 矩阵（super_admin / admin / auditor）。
+ * 权限：当前只有 ADMIN 一个后台角色，登录后具备全部后台能力。
  */
 import { useRoute } from 'vue-router'
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import NIcon from '@/icons/NIcon.vue'
 
 const route = useRoute()
-const adminInfo = ref(null)
 const isOpen = ref(false)
 
 /** 移动端侧栏开关 */
@@ -32,55 +31,8 @@ const isActiveRoute = (path) => {
   return route.path === path || route.path.startsWith(path + '/')
 }
 
-onMounted(() => {
-  const stored = localStorage.getItem('adminInfo')
-  if (!stored) return
-  try {
-    adminInfo.value = JSON.parse(stored)
-  } catch {
-    adminInfo.value = null
-  }
-})
-
 const hasPermission = (permission) => {
-  if (!adminInfo.value) return false
-  const role = adminInfo.value.role || 'admin'
-
-  if (role === 'super_admin') return true
-
-  if (role === 'admin') {
-    return [
-      'music_view',
-      'music_add',
-      'music_edit',
-      'music_delete',
-      'audit_view',
-      'audit_approve',
-      'audit_reject',
-      'user_view',
-      'user_edit',
-      'user_delete',
-      'stats_view',
-      'release_manage',
-      'settings_view',
-      'access_log_view',
-      'operation_log_view',
-    ].includes(permission)
-  }
-
-  if (role === 'auditor') {
-    return [
-      'audit_view',
-      'audit_approve',
-      'audit_reject',
-      'stats_view',
-      'user_view',
-      // 访问日志用于安全分析，审核员同样可以查看
-      'access_log_view',
-    ].includes(permission)
-  }
-
-  return false
+  return typeof permission === 'string'
 }
 
 /** 分组导航：组内无可见项时不渲染该组 */

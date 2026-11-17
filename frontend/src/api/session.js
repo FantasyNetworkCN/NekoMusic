@@ -50,9 +50,3 @@ export async function logoutUserGlobally(tokenOverride = null) {
     return false
   }
 }
-
-/** 吊销当前管理员会话（localStorage.adminToken）。 */
-export function logoutAdminSession() {
-  const token = typeof window === 'undefined' ? null : localStorage.getItem('adminToken')
-  return postLogout('/api/admin/logout', token)
-}

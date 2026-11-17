@@ -2,10 +2,9 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.database.LyricsReportDatabaseManager;
-import com.neko.music.model.Admin;
+import com.neko.music.model.AuthPrincipal;
 import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.SearchIndexService;
-import com.neko.music.util.AdminPermissionUtil;
 import com.neko.music.util.DbTimeUtil;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.NekoLyrics;
@@ -37,7 +36,7 @@ public final class AdminLyricsReportHandler extends ApiServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
-        Admin admin = requirePermission(request, response, AdminPermissionUtil.Permission.AUDIT_VIEW);
+        AuthPrincipal admin = requireAdmin(request, response);
         if (admin == null) {
             return;
         }
@@ -78,10 +77,7 @@ public final class AdminLyricsReportHandler extends ApiServlet {
             sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "lyrics.report.not_found");
             return;
         }
-        AdminPermissionUtil.Permission permission = approve
-                ? AdminPermissionUtil.Permission.AUDIT_APPROVE
-                : AdminPermissionUtil.Permission.AUDIT_REJECT;
-        Admin admin = requirePermission(request, response, permission);
+        AuthPrincipal admin = requireAdmin(request, response);
         if (admin == null) {
             return;
         }
@@ -127,7 +123,7 @@ public final class AdminLyricsReportHandler extends ApiServlet {
     private void approve(
             HttpServletResponse response,
             long id,
-            Admin admin,
+            AuthPrincipal admin,
             String reviewNote
     ) throws Exception {
         LyricsReportDatabaseManager.Report report;
@@ -143,7 +139,7 @@ public final class AdminLyricsReportHandler extends ApiServlet {
                 }
                 Main.getLyricsDatabaseManager().upsert(
                         conn, report.musicId(), report.content(), NekoLyrics.FORMAT);
-                if (!reportDatabaseManager.markReviewed(conn, id, "approved", admin.id(), reviewNote)) {
+                if (!reportDatabaseManager.markReviewed(conn, id, "approved", admin.userId(), reviewNote)) {
                     throw new SQLException("歌词报错状态更新失败");
                 }
                 conn.commit();
@@ -169,7 +165,7 @@ public final class AdminLyricsReportHandler extends ApiServlet {
     private void reject(
             HttpServletResponse response,
             long id,
-            Admin admin,
+            AuthPrincipal admin,
             String reviewNote
     ) throws Exception {
         LyricsReportDatabaseManager.Report report;
@@ -183,7 +179,7 @@ public final class AdminLyricsReportHandler extends ApiServlet {
                             "lyrics.report.already_reviewed");
                     return;
                 }
-                if (!reportDatabaseManager.markReviewed(conn, id, "rejected", admin.id(), reviewNote)) {
+                if (!reportDatabaseManager.markReviewed(conn, id, "rejected", admin.userId(), reviewNote)) {
                     throw new SQLException("歌词报错状态更新失败");
                 }
                 conn.commit();
@@ -236,12 +232,11 @@ public final class AdminLyricsReportHandler extends ApiServlet {
         }
     }
 
-    private static Admin requirePermission(
+    private static AuthPrincipal requireAdmin(
             HttpServletRequest request,
-            HttpServletResponse response,
-            AdminPermissionUtil.Permission permission
+            HttpServletResponse response
     ) {
-        if (!PermissionHelper.checkPermission(request, response, permission)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return null;
         }
         return PermissionHelper.getAdminFromRequest(request);

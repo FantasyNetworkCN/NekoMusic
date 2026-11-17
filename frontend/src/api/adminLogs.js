@@ -4,12 +4,12 @@ import API_CONFIG from '@/config/apiConfig.js'
  * 后台日志查询：访问日志（安全分析 / 访问量统计）与操作日志（管理动作留痕）。
  *
  * 只有管理后台使用；权限由服务端把关：
- *  - 访问日志：除普通用户外的角色均可查看（审核员及以上）
+ *  - 访问日志与操作日志：仅 NekoAuth ADMIN 角色可查看
  *  - 操作日志：仅管理员及以上
  */
 
 function adminAuthHeader() {
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
   if (!token) {
     throw new Error('请先登录管理后台')
   }
@@ -82,7 +82,7 @@ export async function fetchOperationLogs(params) {
  * @returns {() => void} 关闭函数
  */
 export function openAccessLogStream({ onRecord, onState } = {}) {
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('userToken')
   if (!token || typeof EventSource === 'undefined') {
     onState?.('error')
     return () => {}

@@ -231,12 +231,6 @@ onMounted(() => {
   if (stored) {
     try {
       adminInfo.value = JSON.parse(stored)
-      const role = adminInfo.value.role || 'admin'
-      if (role === 'auditor') {
-        toast.error('无权限访问')
-        router.replace('/admin')
-        return
-      }
     } catch {
       router.push('/admin/login')
       return

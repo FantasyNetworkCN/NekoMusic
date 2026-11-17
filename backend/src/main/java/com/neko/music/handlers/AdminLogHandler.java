@@ -1,14 +1,11 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
-import com.neko.music.model.Admin;
 import com.neko.music.model.LogPage;
 import com.neko.music.service.AccessLogService;
 import com.neko.music.service.OperationLogService;
-import com.neko.music.util.AdminPermissionUtil;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.PermissionHelper;
-import com.neko.music.util.RequestAuthUtil;
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -34,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>{@code GET /api/admin/logs/operations} —— 分页检索操作日志</li>
  * </ul>
  *
- * <p>权限：访问日志对「除普通用户外」的角色开放（审核员及以上）；操作日志仅管理员及以上。</p>
+ * <p>权限：NekoAuth ADMIN 角色可查看全部后台日志。</p>
  *
  * <p><b>SSE 契约（{@code /access/stream}）：</b>{@code EventSource} 无法携带请求头，因此该端点
  * 同时接受 {@code Authorization: Bearer <token>} 与 {@code ?token=<token>}（浏览器走后者），
@@ -97,8 +94,7 @@ public class AdminLogHandler extends ApiServlet {
     }
 
     private void handleAccessStats(HttpServletRequest request, HttpServletResponse response) throws IOException, SQLException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.ACCESS_LOG_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         AccessLogService service = AccessLogService.current();
@@ -111,8 +107,7 @@ public class AdminLogHandler extends ApiServlet {
     }
 
     private void handleAccessList(HttpServletRequest request, HttpServletResponse response) throws IOException, SQLException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.ACCESS_LOG_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         AccessLogService service = AccessLogService.current();
@@ -134,8 +129,7 @@ public class AdminLogHandler extends ApiServlet {
     }
 
     private void handleOperationList(HttpServletRequest request, HttpServletResponse response) throws IOException, SQLException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.OPERATION_LOG_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         OperationLogService service = OperationLogService.current();
@@ -162,7 +156,7 @@ public class AdminLogHandler extends ApiServlet {
      * 不会反压到产生日志的请求线程。</p>
      */
     private void handleAccessStream(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!requirePermission(request, response, AdminPermissionUtil.Permission.ACCESS_LOG_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         AccessLogService service = AccessLogService.current();
@@ -261,29 +255,6 @@ public class AdminLogHandler extends ApiServlet {
         } catch (IllegalStateException ignored) {
             // 连接已被容器收回，无需处理
         }
-    }
-
-    /**
-     * 校验管理端权限。
-     *
-     * <p>与 {@link PermissionHelper#checkPermission} 的差别只在于令牌来源：这里额外接受
-     * {@code ?token=}，供浏览器 {@code EventSource} 使用；面向 fetch 的接口仍走原来的辅助方法。</p>
-     */
-    private boolean requirePermission(HttpServletRequest request, HttpServletResponse response,
-                                      AdminPermissionUtil.Permission permission) throws IOException {
-        String token = RequestAuthUtil.extractToken(request);
-        Admin admin = token == null || Main.getAdminAuthService() == null
-                ? null
-                : Main.getAdminAuthService().getAdminByToken(token);
-        if (admin == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "auth.unauthorized");
-            return false;
-        }
-        if (!AdminPermissionUtil.hasPermission(admin, permission)) {
-            sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, "common.forbidden");
-            return false;
-        }
-        return true;
     }
 
     private static Map<String, Object> toData(LogPage page) {

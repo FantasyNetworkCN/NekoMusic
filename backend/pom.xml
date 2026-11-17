@@ -96,13 +96,6 @@
             <scope>test</scope>
         </dependency>
         
-        <!-- Argon2密码哈希库 -->
-        <dependency>
-            <groupId>de.mkammerer</groupId>
-            <artifactId>argon2-jvm</artifactId>
-            <version>2.12</version>
-        </dependency>
-        
         <!-- SLF4J API -->
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -398,8 +391,7 @@
                                         <exclude>META-INF/versions/*/module-info.class</exclude>
                                         <!-- 运行环境只有 Linux（容器/服务器）：依赖里非 Linux 的原生库与平台
                                              绑定一律不打包，只保留 Linux 的部分。
-                                             来源：jna（各平台 jnidispatch + win32 类）、
-                                             argon2-jvm（各平台 libargon2）。 -->
+                                             来源：jna（各平台 jnidispatch + win32 类）。 -->
                                         <exclude>**/*.dll</exclude>
                                         <exclude>**/*.DLL</exclude>
                                         <exclude>**/*.dylib</exclude>

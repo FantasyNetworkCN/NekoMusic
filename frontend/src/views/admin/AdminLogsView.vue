@@ -184,7 +184,7 @@ function fullPath(row) {
 }
 
 function roleLabel(value) {
-  return { super_admin: '超级管理员', admin: '管理员', auditor: '审核员' }[value] || value || '—'
+  return String(value || '').toLowerCase() === 'admin' ? '管理员' : (value || '—')
 }
 
 /**

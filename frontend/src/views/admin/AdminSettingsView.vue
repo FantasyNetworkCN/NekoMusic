@@ -227,7 +227,7 @@ const loadSettings = async () => {
   } catch (e) {
     loadError.value = e.message || '加载失败'
     toast.error(loadError.value)
-    if (!localStorage.getItem('adminToken')) router.push('/admin/login')
+    if (!localStorage.getItem('userToken')) router.push('/admin/login')
   } finally {
     loading.value = false
   }
@@ -257,7 +257,7 @@ const saveChanges = async () => {
 }
 
 onMounted(async () => {
-  const storedToken = localStorage.getItem('adminToken')
+  const storedToken = localStorage.getItem('userToken')
   const storedAdminInfo = localStorage.getItem('adminInfo')
   if (!storedToken || !storedAdminInfo) {
     router.push('/admin/login')
@@ -268,12 +268,6 @@ onMounted(async () => {
     adminInfo = JSON.parse(storedAdminInfo)
   } catch {
     router.push('/admin/login')
-    return
-  }
-  const role = adminInfo.role || 'admin'
-  if (role === 'auditor') {
-    toast.info('无权限访问系统设置')
-    router.replace('/admin')
     return
   }
   await loadSettings()

@@ -7,8 +7,7 @@ import com.neko.music.Main;
 import com.neko.music.config.SystemSettingDefinition;
 import com.neko.music.config.SystemSettingRegistry;
 import com.neko.music.database.SystemSettingsDatabaseManager;
-import com.neko.music.model.Admin;
-import com.neko.music.util.AdminPermissionUtil;
+import com.neko.music.model.AuthPrincipal;
 import com.neko.music.util.OperationAudit;
 import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,8 +30,7 @@ import java.util.Set;
 import com.neko.music.i18n.ApiMessages;
 
 /**
- * 后台「系统设置」：system_settings 表里运行时配置的读取与修改，需要管理员及以上权限
- * （审核员不可见）。
+ * 后台「系统设置」：system_settings 表里运行时配置的读取与修改，需要 NekoAuth ADMIN 角色。
  *
  * <ul>
  *   <li>{@code GET  /api/admin/settings} —— 按分组返回全部设置项、当前值与类型元信息</li>
@@ -53,8 +51,7 @@ public class AdminSettingsHandler extends ApiServlet {
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         Map<String, String> stored = settingsDatabase().loadAll();
@@ -80,8 +77,7 @@ public class AdminSettingsHandler extends ApiServlet {
 
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
 
@@ -152,9 +148,9 @@ public class AdminSettingsHandler extends ApiServlet {
         // 「修改系统设置」一句空话，翻日志时看不出到底动了哪一项。
         recordChanges(request, stored, updates);
 
-        Admin admin = PermissionHelper.getAdminFromRequest(request);
+        AuthPrincipal admin = PermissionHelper.getAdminFromRequest(request);
         try {
-            int written = settingsDatabase().upsertAll(updates, admin == null ? null : admin.id());
+            int written = settingsDatabase().upsertAll(updates, admin == null ? null : admin.userId());
             // 立即重新叠加一次，读取类配置无需重启即可生效；启动期绑定的项仍以 restartRequired 提示
             Main.getConfigManager().applyOverrides(settingsDatabase().loadAll());
             logger.info("管理员 {} 更新了 {} 条系统设置", admin == null ? "?" : admin.username(), written);

@@ -2,10 +2,9 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
-import com.neko.music.model.Admin;
+import com.neko.music.model.AuthPrincipal;
 import com.neko.music.service.QQMusicClient;
 import com.neko.music.service.QQMusicLoginService;
-import com.neko.music.util.AdminPermissionUtil;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -64,8 +63,7 @@ public class AdminQQLoginHandler extends ApiServlet {
 
     /** 当前登录状态：Cookie 是否已配置 + 实际登录账号资料。 */
     private void handleStatus(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         noStore(response);
@@ -76,8 +74,7 @@ public class AdminQQLoginHandler extends ApiServlet {
 
     /** 申请二维码：返回轮询 key 与二维码图像（服务端直接透出 QQ 下发的 PNG）。 */
     private void handleQrKey(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         noStore(response);
@@ -100,8 +97,7 @@ public class AdminQQLoginHandler extends ApiServlet {
 
     /** 轮询扫码状态；确认时把登录凭据写入系统设置并立即对补全客户端生效。 */
     private void handleQrCheck(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_VIEW)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         noStore(response);
@@ -132,8 +128,8 @@ public class AdminQQLoginHandler extends ApiServlet {
                 sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "source.qq.no_credential");
                 return;
             }
-            Admin admin = PermissionHelper.getAdminFromRequest(request);
-            if (!persistCookie(check.cookie(), admin == null ? null : admin.id())) {
+            AuthPrincipal admin = PermissionHelper.getAdminFromRequest(request);
+            if (!persistCookie(check.cookie(), admin == null ? null : admin.userId())) {
                 sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "source.qq.save_credential_failed");
                 return;
             }
@@ -155,13 +151,12 @@ public class AdminQQLoginHandler extends ApiServlet {
 
     /** 退出登录：清空 QQ 音乐 Cookie（不影响其它设置）。 */
     private void handleLogout(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (!PermissionHelper.checkPermission(request, response,
-                AdminPermissionUtil.Permission.SETTINGS_EDIT)) {
+        if (!PermissionHelper.checkAdmin(request, response)) {
             return;
         }
         noStore(response);
-        Admin admin = PermissionHelper.getAdminFromRequest(request);
-        if (!persistCookie("", admin == null ? null : admin.id())) {
+        AuthPrincipal admin = PermissionHelper.getAdminFromRequest(request);
+        if (!persistCookie("", admin == null ? null : admin.userId())) {
             sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "source.qq.logout_failed");
             return;
         }
