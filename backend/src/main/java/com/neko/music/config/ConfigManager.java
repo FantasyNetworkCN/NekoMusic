@@ -47,6 +47,7 @@ public class ConfigManager {
     // NekoAuth 统一登录（OAuth 2.0 授权码 + 机密客户端）
     private boolean oauthEnabled = false;
     private String oauthIssuer = "https://auth.nekocore.cn";
+    private String oauthInternalBaseUrl = "http://127.0.0.1:65534";
     private String oauthClientId = "";
     private String oauthClientSecret = "";
     private String oauthRedirectUri = "https://music.nekocore.cn/sso/nekocore/callback";
@@ -343,6 +344,9 @@ public class ConfigManager {
                 if (oauthNode != null) {
                     if (oauthNode.has("enabled")) oauthEnabled = oauthNode.get("enabled").asBoolean();
                     if (oauthNode.has("issuer")) oauthIssuer = oauthNode.get("issuer").asText();
+                    if (oauthNode.has("internal_base_url")) {
+                        oauthInternalBaseUrl = oauthNode.get("internal_base_url").asText();
+                    }
                     if (oauthNode.has("client_id")) oauthClientId = oauthNode.get("client_id").asText();
                     if (oauthNode.has("client_secret")) oauthClientSecret = oauthNode.get("client_secret").asText();
                     if (oauthNode.has("redirect_uri")) oauthRedirectUri = oauthNode.get("redirect_uri").asText();
@@ -950,6 +954,11 @@ public class ConfigManager {
     /** NekoAuth 根地址（不带末尾斜杠）。 */
     public String getOAuthIssuer() {
         return oauthIssuer == null ? "" : oauthIssuer.trim();
+    }
+
+    /** 服务端访问 NekoAuth 的内部地址；空值表示回退到公开 issuer。 */
+    public String getOAuthInternalBaseUrl() {
+        return oauthInternalBaseUrl == null ? "" : oauthInternalBaseUrl.trim();
     }
 
     public String getOAuthClientId() {

@@ -103,6 +103,19 @@ class NekoAuthOAuthServiceTest {
     }
 
     @Test
+    @DisplayName("服务端 OIDC 调用可切换到内部 Auth 地址")
+    void serverSideOidcCallsCanUseInternalAddress() {
+        assertEquals(URI.create("http://127.0.0.1:65534/oauth2/token"),
+                NekoAuthOAuthService.internalEndpoint(
+                        URI.create("https://auth.example.com/oauth2/token"),
+                        URI.create("http://127.0.0.1:65534")));
+        assertEquals(URI.create("https://auth.internal/oauth2/userinfo?x=1"),
+                NekoAuthOAuthService.internalEndpoint(
+                        URI.create("https://auth.example.com/oauth2/userinfo?x=1"),
+                        URI.create("https://auth.internal")));
+    }
+
+    @Test
     @DisplayName("SSO 客户端类型只允许 web / android / pc，OIDC 则只允许原生客户端")
     void ssoClientTypeIsValidated() throws Exception {
         assertEquals("web", NekoAuthOAuthService.normalizeClient(null));

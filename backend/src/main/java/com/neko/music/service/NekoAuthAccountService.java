@@ -52,7 +52,7 @@ public class NekoAuthAccountService {
     /** 通过父域共享会话 Cookie 解析 Auth 当前账号。 */
     public SharedAccount resolveSharedSession(String ssoSession) {
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(issuerUri() + "/api/auth/shared-session"))
+                .uri(URI.create(serverBaseUri() + "/api/auth/shared-session"))
                 .timeout(HTTP_TIMEOUT)
                 .header("Cookie", "nekoauth_sso_session=" + ssoSession)
                 .header("Accept", "application/json")
@@ -79,7 +79,7 @@ public class NekoAuthAccountService {
     /** 撤销父域共享会话，并返回需要转发给浏览器的 Set-Cookie。 */
     public List<String> logoutSharedSession(String ssoSession) {
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(issuerUri() + "/api/auth/shared-session/logout"))
+                .uri(URI.create(serverBaseUri() + "/api/auth/shared-session/logout"))
                 .timeout(HTTP_TIMEOUT)
                 .header("Cookie", "nekoauth_sso_session=" + ssoSession)
                 .POST(HttpRequest.BodyPublishers.noBody())
@@ -203,7 +203,7 @@ public class NekoAuthAccountService {
                     "无法构造 NekoAuth 请求", 0);
         }
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(issuerUri() + path))
+                .uri(URI.create(serverBaseUri() + path))
                 .timeout(HTTP_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
@@ -218,7 +218,7 @@ public class NekoAuthAccountService {
         String clientSecret = requireConfigured(configManager.getOAuthClientSecret(), "oauth.client_secret");
         String requestBody = encodeForm(payload);
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(issuerUri() + path))
+                .uri(URI.create(serverBaseUri() + path))
                 .timeout(HTTP_TIMEOUT)
                 .header("Authorization", basic(clientId, clientSecret))
                 .header("Content-Type", "application/x-www-form-urlencoded")
@@ -265,8 +265,27 @@ public class NekoAuthAccountService {
         return response;
     }
 
+    /** 服务端请求优先走内部地址，彻底绕开公网 CDN；未配置时兼容回退到 issuer。 */
+    private URI serverBaseUri() {
+        String internal = configManager.getOAuthInternalBaseUrl();
+        if (internal != null && !internal.isBlank()) {
+            return validateBaseUri(internal, "oauth.internal_base_url");
+        }
+        return issuerUri();
+    }
+
+    String resolveServerBaseUrl() {
+        return serverBaseUri().toString();
+    }
+
     private URI issuerUri() {
-        String value = requireConfigured(configManager.getOAuthIssuer(), "oauth.issuer");
+        return validateBaseUri(
+                requireConfigured(configManager.getOAuthIssuer(), "oauth.issuer"),
+                "oauth.issuer");
+    }
+
+    private static URI validateBaseUri(String raw, String settingKey) {
+        String value = raw == null ? "" : raw.trim();
         while (value.endsWith("/")) {
             value = value.substring(0, value.length() - 1);
         }
@@ -275,15 +294,30 @@ public class NekoAuthAccountService {
             uri = URI.create(value);
         } catch (IllegalArgumentException exception) {
             throw new NekoAuthServiceException(503, "NEKO_AUTH_NOT_CONFIGURED",
-                    "NekoAuth 根地址格式不正确", 0);
+                    "NekoAuth 地址格式不正确：" + settingKey, 0);
         }
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
         if (uri.getHost() == null || (!scheme.equals("https") && !scheme.equals("http"))
                 || uri.getRawQuery() != null || uri.getFragment() != null || uri.getRawUserInfo() != null) {
             throw new NekoAuthServiceException(503, "NEKO_AUTH_NOT_CONFIGURED",
-                    "NekoAuth 根地址格式不正确", 0);
+                    "NekoAuth 地址格式不正确：" + settingKey, 0);
+        }
+        if (scheme.equals("http") && !isLoopbackHost(uri.getHost())) {
+            throw new NekoAuthServiceException(503, "NEKO_AUTH_NOT_CONFIGURED",
+                    "非 loopback 的 NekoAuth 内部地址必须使用 HTTPS：" + settingKey, 0);
         }
         return URI.create(value);
+    }
+
+    private static boolean isLoopbackHost(String host) {
+        if (host == null) {
+            return false;
+        }
+        String value = host.trim().toLowerCase();
+        return value.equals("localhost")
+                || value.equals("127.0.0.1")
+                || value.equals("::1")
+                || value.equals("[::1]");
     }
 
     private String requireConfigured(String value, String key) {

@@ -242,8 +242,8 @@ public final class NekoAuthOAuthService {
 
         OidcDiscovery discovery = discovery();
         TokenResponse tokens = exchangeAuthorizationCode(
-                code, stored.codeVerifier(), discovery.tokenEndpoint());
-        JsonNode userInfo = fetchUserInfo(discovery.userInfoEndpoint(), tokens.accessToken());
+                code, stored.codeVerifier(), internalEndpoint(discovery.tokenEndpoint()));
+        JsonNode userInfo = fetchUserInfo(internalEndpoint(discovery.userInfoEndpoint()), tokens.accessToken());
         validateIdToken(discovery, tokens.idToken(), tokens.accessToken(),
                 stored.nonce(), textOrEmpty(userInfo, "sub"));
         return createLocalSession(tokens.accessToken(), userInfo, stored.returnTo(),
@@ -418,12 +418,13 @@ public final class NekoAuthOAuthService {
     private OidcDiscovery discovery() throws OAuthLoginException {
         long now = System.currentTimeMillis();
         URI issuer = issuerUri();
+        URI discoveryBase = serverBaseUri();
         OidcDiscovery cached = discoveryCache;
         if (cached != null && cached.issuer().equals(issuer.toString())
                 && now - cached.fetchedAt() < DISCOVERY_TTL_MS) {
             return cached;
         }
-        URI discoveryUri = URI.create(issuer + "/.well-known/openid-configuration");
+        URI discoveryUri = URI.create(discoveryBase + "/.well-known/openid-configuration");
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(discoveryUri)
                 .timeout(HTTP_TIMEOUT)
@@ -460,10 +461,11 @@ public final class NekoAuthOAuthService {
                                  String expectedNonce, String expectedSubject)
             throws OAuthLoginException {
         String clientId = requireConfigured(configManager.getOAuthClientId(), "oauth.client_id");
-        Map<String, PublicKey> keys = jwks(discovery.jwksUri(), false);
+        URI jwksUri = internalEndpoint(discovery.jwksUri());
+        Map<String, PublicKey> keys = jwks(jwksUri, false);
         PublicKey key = signingKey(idToken, keys);
         if (key == null) {
-            keys = jwks(discovery.jwksUri(), true);
+            keys = jwks(jwksUri, true);
             key = signingKey(idToken, keys);
         }
         if (key == null) {
@@ -687,6 +689,53 @@ public final class NekoAuthOAuthService {
         }
         if (uri.getRawQuery() != null || uri.getFragment() != null || uri.getRawUserInfo() != null) {
             throw new OAuthLoginException("oauth_not_configured", "NekoAuth 根地址不能包含查询、片段或用户信息");
+        }
+        return URI.create(value);
+    }
+
+    /** 服务端换取 token、读取 UserInfo、拉取 JWKS 时优先走 Auth 内部地址。 */
+    private URI serverBaseUri() throws OAuthLoginException {
+        String internal = configManager.getOAuthInternalBaseUrl();
+        if (internal != null && !internal.isBlank()) {
+            return validateBaseUri(internal, "oauth.internal_base_url");
+        }
+        return issuerUri();
+    }
+
+    private URI internalEndpoint(URI publicEndpoint) throws OAuthLoginException {
+        return internalEndpoint(publicEndpoint, serverBaseUri());
+    }
+
+    static URI internalEndpoint(URI publicEndpoint, URI internalBase) {
+        String path = publicEndpoint == null ? "" : publicEndpoint.getRawPath();
+        if (path == null || path.isBlank()) {
+            path = "/";
+        }
+        String query = publicEndpoint == null ? null : publicEndpoint.getRawQuery();
+        return URI.create(internalBase.toString() + path + (query == null ? "" : "?" + query));
+    }
+
+    private static URI validateBaseUri(String raw, String settingKey) throws OAuthLoginException {
+        String value = raw == null ? "" : raw.trim();
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        URI uri;
+        try {
+            uri = URI.create(value);
+        } catch (IllegalArgumentException exception) {
+            throw new OAuthLoginException("oauth_not_configured",
+                    "NekoAuth 地址格式不正确：" + settingKey, exception);
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        if (uri.getHost() == null || (!scheme.equals("https") && !scheme.equals("http"))
+                || uri.getRawQuery() != null || uri.getFragment() != null || uri.getRawUserInfo() != null) {
+            throw new OAuthLoginException("oauth_not_configured",
+                    "NekoAuth 地址格式不正确：" + settingKey);
+        }
+        if (scheme.equals("http") && !isLoopbackHost(uri.getHost())) {
+            throw new OAuthLoginException("oauth_not_configured",
+                    "非本机 NekoAuth 内部地址必须使用 HTTPS：" + settingKey);
         }
         return URI.create(value);
     }

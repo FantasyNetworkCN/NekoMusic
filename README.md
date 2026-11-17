@@ -152,6 +152,10 @@ Web 会周期校验登录态；Android 与 PC 回到前台时会重新请求 `GE
 管理后台不再维护独立管理员账号、密码或 `admin_token`。后台与普通业务共用同一个 NekoAuth access token，
 仅在 introspection 返回角色 `ADMIN` 时放行；当前没有超级管理员、审核员等细分角色，所有管理员拥有相同后台权限。
 
+服务端访问 NekoAuth 的 OIDC 发现、token 交换、UserInfo、JWKS、introspection、revoke、共享会话和公开资料接口时，优先使用
+`oauth.internal_base_url`（默认 `http://127.0.0.1:65534`），直接连接同机 Auth 服务，不经过公网 CDN/WAF；
+浏览器跳转、OIDC 发现与回调仍使用公开的 `oauth.issuer`。非 loopback 的内部地址必须使用 HTTPS。
+
 ### 账号操作流程
 
 - 登录：Web、Android 与 PC 新版本统一使用 NekoAuth OIDC 单点登录；成功后只保存 NekoAuth 签发的 access token，并用 `sub` 关联本地业务资料。
