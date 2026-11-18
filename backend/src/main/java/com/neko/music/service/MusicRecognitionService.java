@@ -24,6 +24,7 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -62,6 +63,7 @@ public final class MusicRecognitionService implements AutoCloseable {
     private final AudioFingerprintEngine liveQueryEngine;
     private final FingerprintDiskCache diskCache;
     private final FullIndexDiskCache fullIndexCache;
+    private final AudioFileLocator audioFileLocator;
     private final ExecutorService indexExecutor;
     private final ExecutorService fingerprintExecutor;
     private final Semaphore querySlots;
@@ -99,6 +101,18 @@ public final class MusicRecognitionService implements AutoCloseable {
             FingerprintDecoder queryDecoder,
             FingerprintDiskCache diskCache,
             FullIndexDiskCache fullIndexCache) {
+        this(config, catalog, decoder, queryDecoder, diskCache, fullIndexCache,
+                MusicAssetLocator::findAudioFiles);
+    }
+
+    MusicRecognitionService(
+            ConfigManager config,
+            TrackCatalog catalog,
+            FingerprintDecoder decoder,
+            FingerprintDecoder queryDecoder,
+            FingerprintDiskCache diskCache,
+            FullIndexDiskCache fullIndexCache,
+            AudioFileLocator audioFileLocator) {
         this.config = config;
         this.catalog = catalog;
         this.decoder = decoder;
@@ -106,6 +120,7 @@ public final class MusicRecognitionService implements AutoCloseable {
         this.liveQueryEngine = new AudioFingerprintEngine();
         this.diskCache = diskCache;
         this.fullIndexCache = fullIndexCache;
+        this.audioFileLocator = audioFileLocator;
         this.querySlots = new Semaphore(config.getMusicRecognitionMaxConcurrentRequests(), true);
         this.liveStreamSlots = new Semaphore(config.getMusicRecognitionMaxConcurrentRequests(), true);
         this.indexExecutor = Executors.newSingleThreadExecutor(runnable -> {
@@ -318,7 +333,11 @@ public final class MusicRecognitionService implements AutoCloseable {
             created.whenComplete((snapshot, error) -> {
                 boolean rebuildRequested;
                 synchronized (buildLock) {
-                    if (error == null && snapshot != null && buildGeneration == requestedGeneration) {
+                    // Publish a completed snapshot even if the catalog changed while it
+                    // was building. The old snapshot remains queryable until the next
+                    // build swaps in the newer one; discarding it would make recognition
+                    // unavailable during a burst of ingest events.
+                    if (error == null && snapshot != null) {
                         currentIndex = snapshot;
                     }
                     if (indexBuild == created) {
@@ -333,6 +352,10 @@ public final class MusicRecognitionService implements AutoCloseable {
                     buildRetryNotBeforeMillis = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(2);
                 }
                 if (rebuildRequested) {
+                    if (error == null && snapshot != null) {
+                        logger.info("曲库在声纹索引构建期间发生变化，已发布本次索引并继续后台刷新: indexedMusic={}",
+                                snapshot.index.musicCount());
+                    }
                     startBuildIfNeeded();
                 }
             });
@@ -344,7 +367,7 @@ public final class MusicRecognitionService implements AutoCloseable {
         long started = System.currentTimeMillis();
         List<Track> catalogTracks = catalog.loadTracks();
         List<Integer> catalogIds = catalogTracks.stream().map(Track::id).toList();
-        Map<Integer, Path> audioFiles = MusicAssetLocator.findAudioFiles(catalogIds);
+        Map<Integer, Path> audioFiles = audioFileLocator.findAudioFiles(catalogIds);
         diskCache.prune(new HashSet<>(catalogIds));
         List<CatalogEntry> catalogEntries = describeCatalog(catalogTracks, audioFiles);
 
@@ -720,6 +743,11 @@ public final class MusicRecognitionService implements AutoCloseable {
 
     interface TrackCatalog {
         List<Track> loadTracks() throws Exception;
+    }
+
+    @FunctionalInterface
+    interface AudioFileLocator {
+        Map<Integer, Path> findAudioFiles(Collection<Integer> musicIds) throws IOException;
     }
 
     interface FingerprintDecoder {
