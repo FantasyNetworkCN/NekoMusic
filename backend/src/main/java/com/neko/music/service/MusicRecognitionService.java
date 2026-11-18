@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -427,8 +428,7 @@ public final class MusicRecognitionService implements AutoCloseable {
             }
         }
         if (incrementalBase != null && !incrementalBase.tonalReady()
-                && (incrementalBase.catalogEntries.equals(catalogEntries)
-                || isAppendOnlyCatalog(incrementalBase.catalogEntries, catalogEntries))) {
+                && isAudioAppendOnlyCatalog(incrementalBase.catalogEntries, catalogEntries)) {
             // 兼容旧版 v2 总索引：复用已加载的 Panako 倒排索引，只补建和声声纹，
             // 新增歌曲仍走精确声纹增量构建，避免在 15 GB 级内存占用之上
             // 再复制整份经典索引。
@@ -560,6 +560,9 @@ public final class MusicRecognitionService implements AutoCloseable {
                 continue;
             }
             audioFileCount++;
+            if (indexedTracks.containsKey(track.id())) {
+                indexedTracks.put(track.id(), track);
+            }
             try {
                 Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
                 if (cached.isPresent() && cached.get().tonal().frameCount() > 0) {
@@ -797,6 +800,20 @@ public final class MusicRecognitionService implements AutoCloseable {
         currentCatalog.forEach(entry -> currentById.put(entry.track.id(), entry));
         for (CatalogEntry oldEntry : baseCatalog) {
             if (!oldEntry.equals(currentById.get(oldEntry.track.id()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isAudioAppendOnlyCatalog(
+            List<CatalogEntry> baseCatalog,
+            List<CatalogEntry> currentCatalog) {
+        Map<Integer, CatalogEntry> currentById = new HashMap<>(currentCatalog.size());
+        currentCatalog.forEach(entry -> currentById.put(entry.track.id(), entry));
+        for (CatalogEntry oldEntry : baseCatalog) {
+            CatalogEntry currentEntry = currentById.get(oldEntry.track.id());
+            if (currentEntry == null || !Objects.equals(oldEntry.audio, currentEntry.audio)) {
                 return false;
             }
         }

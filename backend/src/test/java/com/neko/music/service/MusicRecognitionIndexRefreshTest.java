@@ -158,8 +158,11 @@ class MusicRecognitionIndexRefreshTest {
         MusicRecognitionService.Track appendedTrack = track(2);
         Path audio = audioFile("1.mp3");
         Path appendedAudio = audioFile("2.mp3");
+        MusicRecognitionService.Track legacyTrack = new MusicRecognitionService.Track(
+                1, "Legacy title", "Legacy artist", "Legacy album",
+                240, "", "", "2026-10-01T00:00:00Z");
         MusicRecognitionService.CatalogEntry catalogEntry = new MusicRecognitionService.CatalogEntry(
-                track,
+                legacyTrack,
                 new MusicRecognitionService.AudioAsset(
                         audio.getFileName().toString(),
                         Files.size(audio),
@@ -201,6 +204,8 @@ class MusicRecognitionIndexRefreshTest {
                     service.recognize(tempDirectory.resolve("query-tonal.wav"));
             assertTrue(tonalResult.isPresent(), "the supplemented tonal index should be queryable");
             assertEquals(1, tonalResult.orElseThrow().track().id());
+            assertEquals(track.title(), tonalResult.orElseThrow().track().title(),
+                    "the replacement snapshot should refresh catalog metadata");
 
             Optional<MusicRecognitionService.RecognitionResult> appendedResult =
                     service.recognize(tempDirectory.resolve("query-appended.wav"));
