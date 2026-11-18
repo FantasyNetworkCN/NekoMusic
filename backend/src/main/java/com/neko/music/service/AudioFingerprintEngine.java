@@ -39,6 +39,8 @@ public final class AudioFingerprintEngine {
     private static final double SHORT_QUERY_SECONDS = 6d;
     private static final double DEFAULT_ALIGNMENT_TOLERANCE = 2.5d;
 
+    private final TonalFingerprintEngine tonalEngine = new TonalFingerprintEngine();
+
     public Fingerprint fingerprint(short[] samples) {
         return fingerprint(samples, true);
     }
@@ -71,7 +73,7 @@ public final class AudioFingerprintEngine {
             return new Fingerprint(List.of(), 0);
         }
         List<Landmark> landmarks = new PanakoSpectrumExtractor().extract(samples, queryMode);
-        return new Fingerprint(landmarks, samples.length);
+        return new Fingerprint(landmarks, samples.length, tonalEngine.extract(samples));
     }
 
     private static short[] readPcm(InputStream input, long maxSamples) throws IOException {
@@ -117,12 +119,23 @@ public final class AudioFingerprintEngine {
         }
     }
 
-    public record Fingerprint(List<Landmark> landmarks, long sampleCount) {
+    public record Fingerprint(
+            List<Landmark> landmarks,
+            long sampleCount,
+            TonalFingerprintEngine.TonalFingerprint tonal) {
         public Fingerprint {
             landmarks = landmarks == null ? List.of() : List.copyOf(landmarks);
             if (sampleCount < 0) {
                 throw new IllegalArgumentException("sampleCount cannot be negative");
             }
+            if (tonal == null) {
+                tonal = TonalFingerprintEngine.TonalFingerprint.empty(sampleCount);
+            }
+        }
+
+        /** 兼容只包含经典频谱声纹的测试和旧调用方。 */
+        public Fingerprint(List<Landmark> landmarks, long sampleCount) {
+            this(landmarks, sampleCount, TonalFingerprintEngine.TonalFingerprint.empty(sampleCount));
         }
 
         public double durationSeconds() {

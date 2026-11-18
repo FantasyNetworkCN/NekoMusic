@@ -3,6 +3,8 @@ package com.neko.music.service;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -49,6 +51,90 @@ class MusicRecognitionPersistenceTest {
     }
 
     @Test
+    void savesAndRestoresTonalIndex() throws Exception {
+        MusicRecognitionService.Track track = track(1, "First");
+        List<MusicRecognitionService.CatalogEntry> catalog =
+                List.of(entry(track, "1.mp3", 101L, 1_000L));
+        AudioFingerprintEngine.Fingerprint fingerprint = fingerprint(
+                landmark(100, 10), landmark(200, 210), landmark(300, 410));
+        TonalFingerprintEngine.TonalFingerprint tonal = tonalFingerprint(24);
+        TonalFingerprintEngine.Index.Builder tonalBuilder = TonalFingerprintEngine.Index.builder();
+        tonalBuilder.add(1, tonal);
+        MusicRecognitionService.IndexSnapshot snapshot = new MusicRecognitionService.IndexSnapshot(
+                AudioFingerprintEngine.Index.build(Map.of(1, fingerprint)),
+                tonalBuilder.build(), Map.of(1, track), Map.of(1, tonal),
+                catalog, System.currentTimeMillis(), true);
+
+        MusicRecognitionService.FullIndexDiskCache cache = cache();
+        cache.save(snapshot);
+        MusicRecognitionService.IndexSnapshot restored = cache.load(catalog).orElseThrow();
+
+        assertTrue(restored.tonalReady());
+        assertEquals(tonal, restored.tonalFingerprints().get(1));
+        assertTrue(restored.tonalIndex().findBest(tonal, restored.tonalFingerprints()).isPresent());
+    }
+
+    @Test
+    void loadsLegacyFingerprintCacheWithoutTonalTrailer() throws Exception {
+        Path audio = Files.write(tempDirectory.resolve("legacy.mp3"), new byte[]{1, 2, 3, 4});
+        Path directory = tempDirectory.resolve(".fingerprints");
+        Files.createDirectories(directory);
+        try (DataOutputStream output = new DataOutputStream(
+                new BufferedOutputStream(Files.newOutputStream(directory.resolve("1.nfp"))))) {
+            output.writeInt(0x4e465031);
+            output.writeInt(AudioFingerprintEngine.ALGORITHM_VERSION);
+            output.writeInt(1);
+            output.writeLong(Files.size(audio));
+            output.writeLong(Files.getLastModifiedTime(audio).toMillis());
+            output.writeUTF(audio.getFileName().toString());
+            output.writeLong(110_250L);
+            output.writeInt(3);
+            for (AudioFingerprintEngine.Landmark landmark : List.of(
+                    landmark(100, 10), landmark(200, 210), landmark(300, 410))) {
+                output.writeLong(landmark.hash());
+                output.writeInt(landmark.timeFrame());
+                output.writeInt(landmark.frequencyBin());
+            }
+        }
+
+        AudioFingerprintEngine.Fingerprint restored = new MusicRecognitionService.FingerprintDiskCache(directory)
+                .load(1, audio).orElseThrow();
+
+        assertEquals(3, restored.landmarks().size());
+        assertEquals(0, restored.tonal().frameCount());
+    }
+
+    @Test
+    void loadsLegacyFullIndexWithoutTonalIndex() throws Exception {
+        MusicRecognitionService.Track track = track(1, "First");
+        MusicRecognitionService.CatalogEntry entry = entry(track, "1.mp3", 101L, 1_000L);
+        Path file = tempDirectory.resolve("legacy.nfi");
+        try (DataOutputStream output = new DataOutputStream(
+                new BufferedOutputStream(Files.newOutputStream(file)))) {
+            output.writeInt(0x4e464931);
+            output.writeInt(2);
+            output.writeInt(AudioFingerprintEngine.ALGORITHM_VERSION);
+            output.writeInt(1);
+            writeCatalogEntry(output, entry);
+            output.writeInt(1);
+            output.writeInt(1);
+            output.writeInt(1);
+            output.writeLong(123L);
+            output.writeInt(3);
+            output.writeLong(((long) 1 << 32) | 10);
+            output.writeLong(((long) 1 << 32) | 210);
+            output.writeLong(((long) 1 << 32) | 410);
+        }
+
+        MusicRecognitionService.IndexSnapshot restored = new MusicRecognitionService.FullIndexDiskCache(file)
+                .load(List.of(entry)).orElseThrow();
+
+        assertFalse(restored.tonalReady());
+        assertEquals(1, restored.index().musicCount());
+        assertTrue(restored.tonalFingerprints().isEmpty());
+    }
+
+    @Test
     void rejectsPersistedIndexWhenAudioManifestChanges() throws Exception {
         MusicRecognitionService.Track track = track(1, "First");
         List<MusicRecognitionService.CatalogEntry> original = List.of(entry(track, "1.mp3", 101L, 1_000L));
@@ -87,6 +173,60 @@ class MusicRecognitionPersistenceTest {
             long modifiedAtMillis) {
         return new MusicRecognitionService.CatalogEntry(
                 track, new MusicRecognitionService.AudioAsset(fileName, size, modifiedAtMillis));
+    }
+
+    private static void writeCatalogEntry(
+            DataOutputStream output,
+            MusicRecognitionService.CatalogEntry entry) throws Exception {
+        MusicRecognitionService.Track track = entry.track();
+        output.writeInt(track.id());
+        writeString(output, track.title());
+        writeString(output, track.artist());
+        writeString(output, track.album());
+        output.writeInt(track.duration());
+        writeString(output, track.language());
+        writeString(output, track.tags());
+        writeString(output, track.updatedAt());
+        output.writeBoolean(entry.audio() != null);
+        if (entry.audio() != null) {
+            writeString(output, entry.audio().fileName());
+            output.writeLong(entry.audio().size());
+            output.writeLong(entry.audio().modifiedAtMillis());
+        }
+    }
+
+    private static void writeString(DataOutputStream output, String value) throws Exception {
+        byte[] bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        output.writeInt(bytes.length);
+        output.write(bytes);
+    }
+
+    private static TonalFingerprintEngine.TonalFingerprint tonalFingerprint(int frames) {
+        byte[] chroma = new byte[frames * 12];
+        byte[] chords = new byte[frames];
+        byte[] pitches = new byte[frames];
+        int[] roots = {0, 5, 7, 3, 8, 0, 10, 5};
+        for (int frame = 0; frame < frames; frame++) {
+            int root = roots[frame % roots.length];
+            int third = (root + ((frame & 1) == 0 ? 4 : 3)) % 12;
+            int fifth = (root + 7) % 12;
+            for (int pitch = 0; pitch < 12; pitch++) {
+                int value = 20 + Math.floorMod(pitch * 11 + frame * 5, 40);
+                if (pitch == root) {
+                    value = 245;
+                } else if (pitch == third) {
+                    value = 210;
+                } else if (pitch == fifth) {
+                    value = 185;
+                }
+                chroma[frame * 12 + pitch] = (byte) value;
+            }
+            chords[frame] = (byte) ((root << 1) | (frame & 1));
+            pitches[frame] = (byte) (root + (frame % 3) * 2);
+        }
+        return new TonalFingerprintEngine.TonalFingerprint(
+                chroma, chords, pitches, frames,
+                (long) frames * TonalFingerprintEngine.FRAME_SAMPLES);
     }
 
     private static AudioFingerprintEngine.Landmark landmark(int hash, int frame) {

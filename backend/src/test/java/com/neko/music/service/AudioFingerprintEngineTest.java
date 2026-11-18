@@ -34,6 +34,16 @@ class AudioFingerprintEngineTest {
     }
 
     @Test
+    void attachesTonalFingerprintToDecodedAudio() {
+        AudioFingerprintEngine engine = new AudioFingerprintEngine();
+
+        AudioFingerprintEngine.Fingerprint fingerprint = engine.fingerprint(waveform(8, 0));
+
+        assertTrue(fingerprint.tonal().frameCount() > 0);
+        assertEquals(8 * TonalFingerprintEngine.FRAME_RATE, fingerprint.tonal().frameCount());
+    }
+
+    @Test
     void acceptsShortQueryWithScaledMinimumMatchCount() {
         AudioFingerprintEngine engine = new AudioFingerprintEngine();
         short[] track = waveform(18, 0);

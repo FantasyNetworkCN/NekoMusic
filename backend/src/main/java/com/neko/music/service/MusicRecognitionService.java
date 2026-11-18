@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -211,25 +210,40 @@ public final class MusicRecognitionService implements AutoCloseable {
             throw new InvalidAudioException("录音过短，请至少录制 "
                     + config.getMusicRecognitionMinSampleDurationSeconds() + " 秒");
         }
-        if (query.landmarks().isEmpty()) {
+        if (query.landmarks().isEmpty() && query.tonal().frameCount() < 3) {
             throw new InvalidAudioException("录音中没有足够清晰的声音");
         }
-        Optional<AudioFingerprintEngine.Match> match = snapshot.index.findBest(
+        Optional<AudioFingerprintEngine.Match> exact = snapshot.index.findBest(
                 query,
                 config.getMusicRecognitionMinimumMatchingLandmarks(),
                 config.getMusicRecognitionMinimumConfidence());
-        if (match.isEmpty()) {
+        if (exact.isPresent()) {
+            AudioFingerprintEngine.Match value = exact.get();
+            Track track = snapshot.tracks.get(value.musicId());
+            if (track != null) {
+                return Optional.of(new RecognitionResult(
+                        track,
+                        value.confidence(),
+                        value.alignedLandmarks(),
+                        Math.max(0d, value.offsetSeconds()),
+                        query.durationSeconds()));
+            }
+        }
+
+        Optional<TonalFingerprintEngine.Match> tonal = snapshot.tonalIndex.findBest(
+                query.tonal(), snapshot.tonalFingerprints);
+        if (tonal.isEmpty()) {
             return Optional.empty();
         }
-        Track track = snapshot.tracks.get(match.get().musicId());
+        Track track = snapshot.tracks.get(tonal.get().musicId());
         if (track == null) {
             return Optional.empty();
         }
-        AudioFingerprintEngine.Match value = match.get();
+        TonalFingerprintEngine.Match value = tonal.get();
         return Optional.of(new RecognitionResult(
                 track,
                 value.confidence(),
-                value.alignedLandmarks(),
+                value.alignedFeatures(),
                 Math.max(0d, value.offsetSeconds()),
                 query.durationSeconds()));
     }
@@ -383,11 +397,12 @@ public final class MusicRecognitionService implements AutoCloseable {
         List<CatalogEntry> catalogEntries = describeCatalog(catalogTracks, audioFiles);
 
         IndexSnapshot ready = currentIndex;
-        if (ready != null && ready.catalogEntries.equals(catalogEntries)) {
+        if (ready != null && ready.tonalReady() && ready.catalogEntries.equals(catalogEntries)) {
             logger.info("曲库未变化，继续使用当前声纹索引: indexedMusic={}, uniqueHashes={}",
                     ready.index.musicCount(), ready.index.uniqueHashCount());
             IndexSnapshot refreshed = new IndexSnapshot(
-                    ready.index, ready.tracks, catalogEntries, System.currentTimeMillis());
+                    ready.index, ready.tonalIndex, ready.tracks, ready.tonalFingerprints,
+                    catalogEntries, System.currentTimeMillis(), true);
             persistSnapshot(refreshed, true, "补写曲库声纹总索引失败: {}");
             return refreshed;
         }
@@ -396,22 +411,36 @@ public final class MusicRecognitionService implements AutoCloseable {
         if (incrementalBase == null) {
             incrementalBase = fullIndexCache.load().orElse(null);
         }
-        if (incrementalBase != null && incrementalBase.catalogEntries.equals(catalogEntries)) {
+        if (incrementalBase != null && incrementalBase.tonalReady()
+                && incrementalBase.catalogEntries.equals(catalogEntries)) {
             logger.info("已从持久化文件恢复曲库声纹索引: indexedMusic={}, uniqueHashes={}, elapsedMs={}",
                     incrementalBase.index.musicCount(), incrementalBase.index.uniqueHashCount(),
                     System.currentTimeMillis() - started);
             return incrementalBase;
         }
-        if (incrementalBase != null && isAppendOnlyCatalog(incrementalBase.catalogEntries, catalogEntries)) {
+        if (incrementalBase != null && incrementalBase.tonalReady()
+                && isAppendOnlyCatalog(incrementalBase.catalogEntries, catalogEntries)) {
             IndexSnapshot incremental = buildIncrementalIndex(
                     incrementalBase, catalogTracks, audioFiles, catalogEntries, started);
             if (incremental != null) {
                 return incremental;
             }
         }
+        if (incrementalBase != null && !incrementalBase.tonalReady()
+                && incrementalBase.catalogEntries.equals(catalogEntries)) {
+            // 兼容旧版 v2 总索引：复用已加载的 Panako 倒排索引，只补建和声声纹，
+            // 避免在 15 GB 级内存占用之上再复制一整份经典索引。
+            IndexSnapshot supplemented = buildTonalSupplement(
+                    incrementalBase, catalogTracks, audioFiles, catalogEntries, started);
+            if (supplemented != null) {
+                return supplemented;
+            }
+        }
 
         Map<Integer, Track> indexedTracks = new LinkedHashMap<>();
+        Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints = new LinkedHashMap<>();
         AudioFingerprintEngine.Index.Builder indexBuilder = AudioFingerprintEngine.Index.builder();
+        TonalFingerprintEngine.Index.Builder tonalBuilder = TonalFingerprintEngine.Index.builder();
         int cacheHits = 0;
         int audioFileCount = 0;
         int failed = 0;
@@ -429,12 +458,14 @@ public final class MusicRecognitionService implements AutoCloseable {
             audioFileCount++;
             try {
                 Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
-                if (cached.isEmpty()) {
+                if (cached.isEmpty() || cached.get().tonal().frameCount() == 0) {
+                    // 旧版单曲缓存只有 Panako 声纹，需重新解码补齐和声声纹。
                     pendingTasks.add(completion.submit(() -> generateFingerprint(track, audio)));
                     continue;
                 }
                 cacheHits++;
-                addFingerprint(track, audio, cached.get(), indexBuilder, indexedTracks);
+                addFingerprint(track, audio, cached.get(), indexBuilder, tonalBuilder,
+                        indexedTracks, tonalFingerprints);
             } catch (Exception e) {
                 failed++;
                 lastFailure = e;
@@ -462,7 +493,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                     generated++;
                     addFingerprint(
                             result.track(), result.audio(), result.fingerprint(),
-                            indexBuilder, indexedTracks);
+                            indexBuilder, tonalBuilder, indexedTracks, tonalFingerprints);
                 } else {
                     failed++;
                     lastFailure = result.failure();
@@ -489,14 +520,116 @@ public final class MusicRecognitionService implements AutoCloseable {
         }
 
         IndexSnapshot snapshot = new IndexSnapshot(
-                indexBuilder.build(), Map.copyOf(indexedTracks), catalogEntries,
-                System.currentTimeMillis());
+                indexBuilder.build(), tonalBuilder.build(), Map.copyOf(indexedTracks),
+                Map.copyOf(tonalFingerprints), catalogEntries, System.currentTimeMillis(), true);
         persistSnapshot(snapshot, false, "持久化曲库声纹总索引失败，本次仍使用内存索引: {}");
         logger.info("曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, failed={}, workers={}, elapsedMs={}",
                 snapshot.index.musicCount(), snapshot.index.uniqueHashCount(), cacheHits, generated, failed,
                 config.getMusicRecognitionIndexBuildThreads(),
                 System.currentTimeMillis() - started);
         return snapshot;
+    }
+
+    private IndexSnapshot buildTonalSupplement(
+            IndexSnapshot base,
+            List<Track> catalogTracks,
+            Map<Integer, Path> audioFiles,
+            List<CatalogEntry> catalogEntries,
+            long started) throws Exception {
+        logger.info("旧版声纹索引缺少和声声纹，开始补齐: catalog={}, baseIndexed={}, baseHashes={}",
+                catalogTracks.size(), base.index.musicCount(), base.index.uniqueHashCount());
+        TonalFingerprintEngine.Index.Builder tonalBuilder = TonalFingerprintEngine.Index.builder();
+        Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints = new LinkedHashMap<>();
+        ExecutorCompletionService<FingerprintBuildResult> completion =
+                new ExecutorCompletionService<>(fingerprintExecutor);
+        Set<Future<FingerprintBuildResult>> pendingTasks = ConcurrentHashMap.newKeySet();
+        int cacheHits = 0;
+        int generated = 0;
+        int failed = 0;
+        int audioFileCount = 0;
+        Exception lastFailure = null;
+
+        for (Track track : catalogTracks) {
+            Path audio = audioFiles.get(track.id());
+            if (audio == null) {
+                continue;
+            }
+            audioFileCount++;
+            try {
+                Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
+                if (cached.isPresent() && cached.get().tonal().frameCount() > 0) {
+                    cacheHits++;
+                    addTonalFingerprint(track, cached.get(), tonalBuilder, tonalFingerprints);
+                } else {
+                    pendingTasks.add(completion.submit(() -> generateFingerprint(track, audio)));
+                }
+            } catch (Exception e) {
+                failed++;
+                lastFailure = e;
+            }
+        }
+
+        int pendingCount = pendingTasks.size();
+        int firstPassProcessed = cacheHits + failed;
+        int progressInterval = Math.max(1, pendingCount / 20);
+        logger.info("和声声纹扫描完成，待生成={}，缓存命中={}，扫描失败={}",
+                pendingCount, cacheHits, failed);
+        try {
+            for (int completed = 0; completed < pendingCount;) {
+                Future<FingerprintBuildResult> task = completion.poll(30, TimeUnit.SECONDS);
+                if (task == null) {
+                    continue;
+                }
+                completed++;
+                pendingTasks.remove(task);
+                FingerprintBuildResult result = task.get();
+                if (result.failure() == null) {
+                    generated++;
+                    addTonalFingerprint(
+                            result.track(), result.fingerprint(), tonalBuilder, tonalFingerprints);
+                } else {
+                    failed++;
+                    lastFailure = result.failure();
+                }
+                if (completed == pendingCount || completed % progressInterval == 0) {
+                    logIndexBuildProgress("和声声纹生成",
+                            firstPassProcessed + completed, audioFileCount,
+                            cacheHits, generated, failed);
+                }
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            abortFingerprintDrain(e, pendingTasks, "和声声纹补建被中断", "和声声纹并行任务异常: ");
+        }
+        pendingTasks.clear();
+        if (audioFileCount > 0 && tonalFingerprints.isEmpty() && lastFailure != null) {
+            throw new IOException("没有任何曲库音频成功生成和声声纹", lastFailure);
+        }
+        if (failed > 0 && lastFailure != null) {
+            logger.warn("和声声纹补建跳过 {} 首无法处理的歌曲，最近错误: {}",
+                    failed, safeMessage(lastFailure));
+        }
+
+        IndexSnapshot snapshot = new IndexSnapshot(
+                base.index, tonalBuilder.build(), Map.copyOf(base.tracks),
+                Map.copyOf(tonalFingerprints), catalogEntries, System.currentTimeMillis(), true);
+        persistSnapshot(snapshot, false, "持久化和声声纹总索引失败，本次仍使用内存索引: {}");
+        logger.info("和声声纹补建完成: exactIndexed={}, tonalIndexed={}, cacheHits={}, generated={}, failed={}, elapsedMs={}",
+                snapshot.index.musicCount(), snapshot.tonalFingerprints.size(),
+                cacheHits, generated, failed, System.currentTimeMillis() - started);
+        return snapshot;
+    }
+
+    private static void addTonalFingerprint(
+            Track track,
+            AudioFingerprintEngine.Fingerprint fingerprint,
+            TonalFingerprintEngine.Index.Builder tonalBuilder,
+            Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints) {
+        TonalFingerprintEngine.TonalFingerprint tonal = fingerprint.tonal();
+        if (tonal.frameCount() < 3) {
+            return;
+        }
+        tonalBuilder.add(track.id(), tonal);
+        tonalFingerprints.put(track.id(), tonal);
     }
 
     private IndexSnapshot buildIncrementalIndex(
@@ -518,7 +651,11 @@ public final class MusicRecognitionService implements AutoCloseable {
                 addedTracks.size(), base.index.musicCount(), base.index.uniqueHashCount());
         AudioFingerprintEngine.Index.Builder indexBuilder =
                 AudioFingerprintEngine.Index.builder(base.index);
+        TonalFingerprintEngine.Index.Builder tonalBuilder =
+                TonalFingerprintEngine.Index.builder(base.tonalIndex);
         Map<Integer, Track> indexedTracks = new LinkedHashMap<>(base.tracks);
+        Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints =
+                new LinkedHashMap<>(base.tonalFingerprints);
         ExecutorCompletionService<FingerprintBuildResult> completion =
                 new ExecutorCompletionService<>(fingerprintExecutor);
         Set<Future<FingerprintBuildResult>> pendingTasks = ConcurrentHashMap.newKeySet();
@@ -536,9 +673,10 @@ public final class MusicRecognitionService implements AutoCloseable {
             audioFileCount++;
             try {
                 Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
-                if (cached.isPresent()) {
+                if (cached.isPresent() && cached.get().tonal().frameCount() > 0) {
                     cacheHits++;
-                    addFingerprint(track, audio, cached.get(), indexBuilder, indexedTracks);
+                    addFingerprint(track, audio, cached.get(), indexBuilder, tonalBuilder,
+                        indexedTracks, tonalFingerprints);
                 } else {
                     pendingTasks.add(completion.submit(() -> generateFingerprint(track, audio)));
                 }
@@ -565,7 +703,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                 if (result.failure() == null) {
                     generated++;
                     addFingerprint(result.track(), result.audio(), result.fingerprint(),
-                            indexBuilder, indexedTracks);
+                            indexBuilder, tonalBuilder, indexedTracks, tonalFingerprints);
                 } else {
                     failed++;
                     lastFailure = result.failure();
@@ -585,8 +723,8 @@ public final class MusicRecognitionService implements AutoCloseable {
                     failed, safeMessage(lastFailure));
         }
         IndexSnapshot snapshot = new IndexSnapshot(
-                indexBuilder.build(), Map.copyOf(indexedTracks), catalogEntries,
-                System.currentTimeMillis());
+                indexBuilder.build(), tonalBuilder.build(), Map.copyOf(indexedTracks),
+                Map.copyOf(tonalFingerprints), catalogEntries, System.currentTimeMillis(), true);
         persistSnapshot(snapshot, false, "持久化增量曲库声纹总索引失败，本次仍使用内存索引: {}");
         logger.info("增量曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, failed={}, elapsedMs={}",
                 snapshot.index.musicCount(), snapshot.index.uniqueHashCount(), cacheHits, generated, failed,
@@ -671,12 +809,16 @@ public final class MusicRecognitionService implements AutoCloseable {
             Path audio,
             AudioFingerprintEngine.Fingerprint fingerprint,
             AudioFingerprintEngine.Index.Builder indexBuilder,
-            Map<Integer, Track> indexedTracks) {
-        if (fingerprint.landmarks().isEmpty()) {
+            TonalFingerprintEngine.Index.Builder tonalBuilder,
+            Map<Integer, Track> indexedTracks,
+            Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints) {
+        AudioFingerprintEngine.Fingerprint bounded = limitLandmarks(fingerprint);
+        if (bounded.landmarks().isEmpty()) {
             logger.debug("歌曲无法生成有效声纹，已跳过 musicId={} path={}", track.id(), audio);
             return;
         }
-        indexBuilder.add(track.id(), limitLandmarks(fingerprint));
+        indexBuilder.add(track.id(), bounded);
+        addTonalFingerprint(track, bounded, tonalBuilder, tonalFingerprints);
         indexedTracks.put(track.id(), track);
     }
 
@@ -701,7 +843,8 @@ public final class MusicRecognitionService implements AutoCloseable {
         for (int i = 0; i < maxLandmarks; i++) {
             sampled.add(landmarks.get((int) Math.round(i * step)));
         }
-        return new AudioFingerprintEngine.Fingerprint(sampled, fingerprint.sampleCount());
+        return new AudioFingerprintEngine.Fingerprint(
+                sampled, fingerprint.sampleCount(), fingerprint.tonal());
     }
 
     private static List<CatalogEntry> describeCatalog(
@@ -781,9 +924,25 @@ public final class MusicRecognitionService implements AutoCloseable {
 
     record IndexSnapshot(
             AudioFingerprintEngine.Index index,
+            TonalFingerprintEngine.Index tonalIndex,
             Map<Integer, Track> tracks,
+            Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints,
             List<CatalogEntry> catalogEntries,
-            long builtAtMillis) {
+            long builtAtMillis,
+            boolean tonalReady) {
+        IndexSnapshot {
+            tonalIndex = tonalIndex == null ? TonalFingerprintEngine.Index.builder().build() : tonalIndex;
+            tonalFingerprints = tonalFingerprints == null ? Map.of() : Map.copyOf(tonalFingerprints);
+        }
+
+        /** 兼容只验证经典 Panako 索引的旧测试和旧持久化调用。 */
+        IndexSnapshot(
+                AudioFingerprintEngine.Index index,
+                Map<Integer, Track> tracks,
+                List<CatalogEntry> catalogEntries,
+                long builtAtMillis) {
+            this(index, null, tracks, Map.of(), catalogEntries, builtAtMillis, false);
+        }
     }
 
     private static final class DatabaseTrackCatalog implements TrackCatalog {
@@ -901,13 +1060,19 @@ public final class MusicRecognitionService implements AutoCloseable {
     /** Persistent, directly loadable inverted index plus a catalog/audio validity manifest. */
     static final class FullIndexDiskCache {
         private static final int MAGIC = 0x4e464931; // NFI1
-        private static final int FORMAT_VERSION = 2;
+        private static final int FORMAT_VERSION = 3;
+        private static final int LEGACY_FORMAT_VERSION = 2;
+        private static final int LEGACY_ALGORITHM_VERSION = 5;
         private static final int MAX_TRACKS = 1_000_000;
         // Panako 的 34-bit 哈希在数万首曲库中会产生大量唯一键；
         // 旧的 1000 万上限会让新索引每次重启都被拒绝并触发全量重建。
         private static final int MAX_HASHES = 400_000_000;
         private static final int MAX_POSTINGS_PER_HASH = 10_000_000;
         private static final long MAX_TOTAL_POSTINGS = 600_000_000L;
+        private static final int MAX_TONAL_HASHES = 100_000_000;
+        private static final int MAX_TONAL_POSTINGS_PER_HASH = 10_000_000;
+        private static final long MAX_TOTAL_TONAL_POSTINGS = 160_000_000L;
+        private static final int MAX_TONAL_FRAMES = 2_000_000;
         private static final int MAX_STRING_BYTES = 1024 * 1024;
 
         private final Path file;
@@ -934,9 +1099,16 @@ public final class MusicRecognitionService implements AutoCloseable {
             }
             try (DataInputStream input = new DataInputStream(
                     new BufferedInputStream(Files.newInputStream(file)))) {
-                if (input.readInt() != MAGIC
-                        || input.readInt() != FORMAT_VERSION
-                        || input.readInt() != AudioFingerprintEngine.ALGORITHM_VERSION) {
+                if (input.readInt() != MAGIC) {
+                    return Optional.empty();
+                }
+                int formatVersion = input.readInt();
+                int algorithmVersion = input.readInt();
+                boolean hasTonalIndex = formatVersion == FORMAT_VERSION
+                        && algorithmVersion == AudioFingerprintEngine.ALGORITHM_VERSION;
+                boolean legacyExactOnly = formatVersion == LEGACY_FORMAT_VERSION
+                        && algorithmVersion == LEGACY_ALGORITHM_VERSION;
+                if (!hasTonalIndex && !legacyExactOnly) {
                     return Optional.empty();
                 }
 
@@ -983,12 +1155,58 @@ public final class MusicRecognitionService implements AutoCloseable {
                     }
                     totalPostings += postingCount;
                 }
+                Map<Long, long[]> tonalPostings = new HashMap<>();
+                Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints = new HashMap<>();
+                if (hasTonalIndex) {
+                    int tonalHashCount = readCount(input, MAX_TONAL_HASHES, "tonal hashes");
+                    long totalTonalPostings = 0L;
+                    for (int i = 0; i < tonalHashCount; i++) {
+                        long hash = input.readLong();
+                        int postingCount = readCount(input, MAX_TONAL_POSTINGS_PER_HASH, "tonal postings");
+                        if (postingCount == 0 || totalTonalPostings + postingCount > MAX_TOTAL_TONAL_POSTINGS) {
+                            throw new IOException("invalid total tonal posting count");
+                        }
+                        long[] values = new long[postingCount];
+                        for (int j = 0; j < postingCount; j++) {
+                            long posting = input.readLong();
+                            int musicId = (int) (posting >>> 32);
+                            if (!indexedIds.contains(musicId)) {
+                                throw new IOException("tonal posting references unknown music id: " + musicId);
+                            }
+                            values[j] = posting;
+                        }
+                        if (tonalPostings.put(hash, values) != null) {
+                            throw new IOException("duplicate tonal hash in persistent index");
+                        }
+                        totalTonalPostings += postingCount;
+                    }
+                    int tonalTrackCount = readCount(input, MAX_TRACKS, "tonal tracks");
+                    for (int i = 0; i < tonalTrackCount; i++) {
+                        int musicId = input.readInt();
+                        if (!indexedIds.contains(musicId) || tonalFingerprints.containsKey(musicId)) {
+                            throw new IOException("invalid tonal music id: " + musicId);
+                        }
+                        long sampleCount = input.readLong();
+                        int frameCount = readCount(input, MAX_TONAL_FRAMES, "tonal frames");
+                        byte[] chroma = new byte[frameCount * 12];
+                        byte[] chords = new byte[frameCount];
+                        byte[] pitches = new byte[frameCount];
+                        input.readFully(chroma);
+                        input.readFully(chords);
+                        input.readFully(pitches);
+                        tonalFingerprints.put(musicId, new TonalFingerprintEngine.TonalFingerprint(
+                                chroma, chords, pitches, frameCount, sampleCount));
+                    }
+                }
                 if (input.read() != -1) {
                     throw new IOException("persistent index contains trailing data");
                 }
                 AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.restore(postings, indexedCount);
+                TonalFingerprintEngine.Index tonalIndex =
+                        TonalFingerprintEngine.Index.restore(tonalPostings, hasTonalIndex ? indexedCount : 0);
                 return Optional.of(new IndexSnapshot(
-                        index, Map.copyOf(indexedTracks), List.copyOf(storedCatalog), System.currentTimeMillis()));
+                        index, tonalIndex, Map.copyOf(indexedTracks), Map.copyOf(tonalFingerprints),
+                        List.copyOf(storedCatalog), System.currentTimeMillis(), hasTonalIndex));
             } catch (Exception e) {
                 logger.warn("读取持久化曲库声纹总索引失败，将从单曲缓存重建: file={} error={}",
                         file, safeMessage(e));
@@ -1020,7 +1238,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                         output.writeInt(musicId);
                     }
 
-                    Map<Long, long[]> postings = new TreeMap<>(snapshot.index.postingsView());
+                    Map<Long, long[]> postings = snapshot.index.postingsView();
                     output.writeInt(postings.size());
                     for (Map.Entry<Long, long[]> entry : postings.entrySet()) {
                         output.writeLong(entry.getKey());
@@ -1028,6 +1246,29 @@ public final class MusicRecognitionService implements AutoCloseable {
                         for (long posting : entry.getValue()) {
                             output.writeLong(posting);
                         }
+                    }
+
+                    Map<Long, long[]> tonalPostings = snapshot.tonalIndex.postingsView();
+                    output.writeInt(tonalPostings.size());
+                    for (Map.Entry<Long, long[]> entry : tonalPostings.entrySet()) {
+                        output.writeLong(entry.getKey());
+                        output.writeInt(entry.getValue().length);
+                        for (long posting : entry.getValue()) {
+                            output.writeLong(posting);
+                        }
+                    }
+
+                    List<Integer> tonalIds = snapshot.tonalFingerprints.keySet().stream().sorted().toList();
+                    output.writeInt(tonalIds.size());
+                    for (int musicId : tonalIds) {
+                        TonalFingerprintEngine.TonalFingerprint fingerprint =
+                                snapshot.tonalFingerprints.get(musicId);
+                        output.writeInt(musicId);
+                        output.writeLong(fingerprint.sampleCount());
+                        output.writeInt(fingerprint.frameCount());
+                        output.write(fingerprint.chroma(), 0, fingerprint.frameCount() * 12);
+                        output.write(fingerprint.chords(), 0, fingerprint.frameCount());
+                        output.write(fingerprint.pitches(), 0, fingerprint.frameCount());
                     }
                 }
                 moveAtomically(temp, file);
@@ -1091,7 +1332,9 @@ public final class MusicRecognitionService implements AutoCloseable {
 
     static final class FingerprintDiskCache {
         private static final int MAGIC = 0x4e465031; // NFP1
+        private static final int TONAL_MAGIC = 0x4e465431; // NFT1
         private static final int MAX_CACHED_LANDMARKS = 2_000_000;
+        private static final int MAX_CACHED_TONAL_FRAMES = 2_000_000;
 
         private final Path directory;
 
@@ -1125,7 +1368,35 @@ public final class MusicRecognitionService implements AutoCloseable {
                             input.readInt(),
                             input.readInt()));
                 }
-                return Optional.of(new AudioFingerprintEngine.Fingerprint(landmarks, sampleCount));
+                TonalFingerprintEngine.TonalFingerprint tonal;
+                int firstTonalByte = input.read();
+                if (firstTonalByte == -1) {
+                    // 旧格式只保存 Panako 声纹；和声声纹会在后台单独补齐。
+                    tonal = TonalFingerprintEngine.TonalFingerprint.empty(sampleCount);
+                } else {
+                    int marker = (firstTonalByte << 24)
+                            | (input.readUnsignedByte() << 16)
+                            | (input.readUnsignedByte() << 8)
+                            | input.readUnsignedByte();
+                    int tonalVersion = input.readInt();
+                    if (marker != TONAL_MAGIC
+                            || tonalVersion != TonalFingerprintEngine.ALGORITHM_VERSION) {
+                        throw new IOException("unsupported tonal fingerprint version");
+                    }
+                    int tonalFrames = readIndexCount(input, MAX_CACHED_TONAL_FRAMES, "tonal frames");
+                    byte[] chroma = new byte[tonalFrames * 12];
+                    byte[] chords = new byte[tonalFrames];
+                    byte[] pitches = new byte[tonalFrames];
+                    input.readFully(chroma);
+                    input.readFully(chords);
+                    input.readFully(pitches);
+                    tonal = new TonalFingerprintEngine.TonalFingerprint(
+                            chroma, chords, pitches, tonalFrames, sampleCount);
+                }
+                if (input.read() != -1) {
+                    throw new IOException("fingerprint cache contains trailing data");
+                }
+                return Optional.of(new AudioFingerprintEngine.Fingerprint(landmarks, sampleCount, tonal));
             } catch (Exception e) {
                 logger.debug("读取声纹缓存失败 musicId={} cache={}: {}", musicId, cacheFile, safeMessage(e));
                 return Optional.empty();
@@ -1152,11 +1423,28 @@ public final class MusicRecognitionService implements AutoCloseable {
                         output.writeInt(landmark.timeFrame());
                         output.writeInt(landmark.frequencyBin());
                     }
+                    TonalFingerprintEngine.TonalFingerprint tonal = fingerprint.tonal();
+                    output.writeInt(TONAL_MAGIC);
+                    output.writeInt(TonalFingerprintEngine.ALGORITHM_VERSION);
+                    output.writeInt(tonal.frameCount());
+                    int chromaBytes = tonal.frameCount() * 12;
+                    output.write(tonal.chroma(), 0, chromaBytes);
+                    output.write(tonal.chords(), 0, tonal.frameCount());
+                    output.write(tonal.pitches(), 0, tonal.frameCount());
                 }
                 moveAtomically(temp, target);
             } finally {
                 Files.deleteIfExists(temp);
             }
+        }
+
+        private static int readIndexCount(DataInputStream input, int maximum, String label)
+                throws IOException {
+            int count = input.readInt();
+            if (count < 0 || count > maximum) {
+                throw new IOException("invalid " + label + " count: " + count);
+            }
+            return count;
         }
 
         private Path cacheFile(int musicId) {
