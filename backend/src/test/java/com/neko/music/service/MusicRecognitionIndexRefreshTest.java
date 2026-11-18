@@ -106,6 +106,50 @@ class MusicRecognitionIndexRefreshTest {
         }
     }
 
+    @Test
+    void publishesPersistedIndexBeforeRefreshingAChangedCatalog() throws Exception {
+        MutableCatalog initialCatalog = new MutableCatalog(List.of(track(1), track(2)), false);
+        FakeDecoder initialDecoder = new FakeDecoder();
+        initialDecoder.put("1.mp3", fingerprint(100_000));
+        initialDecoder.put("2.mp3", fingerprint(200_000));
+        initialDecoder.put("query1.wav", fingerprint(100_000));
+
+        Map<Integer, Path> audioFiles = new ConcurrentHashMap<>();
+        audioFiles.put(1, audioFile("1.mp3"));
+        audioFiles.put(2, audioFile("2.mp3"));
+        MusicRecognitionService first = service(initialCatalog, initialDecoder, audioFiles);
+        try {
+            first.warmUp();
+            awaitIndexed(first, 2, 10);
+        } finally {
+            first.close();
+        }
+
+        MutableCatalog changedCatalog = new MutableCatalog(List.of(track(1), track(2), track(3)), false);
+        FakeDecoder changedDecoder = new FakeDecoder();
+        changedDecoder.put("1.mp3", fingerprint(100_000));
+        changedDecoder.put("2.mp3", fingerprint(200_000));
+        changedDecoder.put("3.mp3", fingerprint(300_000));
+        changedDecoder.put("query1.wav", fingerprint(100_000));
+        changedDecoder.blockOnce("3.mp3");
+        audioFiles.put(3, audioFile("3.mp3"));
+        MusicRecognitionService restarted = service(changedCatalog, changedDecoder, audioFiles);
+        try {
+            restarted.warmUp();
+            assertTrue(changedDecoder.awaitBlocked(5),
+                    "changed catalog refresh should reach the blocked new track");
+            assertTrue(restarted.status().ready(),
+                    "persisted index must be published before the catalog refresh completes");
+            Optional<MusicRecognitionService.RecognitionResult> result =
+                    restarted.recognize(tempDirectory.resolve("query1.wav"));
+            assertTrue(result.isPresent(), "persisted index should serve while the refresh is blocked");
+            assertEquals(1, result.orElseThrow().track().id());
+        } finally {
+            changedDecoder.release();
+            restarted.close();
+        }
+    }
+
     private MusicRecognitionService service(
             MutableCatalog catalog,
             FakeDecoder decoder,

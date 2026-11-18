@@ -366,6 +366,17 @@ public final class MusicRecognitionService implements AutoCloseable {
     private IndexSnapshot buildIndex() throws Exception {
         long started = System.currentTimeMillis();
         List<Track> catalogTracks = catalog.loadTracks();
+        if (currentIndex == null) {
+            IndexSnapshot persisted = fullIndexCache.load().orElse(null);
+            if (persisted != null) {
+                // Publish the persisted index before validating and refreshing the
+                // catalog. Recognition can then keep serving while a restart or a
+                // large catalog change is being processed in the background.
+                currentIndex = persisted;
+                logger.info("已先发布持久化声纹索引，后台继续校验并刷新: indexedMusic={}, uniqueHashes={}",
+                        persisted.index.musicCount(), persisted.index.uniqueHashCount());
+            }
+        }
         List<Integer> catalogIds = catalogTracks.stream().map(Track::id).toList();
         Map<Integer, Path> audioFiles = audioFileLocator.findAudioFiles(catalogIds);
         diskCache.prune(new HashSet<>(catalogIds));
