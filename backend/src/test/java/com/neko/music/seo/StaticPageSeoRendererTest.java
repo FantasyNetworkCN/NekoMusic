@@ -7,6 +7,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StaticPageSeoRendererTest {
 
     @Test
+    void homepageSeoHtmlContainsSearchEngineVerificationMetas() {
+        String html = StaticPageSeoRenderer.create()
+                .render("/", "https://music.example.com/");
+
+        assertTrue(html.contains(
+                "<meta name=\"google-site-verification\" content=\"kFmS8k6LwS5nAd0AkIPZiVOZWBVyMbMURd4xmLFMSn4\">"));
+        assertTrue(html.contains(
+                "<meta name=\"msvalidate.01\" content=\"D8558F3D52699B60E489A1D52F332998\">"));
+    }
+
+    @Test
     void lxmusicLandingPageTargetsLxMusicAndLxmcKeywords() {
         assertTrue(StaticPageSeoRenderer.isStaticPage("/lxmusic"));
 

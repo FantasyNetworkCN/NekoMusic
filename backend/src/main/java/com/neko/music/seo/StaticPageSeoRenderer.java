@@ -41,6 +41,10 @@ public final class StaticPageSeoRenderer {
     private static final String REPO_DOCS = "https://github.com/FantasyNetworkCN/NekoMusicDocs";
     private static final String LICENSE_URL = "https://www.gnu.org/licenses/agpl-3.0.html";
     private static final String SITE_ICON_PATH = "/icons/icon-512.png";
+    private static final String GOOGLE_SITE_VERIFICATION =
+            "kFmS8k6LwS5nAd0AkIPZiVOZWBVyMbMURd4xmLFMSn4";
+    private static final String BING_SITE_VERIFICATION =
+            "D8558F3D52699B60E489A1D52F332998";
 
     private static final Set<String> STATIC_PAGES = Set.of(
             "/", "/lxmusic", "/tools-lyr", "/download", "/about", "/privacy", "/ranking", "/latest", "/search");
@@ -789,6 +793,10 @@ public final class StaticPageSeoRenderer {
         sb.append("<!DOCTYPE html>\n");
         sb.append("<html lang=\"zh-CN\" prefix=\"og: https://ogp.me/ns#\">\n<head>\n");
         sb.append("<meta charset=\"UTF-8\">\n");
+        sb.append("<meta name=\"google-site-verification\" content=\"")
+                .append(GOOGLE_SITE_VERIFICATION).append("\">\n");
+        sb.append("<meta name=\"msvalidate.01\" content=\"")
+                .append(BING_SITE_VERIFICATION).append("\">\n");
         sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
         sb.append("<title>").append(esc(page.title())).append("</title>\n");
         sb.append("<meta name=\"description\" content=\"").append(esc(page.description())).append("\">\n");

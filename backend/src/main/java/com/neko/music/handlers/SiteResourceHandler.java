@@ -199,6 +199,7 @@ public final class SiteResourceHandler extends HttpServlet {
         if (fileName.endsWith(".css")) return "text/css; charset=UTF-8";
         if (fileName.endsWith(".js") || fileName.endsWith(".mjs")) return "text/javascript; charset=UTF-8";
         if (fileName.endsWith(".json") || fileName.endsWith(".map")) return "application/json; charset=UTF-8";
+        if (fileName.endsWith(".xml")) return "application/xml; charset=UTF-8";
         if (fileName.endsWith(".txt")) return "text/plain; charset=UTF-8";
         if (fileName.endsWith(".webmanifest")) return "application/manifest+json; charset=UTF-8";
         if (fileName.endsWith(".svg")) return "image/svg+xml";

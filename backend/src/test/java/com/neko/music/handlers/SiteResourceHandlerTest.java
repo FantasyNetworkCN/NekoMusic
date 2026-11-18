@@ -99,6 +99,15 @@ class SiteResourceHandlerTest {
     }
 
     @Test
+    void bingSiteAuthFileIsCrawlerAccessible() throws Exception {
+        Result result = run("/BingSiteAuth.xml");
+
+        assertEquals(200, result.status());
+        assertEquals("application/xml; charset=UTF-8", result.contentType());
+        assertTrue(result.body().contains("<user>D8558F3D52699B60E489A1D52F332998</user>"));
+    }
+
+    @Test
     void privateSpaRouteIsNoindexAtHttpLayer() throws Exception {
         Result result = run("/favorites");
 
