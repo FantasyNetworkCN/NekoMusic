@@ -206,37 +206,80 @@ public final class AudioFingerprintEngine {
                 if (musicId <= 0 || fingerprint == null || fingerprint.landmarks().isEmpty()) {
                     return;
                 }
-                int postingsBeforeTrack = (int) Math.min(Integer.MAX_VALUE, totalPostings);
-                Set<Long> uniqueForTrack = new HashSet<>();
-                for (Landmark landmark : fingerprint.landmarks()) {
-                    if (totalPostings >= MAX_INDEX_TOTAL_POSTINGS) {
-                        break;
+                try (TrackAppender appender = beginTrack(musicId, true)) {
+                    for (Landmark landmark : fingerprint.landmarks()) {
+                        appender.add(landmark.hash(), landmark.timeFrame());
                     }
-                    long duplicateKey = ((landmark.hash() & 0x3f_ffff_ffffL) << 32)
-                            | (landmark.timeFrame() & 0xffff_ffffL);
-                    if (!uniqueForTrack.add(duplicateKey)) {
-                        continue;
-                    }
-                    long posting = ((long) musicId << 32)
-                            | (landmark.timeFrame() & 0xffff_ffffL);
-                    LongList values = mutable.computeIfAbsent(
-                            landmark.hash(), ignored -> new LongList(basePostings.get(landmark.hash())));
-                    if (values.size() >= MAX_INDEX_POSTINGS_PER_HASH) {
-                        continue;
-                    }
-                    values.add(posting);
-                    totalPostings++;
                 }
-                if (totalPostings > postingsBeforeTrack) {
-                    indexedMusic++;
+            }
+
+            /**
+             * 开始向索引追加一首曲目。调用方可以逐条写入 landmark，不必先把整首歌物化成
+             * {@link Landmark} 对象列表——50k 曲库全量重建时那会产生数 GB 的一次性垃圾。
+             *
+             * <p>{@code deduplicate} 关闭时不做 (hash,timeFrame) 去重，适合调用方已经保证
+             * 唯一、希望完全零对象的场景。</p>
+             */
+            public TrackAppender beginTrack(int musicId, boolean deduplicate) {
+                return new TrackAppender(musicId, deduplicate);
+            }
+
+            /** 一首曲目的追加窗口；{@link #close()} 时按是否真的写入过 postings 更新曲目数。 */
+            public final class TrackAppender implements AutoCloseable {
+                private final int musicId;
+                private final Set<Long> uniqueForTrack;
+                private final long postingsBeforeTrack;
+                private boolean closed;
+
+                private TrackAppender(int musicId, boolean deduplicate) {
+                    this.musicId = musicId;
+                    this.uniqueForTrack = deduplicate ? new HashSet<>() : null;
+                    this.postingsBeforeTrack = totalPostings;
+                }
+
+                /** @return true 表示该 landmark 被写入了倒排表。 */
+                public boolean add(long hash, int timeFrame) {
+                    if (closed || musicId <= 0 || totalPostings >= MAX_INDEX_TOTAL_POSTINGS) {
+                        return false;
+                    }
+                    if (uniqueForTrack != null) {
+                        long duplicateKey = ((hash & 0x3f_ffff_ffffL) << 32)
+                                | (timeFrame & 0xffff_ffffL);
+                        if (!uniqueForTrack.add(duplicateKey)) {
+                            return false;
+                        }
+                    }
+                    LongList values = mutable.computeIfAbsent(
+                            hash, ignored -> new LongList(basePostings.get(hash)));
+                    if (values.size() >= MAX_INDEX_POSTINGS_PER_HASH) {
+                        return false;
+                    }
+                    values.add(((long) musicId << 32) | (timeFrame & 0xffff_ffffL));
+                    totalPostings++;
+                    return true;
+                }
+
+                @Override
+                public void close() {
+                    if (!closed && totalPostings > postingsBeforeTrack) {
+                        indexedMusic++;
+                    }
+                    closed = true;
                 }
             }
 
             public Index build() {
-                Map<Long, long[]> immutable = new HashMap<>(basePostings);
-                mutable.forEach((hash, values) -> immutable.put(hash, values.toArray()));
+                Map<Long, long[]> additions = new HashMap<>();
+                mutable.forEach((hash, values) -> additions.put(hash, values.toArray()));
                 mutable.clear();
-                return new Index(Map.copyOf(immutable), indexedMusic);
+                if (basePostings.isEmpty()) {
+                    return new Index(Map.copyOf(additions), indexedMusic);
+                }
+                // Incremental builds usually touch a tiny fraction of the hashes.
+                // Keep the base table untouched and layer only the additions on top；
+                // copying 13M+ base entries into a HashMap would both cost hundreds of
+                // MB and make HashMap treeify the Long keys.
+                return new Index(new CompositePostings(basePostings, Map.copyOf(additions)), indexedMusic);
             }
         }
 
@@ -256,14 +299,14 @@ public final class AudioFingerprintEngine {
             if (persistedPostings == null || persistedPostings.isEmpty()) {
                 return new Index(Map.of(), musicCount);
             }
-            Map<Long, long[]> restored = new HashMap<>(persistedPostings.size());
+            // 校验后直接复用加载器的 HashMap 条目：再建一份可写副本会多占一张
+            // 千万级哈希表，而 Map.copyOf 只需要一张不可变表。
             persistedPostings.forEach((hash, values) -> {
                 if (values == null || values.length == 0) {
                     throw new IllegalArgumentException("posting list cannot be empty");
                 }
-                restored.put(hash, values);
             });
-            return new Index(Map.copyOf(restored), musicCount);
+            return new Index(Map.copyOf(persistedPostings), musicCount);
         }
 
         /** Package-private read-only view used only by the atomic persistence writer. */

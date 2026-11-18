@@ -311,10 +311,15 @@ final class TonalFingerprintEngine {
             }
 
             Index build() {
-                Map<Long, long[]> immutable = new HashMap<>(basePostings);
-                mutable.forEach((hash, values) -> immutable.put(hash, values.toArray()));
+                Map<Long, long[]> additions = new HashMap<>();
+                mutable.forEach((hash, values) -> additions.put(hash, values.toArray()));
                 mutable.clear();
-                return new Index(Map.copyOf(immutable), indexedMusic);
+                if (basePostings.isEmpty()) {
+                    return new Index(Map.copyOf(additions), indexedMusic);
+                }
+                // 与精确声纹索引相同：增量构建只在旧表上覆盖少量 hash，
+                // 不复制整张基础表，避免额外占用数与百万计的条目。
+                return new Index(new CompositePostings(basePostings, Map.copyOf(additions)), indexedMusic);
             }
         }
 

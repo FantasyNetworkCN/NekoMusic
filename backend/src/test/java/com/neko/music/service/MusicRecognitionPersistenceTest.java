@@ -135,6 +135,44 @@ class MusicRecognitionPersistenceTest {
     }
 
     @Test
+    void persistsIncrementalAdditionsThatShareBaseHashes() throws Exception {
+        MusicRecognitionService.Track first = track(1, "First");
+        MusicRecognitionService.Track second = track(2, "Second");
+        List<MusicRecognitionService.CatalogEntry> catalog = List.of(
+                entry(first, "1.mp3", 101L, 1_000L),
+                entry(second, "2.mp3", 202L, 2_000L));
+
+        AudioFingerprintEngine.Fingerprint firstFingerprint = fingerprint(
+                landmark(100, 10), landmark(200, 210), landmark(300, 410));
+        AudioFingerprintEngine.Fingerprint secondFingerprint = fingerprint(
+                landmark(100, 20), landmark(200, 220), landmark(300, 420), landmark(400, 620));
+        AudioFingerprintEngine.Index base =
+                AudioFingerprintEngine.Index.build(Map.of(1, firstFingerprint));
+        AudioFingerprintEngine.Index.Builder exactBuilder = AudioFingerprintEngine.Index.builder(base);
+        exactBuilder.add(2, secondFingerprint);
+        TonalFingerprintEngine.TonalFingerprint firstTonal = tonalFingerprint(24);
+        TonalFingerprintEngine.TonalFingerprint secondTonal = tonalFingerprint(30);
+        TonalFingerprintEngine.Index.Builder tonalBuilder = TonalFingerprintEngine.Index.builder();
+        tonalBuilder.add(1, firstTonal);
+        tonalBuilder.add(2, secondTonal);
+
+        MusicRecognitionService.IndexSnapshot snapshot = new MusicRecognitionService.IndexSnapshot(
+                exactBuilder.build(), tonalBuilder.build(), Map.of(1, first, 2, second),
+                Map.of(1, firstTonal, 2, secondTonal), catalog, System.currentTimeMillis(), true);
+        MusicRecognitionService.FullIndexDiskCache cache = cache();
+        cache.save(snapshot);
+        MusicRecognitionService.IndexSnapshot restored = cache.load(catalog).orElseThrow();
+
+        assertEquals(4, restored.index().uniqueHashCount(),
+                "shared hashes must be overridden, not duplicated");
+        AudioFingerprintEngine.Fingerprint query = fingerprint(
+                landmark(100, 21), landmark(200, 221), landmark(300, 421), landmark(400, 621));
+        AudioFingerprintEngine.Match match = restored.index().findBest(query, 3, 0.1).orElseThrow();
+        assertEquals(2, match.musicId(),
+                "persisted postings must carry the overridden values of the layered map");
+    }
+
+    @Test
     void rejectsPersistedIndexWhenAudioManifestChanges() throws Exception {
         MusicRecognitionService.Track track = track(1, "First");
         List<MusicRecognitionService.CatalogEntry> original = List.of(entry(track, "1.mp3", 101L, 1_000L));

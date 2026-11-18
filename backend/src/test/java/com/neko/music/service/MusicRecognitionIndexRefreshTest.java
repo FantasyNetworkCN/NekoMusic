@@ -217,6 +217,48 @@ class MusicRecognitionIndexRefreshTest {
         }
     }
 
+    @Test
+    void metadataOnlyCatalogChangesReuseIndexWithoutRewriteOrDecode() throws Exception {
+        MusicRecognitionService.Track track = track(1);
+        Path audio = audioFile("1.mp3");
+        Path indexFile = tempDirectory.resolve("metadata-library.nfi");
+        FakeDecoder decoder = new FakeDecoder();
+        decoder.put("1.mp3", fingerprint(100_000));
+        decoder.put("query.wav", fingerprint(100_000));
+        MusicRecognitionService.FullIndexDiskCache fullIndexCache =
+                new MusicRecognitionService.FullIndexDiskCache(indexFile);
+        MutableCatalog catalog = new MutableCatalog(List.of(track), false);
+        MusicRecognitionService service = service(catalog, decoder, Map.of(1, audio), fullIndexCache);
+        try {
+            service.warmUp();
+            awaitIndexed(service, 1, 5);
+            int decodesAfterFirstBuild = decoder.decodeCount();
+            long persistedAt = Files.getLastModifiedTime(indexFile).toMillis();
+            int hashes = service.status().uniqueHashes();
+
+            // 播放计数 / 标题更新只改 updated_at 与元数据，不应重建 posting 或重写索引文件。
+            catalog.rename(1, "Renamed after play count");
+            service.invalidateIndex();
+            assertTrue(catalog.awaitLoadCount(2, 5), "the refresh should re-read the catalog");
+            awaitIndexed(service, 1, 5);
+
+            assertEquals(decodesAfterFirstBuild, decoder.decodeCount(),
+                    "metadata-only changes must not decode audio again");
+            assertTrue(service.status().ready(), "the reused index must stay ready");
+            assertEquals(hashes, service.status().uniqueHashes(), "postings must be reused");
+            assertEquals(persistedAt, Files.getLastModifiedTime(indexFile).toMillis(),
+                    "metadata-only changes must not rewrite the persisted index");
+
+            Optional<MusicRecognitionService.RecognitionResult> result =
+                    service.recognize(tempDirectory.resolve("query.wav"));
+            assertTrue(result.isPresent(), "reused index must keep serving recognition");
+            assertEquals("Renamed after play count", result.orElseThrow().track().title(),
+                    "catalog metadata should be refreshed without rebuilding postings");
+        } finally {
+            service.close();
+        }
+    }
+
     private void writeLegacyIndex(
             MusicRecognitionService.FullIndexDiskCache cache,
             MusicRecognitionService.CatalogEntry entry) throws IOException {
@@ -309,13 +351,22 @@ class MusicRecognitionIndexRefreshTest {
             MutableCatalog catalog,
             FakeDecoder decoder,
             Map<Integer, Path> audioFiles) {
+        return service(catalog, decoder, audioFiles,
+                new MusicRecognitionService.FullIndexDiskCache(tempDirectory.resolve("library.nfi")));
+    }
+
+    private MusicRecognitionService service(
+            MutableCatalog catalog,
+            FakeDecoder decoder,
+            Map<Integer, Path> audioFiles,
+            MusicRecognitionService.FullIndexDiskCache fullIndexCache) {
         return new MusicRecognitionService(
                 new ConfigManager(),
                 catalog,
                 decoder,
                 decoder,
                 new MusicRecognitionService.FingerprintDiskCache(tempDirectory.resolve("cache")),
-                new MusicRecognitionService.FullIndexDiskCache(tempDirectory.resolve("library.nfi")),
+                fullIndexCache,
                 ids -> audioFiles.entrySet().stream()
                         .filter(entry -> ids.contains(entry.getKey()))
                         .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue)));
@@ -372,9 +423,34 @@ class MusicRecognitionIndexRefreshTest {
             tracks.set(List.copyOf(updated));
         }
 
+        /** 模拟播放计数写入：保持曲目与音频不变，只改标题与 updated_at。 */
+        private void rename(int id, String title) {
+            List<MusicRecognitionService.Track> updated = new ArrayList<>(tracks.get().size());
+            for (MusicRecognitionService.Track track : tracks.get()) {
+                updated.add(track.id() == id
+                        ? new MusicRecognitionService.Track(track.id(), title, track.artist(),
+                                track.album(), track.duration(), track.language(), track.tags(),
+                                "2026-11-18T01:00:00Z")
+                        : track);
+            }
+            tracks.set(List.copyOf(updated));
+        }
+
+        private boolean awaitLoadCount(int expected, int timeoutSeconds) throws InterruptedException {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+            while (System.nanoTime() < deadline) {
+                if (loadCount.get() >= expected) {
+                    return true;
+                }
+                Thread.sleep(20);
+            }
+            return loadCount.get() >= expected;
+        }
+
         @Override
         public List<MusicRecognitionService.Track> loadTracks() throws Exception {
-            if (pauseSecondLoad && loadCount.incrementAndGet() == 2) {
+            int loads = loadCount.incrementAndGet();
+            if (pauseSecondLoad && loads == 2) {
                 secondLoadStarted.countDown();
                 if (!secondLoadRelease.await(10, TimeUnit.SECONDS)) {
                     throw new IOException("second build was not released");
@@ -395,6 +471,7 @@ class MusicRecognitionIndexRefreshTest {
     private static final class FakeDecoder implements MusicRecognitionService.FingerprintDecoder {
         private final Map<String, AudioFingerprintEngine.Fingerprint> fingerprints = new ConcurrentHashMap<>();
         private final Set<String> blockOnce = ConcurrentHashMap.newKeySet();
+        private final AtomicInteger decodeCount = new AtomicInteger();
         private final CountDownLatch blocked = new CountDownLatch(1);
         private final CountDownLatch released = new CountDownLatch(1);
 
@@ -410,6 +487,10 @@ class MusicRecognitionIndexRefreshTest {
             return blocked.await(timeoutSeconds, TimeUnit.SECONDS);
         }
 
+        private int decodeCount() {
+            return decodeCount.get();
+        }
+
         private void release() {
             released.countDown();
         }
@@ -417,6 +498,7 @@ class MusicRecognitionIndexRefreshTest {
         @Override
         public AudioFingerprintEngine.Fingerprint decode(
                 Path audio, int maxDurationSeconds, Duration timeout) throws IOException {
+            decodeCount.incrementAndGet();
             String fileName = audio.getFileName().toString();
             if (blockOnce.remove(fileName)) {
                 blocked.countDown();
