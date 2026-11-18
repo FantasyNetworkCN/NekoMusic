@@ -427,9 +427,11 @@ public final class MusicRecognitionService implements AutoCloseable {
             }
         }
         if (incrementalBase != null && !incrementalBase.tonalReady()
-                && incrementalBase.catalogEntries.equals(catalogEntries)) {
+                && (incrementalBase.catalogEntries.equals(catalogEntries)
+                || isAppendOnlyCatalog(incrementalBase.catalogEntries, catalogEntries))) {
             // 兼容旧版 v2 总索引：复用已加载的 Panako 倒排索引，只补建和声声纹，
-            // 避免在 15 GB 级内存占用之上再复制一整份经典索引。
+            // 新增歌曲仍走精确声纹增量构建，避免在 15 GB 级内存占用之上
+            // 再复制整份经典索引。
             IndexSnapshot supplemented = buildTonalSupplement(
                     incrementalBase, catalogTracks, audioFiles, catalogEntries, started);
             if (supplemented != null) {
@@ -538,7 +540,10 @@ public final class MusicRecognitionService implements AutoCloseable {
             long started) throws Exception {
         logger.info("旧版声纹索引缺少和声声纹，开始补齐: catalog={}, baseIndexed={}, baseHashes={}",
                 catalogTracks.size(), base.index.musicCount(), base.index.uniqueHashCount());
+        AudioFingerprintEngine.Index.Builder indexBuilder =
+                AudioFingerprintEngine.Index.builder(base.index);
         TonalFingerprintEngine.Index.Builder tonalBuilder = TonalFingerprintEngine.Index.builder();
+        Map<Integer, Track> indexedTracks = new LinkedHashMap<>(base.tracks);
         Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints = new LinkedHashMap<>();
         ExecutorCompletionService<FingerprintBuildResult> completion =
                 new ExecutorCompletionService<>(fingerprintExecutor);
@@ -559,7 +564,12 @@ public final class MusicRecognitionService implements AutoCloseable {
                 Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
                 if (cached.isPresent() && cached.get().tonal().frameCount() > 0) {
                     cacheHits++;
-                    addTonalFingerprint(track, cached.get(), tonalBuilder, tonalFingerprints);
+                    if (indexedTracks.containsKey(track.id())) {
+                        addTonalFingerprint(track, cached.get(), tonalBuilder, tonalFingerprints);
+                    } else {
+                        addFingerprint(track, audio, cached.get(), indexBuilder, tonalBuilder,
+                                indexedTracks, tonalFingerprints);
+                    }
                 } else {
                     pendingTasks.add(completion.submit(() -> generateFingerprint(track, audio)));
                 }
@@ -585,8 +595,13 @@ public final class MusicRecognitionService implements AutoCloseable {
                 FingerprintBuildResult result = task.get();
                 if (result.failure() == null) {
                     generated++;
-                    addTonalFingerprint(
-                            result.track(), result.fingerprint(), tonalBuilder, tonalFingerprints);
+                    if (indexedTracks.containsKey(result.track().id())) {
+                        addTonalFingerprint(
+                                result.track(), result.fingerprint(), tonalBuilder, tonalFingerprints);
+                    } else {
+                        addFingerprint(result.track(), result.audio(), result.fingerprint(),
+                                indexBuilder, tonalBuilder, indexedTracks, tonalFingerprints);
+                    }
                 } else {
                     failed++;
                     lastFailure = result.failure();
@@ -610,11 +625,12 @@ public final class MusicRecognitionService implements AutoCloseable {
         }
 
         IndexSnapshot snapshot = new IndexSnapshot(
-                base.index, tonalBuilder.build(), Map.copyOf(base.tracks),
+                indexBuilder.build(), tonalBuilder.build(), Map.copyOf(indexedTracks),
                 Map.copyOf(tonalFingerprints), catalogEntries, System.currentTimeMillis(), true);
         persistSnapshot(snapshot, false, "持久化和声声纹总索引失败，本次仍使用内存索引: {}");
-        logger.info("和声声纹补建完成: exactIndexed={}, tonalIndexed={}, cacheHits={}, generated={}, failed={}, elapsedMs={}",
-                snapshot.index.musicCount(), snapshot.tonalFingerprints.size(),
+        logger.info("和声声纹补建完成: exactIndexed={} (+{}), tonalIndexed={}, cacheHits={}, generated={}, failed={}, elapsedMs={}",
+                snapshot.index.musicCount(), snapshot.index.musicCount() - base.index.musicCount(),
+                snapshot.tonalFingerprints.size(),
                 cacheHits, generated, failed, System.currentTimeMillis() - started);
         return snapshot;
     }
@@ -814,7 +830,12 @@ public final class MusicRecognitionService implements AutoCloseable {
             Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints) {
         AudioFingerprintEngine.Fingerprint bounded = limitLandmarks(fingerprint);
         if (bounded.landmarks().isEmpty()) {
-            logger.debug("歌曲无法生成有效声纹，已跳过 musicId={} path={}", track.id(), audio);
+            addTonalFingerprint(track, bounded, tonalBuilder, tonalFingerprints);
+            if (tonalFingerprints.containsKey(track.id())) {
+                indexedTracks.put(track.id(), track);
+            } else {
+                logger.debug("歌曲无法生成有效声纹，已跳过 musicId={} path={}", track.id(), audio);
+            }
             return;
         }
         indexBuilder.add(track.id(), bounded);

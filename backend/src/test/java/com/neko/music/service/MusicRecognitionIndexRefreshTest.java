@@ -153,9 +153,11 @@ class MusicRecognitionIndexRefreshTest {
     }
 
     @Test
-    void servesLegacyPanakoIndexWhileTonalIndexIsBuilt() throws Exception {
+    void servesLegacyPanakoIndexWhileTonalIndexAndAppendedTracksAreBuilt() throws Exception {
         MusicRecognitionService.Track track = track(1);
+        MusicRecognitionService.Track appendedTrack = track(2);
         Path audio = audioFile("1.mp3");
+        Path appendedAudio = audioFile("2.mp3");
         MusicRecognitionService.CatalogEntry catalogEntry = new MusicRecognitionService.CatalogEntry(
                 track,
                 new MusicRecognitionService.AudioAsset(
@@ -168,17 +170,19 @@ class MusicRecognitionIndexRefreshTest {
 
         FakeDecoder decoder = new FakeDecoder();
         decoder.put("1.mp3", tonalFingerprint());
+        decoder.put("2.mp3", fingerprint(200_000));
         decoder.put("query-exact.wav", fingerprint(100_000));
+        decoder.put("query-appended.wav", fingerprint(200_000));
         decoder.put("query-tonal.wav", tonalOnlyFingerprint());
         decoder.blockOnce("1.mp3");
         MusicRecognitionService service = new MusicRecognitionService(
                 new ConfigManager(),
-                new MutableCatalog(List.of(track), false),
+                new MutableCatalog(List.of(track, appendedTrack), false),
                 decoder,
                 decoder,
                 new MusicRecognitionService.FingerprintDiskCache(tempDirectory.resolve("legacy-cache")),
                 fullIndexCache,
-                ids -> Map.of(1, audio));
+                ids -> Map.of(1, audio, 2, appendedAudio));
         try {
             service.warmUp();
             assertTrue(decoder.awaitBlocked(5), "legacy index migration should decode the tonal cache");
@@ -189,7 +193,7 @@ class MusicRecognitionIndexRefreshTest {
             assertEquals(1, legacyResult.orElseThrow().track().id());
 
             decoder.release();
-            awaitIndexed(service, 1, 10);
+            awaitIndexed(service, 2, 10);
             assertTrue(fullIndexCache.load().orElseThrow().tonalReady(),
                     "the replacement snapshot should persist the completed tonal index");
 
@@ -197,6 +201,11 @@ class MusicRecognitionIndexRefreshTest {
                     service.recognize(tempDirectory.resolve("query-tonal.wav"));
             assertTrue(tonalResult.isPresent(), "the supplemented tonal index should be queryable");
             assertEquals(1, tonalResult.orElseThrow().track().id());
+
+            Optional<MusicRecognitionService.RecognitionResult> appendedResult =
+                    service.recognize(tempDirectory.resolve("query-appended.wav"));
+            assertTrue(appendedResult.isPresent(), "new catalog tracks should be added to the exact index");
+            assertEquals(2, appendedResult.orElseThrow().track().id());
         } finally {
             decoder.release();
             service.close();
