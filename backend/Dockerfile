@@ -18,6 +18,15 @@ RUN npm run build -- --outDir /site
 
 
 # =========================
+# Rust 声纹引擎构建阶段
+# =========================
+FROM rust:1.100-bookworm AS recognition
+WORKDIR /recognition
+COPY backend/native/recognition/Cargo.toml backend/native/recognition/Cargo.lock ./
+COPY backend/native/recognition/src ./src
+RUN cargo test --locked --offline && cargo build --release --locked --offline
+
+# =========================
 # 构建阶段
 # =========================
 FROM maven:3.10.0-eclipse-temurin-27 AS builder
@@ -31,8 +40,10 @@ RUN apt-get update \
 COPY backend/pom.xml .
 COPY backend/scripts ./scripts
 COPY backend/native ./native
+COPY --from=recognition /recognition/target/release/libneko_recognition.so /build/rust/libneko_recognition.so
 COPY backend/src ./src
 COPY --from=frontend /site ./src/main/resources/site
+ENV NEKO_RECOGNITION_PREBUILT=/build/rust/libneko_recognition.so
 
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -B clean package -DskipTests -Dneko.frontend.skip=true

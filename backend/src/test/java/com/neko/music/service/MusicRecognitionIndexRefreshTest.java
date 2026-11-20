@@ -11,10 +11,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -23,10 +25,41 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MusicRecognitionIndexRefreshTest {
     @TempDir
     Path tempDirectory;
+
+    @Test
+    void streamingRecognitionOnlyReadsTheValidBufferPrefix() throws Exception {
+        short[] samples = new short[8 * AudioFingerprintEngine.SAMPLE_RATE];
+        byte[] padded = new byte[samples.length * 2 + 257];
+        Random random = new Random(20261120);
+        random.nextBytes(padded);
+        for (int i = 0; i < samples.length; i++) {
+            samples[i] = (short) ((padded[i * 2] & 0xff) | (padded[i * 2 + 1] << 8));
+        }
+        MutableCatalog catalog = new MutableCatalog(List.of(track(1)), false);
+        FakeDecoder decoder = new FakeDecoder();
+        decoder.put("1.mp3", new AudioFingerprintEngine().fingerprint(samples));
+        MusicRecognitionService service = service(catalog, decoder, Map.of(1, audioFile("1.mp3")));
+        try {
+            service.warmUp();
+            awaitIndexed(service, 1, 10);
+            var prefix = service.recognizePcm16k(padded, samples.length * 2);
+            assertTrue(prefix.isPresent());
+            assertEquals(service.recognizePcm16k(Arrays.copyOf(padded, samples.length * 2)), prefix);
+            assertThrows(MusicRecognitionService.InvalidAudioException.class,
+                    () -> service.recognizePcm16k(padded));
+            for (int invalid : new int[]{-1, 0, 1, padded.length + 1}) {
+                assertThrows(MusicRecognitionService.InvalidAudioException.class,
+                        () -> service.recognizePcm16k(padded, invalid));
+            }
+        } finally {
+            service.close();
+        }
+    }
 
     @Test
     void publishesFirstBuildEvenIfCatalogChangesDuringBuildAndKeepsServingIt() throws Exception {

@@ -1,6 +1,5 @@
 package com.neko.music.service;
 
-import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -15,35 +14,44 @@ import java.util.Set;
  * 会额外申请数千万条记录，并让 {@code Long} 键在哈希桶里退化成大量
  * {@code HashMap$TreeNode}；这里只增加一层覆盖表，旧索引的数组原地复用。</p>
  */
-final class CompositePostings extends AbstractMap<Long, long[]> {
-    private final Map<Long, long[]> base;
-    private final Map<Long, long[]> overrides;
+final class CompositePostings extends FingerprintPostings {
+    private final FingerprintPostings base;
+    private final FingerprintPostings overrides;
+    private final int size;
+    private final long postingCount;
 
     CompositePostings(Map<Long, long[]> base, Map<Long, long[]> overrides) {
-        this.base = base;
-        this.overrides = overrides;
+        this.base = FingerprintPostings.copyOf(base);
+        this.overrides = FingerprintPostings.copyOf(overrides);
+        int extra = 0;
+        long count = this.base.postingCount();
+        for (Entry<Long, long[]> entry : this.overrides.entrySet()) {
+            long[] previous = this.base.get(entry.getKey().longValue());
+            if (previous == null) {
+                extra++;
+            } else {
+                count -= previous.length;
+            }
+            count += entry.getValue().length;
+        }
+        size = this.base.size() + extra;
+        postingCount = count;
     }
 
     @Override
-    public long[] get(Object key) {
+    long[] get(long key) {
         long[] value = overrides.get(key);
         return value != null ? value : base.get(key);
     }
 
     @Override
-    public boolean containsKey(Object key) {
-        return overrides.containsKey(key) || base.containsKey(key);
+    long postingCount() {
+        return postingCount;
     }
 
     @Override
     public int size() {
-        int extra = 0;
-        for (Long key : overrides.keySet()) {
-            if (!base.containsKey(key)) {
-                extra++;
-            }
-        }
-        return base.size() + extra;
+        return size;
     }
 
     /** 先遍历旧表（同 key 的数组换成覆盖值），再补上只存在于覆盖表的条目。 */

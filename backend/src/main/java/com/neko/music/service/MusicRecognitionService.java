@@ -13,6 +13,10 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.FilterInputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -174,14 +178,21 @@ public final class MusicRecognitionService implements AutoCloseable {
     public Optional<RecognitionResult> recognizePcm16k(byte[] pcm)
             throws IOException, InvalidAudioException, AudioTooLongException,
             BusyException, IndexUnavailableException {
-        if (pcm == null || pcm.length == 0 || (pcm.length & 1) != 0) {
+        return recognizePcm16k(pcm, pcm == null ? 0 : pcm.length);
+    }
+
+    /** 同步读取缓冲区的有效前缀，不保留引用；调用期间调用方不得修改该缓冲区。 */
+    public Optional<RecognitionResult> recognizePcm16k(byte[] pcm, int length)
+            throws IOException, InvalidAudioException, AudioTooLongException,
+            BusyException, IndexUnavailableException {
+        if (pcm == null || length <= 0 || length > pcm.length || (length & 1) != 0) {
             throw new InvalidAudioException("PCM 数据为空或长度无效");
         }
         if (!querySlots.tryAcquire()) {
             throw new BusyException("识曲任务繁忙，请稍后重试");
         }
         try {
-            long inputSamples = pcm.length / 2L;
+            long inputSamples = length / 2L;
             double inputDuration = inputSamples / 16_000d;
             int maxDuration = config.getMusicRecognitionMaxSampleDurationSeconds();
             if (inputDuration > maxDuration) {
@@ -1170,8 +1181,10 @@ public final class MusicRecognitionService implements AutoCloseable {
             if (!Files.isRegularFile(file)) {
                 return Optional.empty();
             }
-            try (DataInputStream input = new DataInputStream(
-                    new BufferedInputStream(Files.newInputStream(file)))) {
+            try (FileChannel channel = FileChannel.open(file);
+                 CountingInputStream counted = new CountingInputStream(
+                         new BufferedInputStream(Channels.newInputStream(channel)));
+                 DataInputStream input = new DataInputStream(counted)) {
                 if (input.readInt() != MAGIC) {
                     return Optional.empty();
                 }
@@ -1206,27 +1219,33 @@ public final class MusicRecognitionService implements AutoCloseable {
                 }
 
                 int hashCount = readCount(input, MAX_HASHES, "unique hashes");
-                Map<Long, long[]> postings = new HashMap<>(hashCount);
-                long totalPostings = 0;
-                for (int i = 0; i < hashCount; i++) {
-                    long hash = input.readLong();
-                    int postingCount = readCount(input, MAX_POSTINGS_PER_HASH, "hash postings");
-                    if (postingCount == 0 || totalPostings + postingCount > MAX_TOTAL_POSTINGS) {
-                        throw new IOException("invalid total posting count");
-                    }
-                    long[] values = new long[postingCount];
-                    for (int j = 0; j < postingCount; j++) {
-                        long posting = input.readLong();
-                        int musicId = (int) (posting >>> 32);
-                        if (!indexedIds.contains(musicId)) {
-                            throw new IOException("posting references unknown music id: " + musicId);
+                Map<Long, long[]> postings;
+                if (RustFingerprintIndex.available()) {
+                    long total = scanPostingCount(channel, counted.position, hashCount);
+                    postings = RustFingerprintIndex.read(input, hashCount, total, indexedIds);
+                } else {
+                    postings = new HashMap<>(hashCount);
+                    long totalPostings = 0;
+                    for (int i = 0; i < hashCount; i++) {
+                        long hash = input.readLong();
+                        int postingCount = readCount(input, MAX_POSTINGS_PER_HASH, "hash postings");
+                        if (postingCount == 0 || totalPostings + postingCount > MAX_TOTAL_POSTINGS) {
+                            throw new IOException("invalid total posting count");
                         }
-                        values[j] = posting;
+                        long[] values = new long[postingCount];
+                        for (int j = 0; j < postingCount; j++) {
+                            long posting = input.readLong();
+                            int musicId = (int) (posting >>> 32);
+                            if (!indexedIds.contains(musicId)) {
+                                throw new IOException("posting references unknown music id: " + musicId);
+                            }
+                            values[j] = posting;
+                        }
+                        if (postings.put(hash, values) != null) {
+                            throw new IOException("duplicate hash in persistent index");
+                        }
+                        totalPostings += postingCount;
                     }
-                    if (postings.put(hash, values) != null) {
-                        throw new IOException("duplicate hash in persistent index");
-                    }
-                    totalPostings += postingCount;
                 }
                 Map<Long, long[]> tonalPostings = new HashMap<>();
                 Map<Integer, TonalFingerprintEngine.TonalFingerprint> tonalFingerprints = new HashMap<>();
@@ -1284,6 +1303,67 @@ public final class MusicRecognitionService implements AutoCloseable {
                 logger.warn("读取持久化曲库声纹总索引失败，将从单曲缓存重建: file={} error={}",
                         file, safeMessage(e));
                 return Optional.empty();
+            }
+        }
+
+        /** 对同一已打开文件按位置预读目录，不改变输入流位置，也不保留逐哈希对象。 */
+        private static long scanPostingCount(FileChannel channel, long position, int hashes) throws IOException {
+            ByteBuffer buffer = ByteBuffer.allocate(64 * 1024);
+            buffer.limit(0);
+            long bufferStart = -1;
+            long total = 0;
+            long fileSize = channel.size();
+            for (int i = 0; i < hashes; i++) {
+                if (position < bufferStart || position + 12 > bufferStart + buffer.limit()) {
+                    buffer.clear();
+                    bufferStart = position;
+                    while (buffer.hasRemaining()) {
+                        int read = channel.read(buffer, position + buffer.position());
+                        if (read < 0) {
+                            break;
+                        }
+                    }
+                    buffer.flip();
+                    if (buffer.remaining() < 12) {
+                        throw new IOException("truncated hash directory");
+                    }
+                }
+                int length = buffer.getInt((int) (position - bufferStart) + 8);
+                if (length <= 0 || length > MAX_POSTINGS_PER_HASH || total + length > MAX_TOTAL_POSTINGS) {
+                    throw new IOException("invalid total posting count");
+                }
+                total += length;
+                position += 12L + length * 8L;
+                if (position > fileSize) {
+                    throw new IOException("truncated posting data");
+                }
+            }
+            return total;
+        }
+
+        private static final class CountingInputStream extends FilterInputStream {
+            private long position;
+
+            private CountingInputStream(InputStream input) {
+                super(input);
+            }
+
+            @Override
+            public int read() throws IOException {
+                int value = in.read();
+                if (value >= 0) {
+                    position++;
+                }
+                return value;
+            }
+
+            @Override
+            public int read(byte[] bytes, int offset, int length) throws IOException {
+                int count = in.read(bytes, offset, length);
+                if (count > 0) {
+                    position += count;
+                }
+                return count;
             }
         }
 

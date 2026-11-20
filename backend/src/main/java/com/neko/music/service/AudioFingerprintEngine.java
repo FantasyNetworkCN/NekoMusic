@@ -7,7 +7,6 @@
 package com.neko.music.service;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -76,31 +75,50 @@ public final class AudioFingerprintEngine {
         return new Fingerprint(landmarks, samples.length, tonalEngine.extract(samples));
     }
 
-    private static short[] readPcm(InputStream input, long maxSamples) throws IOException {
+    static short[] readPcm(InputStream input, long maxSamples) throws IOException {
         BufferedInputStream buffered =
                 input instanceof BufferedInputStream ? (BufferedInputStream) input
                         : new BufferedInputStream(input, 32 * 1024);
-        ByteArrayOutputStream output = new ByteArrayOutputStream(32 * 1024);
+        int maximumCapacity = (int) Math.min(maxSamples, Integer.MAX_VALUE - 8L);
+        short[] samples = new short[Math.min(16 * 1024, maximumCapacity)];
         byte[] buffer = new byte[16 * 1024];
         long maxBytes = Math.multiplyExact(maxSamples, 2L);
         long total = 0;
+        int size = 0;
+        int pending = -1;
         int read;
         while ((read = buffered.read(buffer)) != -1) {
             if (total + read > maxBytes) {
                 throw new SampleLimitExceededException(maxSamples);
             }
-            output.write(buffer, 0, read);
             total += read;
+            int added = (read + (pending < 0 ? 0 : 1)) / 2;
+            long required = (long) size + added;
+            if (required > maximumCapacity) {
+                throw new SampleLimitExceededException(maxSamples);
+            }
+            if (required > samples.length) {
+                int capacity = (int) Math.min(maximumCapacity,
+                        Math.max(required, samples.length * 2L));
+                samples = Arrays.copyOf(samples, capacity);
+            }
+            int offset = 0;
+            if (pending >= 0 && read > 0) {
+                samples[size++] = (short) (pending | (buffer[offset++] << 8));
+                pending = -1;
+            }
+            while (offset + 1 < read) {
+                samples[size++] = (short) ((buffer[offset] & 0xff) | (buffer[offset + 1] << 8));
+                offset += 2;
+            }
+            if (offset < read) {
+                pending = buffer[offset] & 0xff;
+            }
         }
-        if ((total & 1L) != 0) {
+        if (pending >= 0) {
             throw new IOException("Odd byte count in PCM stream");
         }
-        byte[] bytes = output.toByteArray();
-        short[] samples = new short[bytes.length / 2];
-        for (int i = 0, offset = 0; i < samples.length; i++, offset += 2) {
-            samples[i] = (short) ((bytes[offset] & 0xff) | (bytes[offset + 1] << 8));
-        }
-        return samples;
+        return size == samples.length ? samples : Arrays.copyOf(samples, size);
     }
 
     public record Landmark(long hash, int timeFrame, int frequencyBin) {
@@ -157,11 +175,13 @@ public final class AudioFingerprintEngine {
 
     /** Immutable inverted index keyed by a 64-bit Panako hash. */
     public static final class Index {
-        private final Map<Long, long[]> postings;
+        private final FingerprintPostings postings;
         private final int musicCount;
 
         private Index(Map<Long, long[]> postings, int musicCount) {
-            this.postings = postings;
+            this.postings = postings instanceof RustFingerprintIndex nativeIndex ? nativeIndex
+                    : RustFingerprintIndex.available() ? RustFingerprintIndex.create(postings, null)
+                    : FingerprintPostings.copyOf(postings);
             this.musicCount = musicCount;
         }
 
@@ -186,20 +206,18 @@ public final class AudioFingerprintEngine {
         /** Incrementally builds an index without retaining every track fingerprint. */
         public static final class Builder {
             private Map<Long, LongList> mutable = new HashMap<>();
-            private final Map<Long, long[]> basePostings;
+            private final FingerprintPostings basePostings;
             private int indexedMusic = 0;
             private long totalPostings = 0L;
 
             private Builder() {
-                basePostings = Map.of();
+                basePostings = FingerprintPostings.empty();
             }
 
             private Builder(Index base) {
-                basePostings = base == null ? Map.of() : base.postings;
+                basePostings = base == null ? FingerprintPostings.empty() : base.postings;
                 indexedMusic = base == null ? 0 : base.musicCount;
-                for (long[] values : basePostings.values()) {
-                    totalPostings += values.length;
-                }
+                totalPostings = basePostings.postingCount();
             }
 
             public void add(int musicId, Fingerprint fingerprint) {
@@ -273,13 +291,13 @@ public final class AudioFingerprintEngine {
                 mutable.forEach((hash, values) -> additions.put(hash, values.toArray()));
                 mutable.clear();
                 if (basePostings.isEmpty()) {
-                    return new Index(Map.copyOf(additions), indexedMusic);
+                    return new Index(additions, indexedMusic);
                 }
-                // Incremental builds usually touch a tiny fraction of the hashes.
-                // Keep the base table untouched and layer only the additions on top；
-                // copying 13M+ base entries into a HashMap would both cost hundreds of
-                // MB and make HashMap treeify the Long keys.
-                return new Index(new CompositePostings(basePostings, Map.copyOf(additions)), indexedMusic);
+                if (basePostings instanceof RustFingerprintIndex nativeBase) {
+                    return new Index(RustFingerprintIndex.create(additions, nativeBase), indexedMusic);
+                }
+                // 增量构建仅覆盖变化的哈希，继续复用基础表与未变化的数组。
+                return new Index(new CompositePostings(basePostings, additions), indexedMusic);
             }
         }
 
@@ -299,19 +317,22 @@ public final class AudioFingerprintEngine {
             if (persistedPostings == null || persistedPostings.isEmpty()) {
                 return new Index(Map.of(), musicCount);
             }
-            // 校验后直接复用加载器的 HashMap 条目：再建一份可写副本会多占一张
-            // 千万级哈希表，而 Map.copyOf 只需要一张不可变表。
-            persistedPostings.forEach((hash, values) -> {
-                if (values == null || values.length == 0) {
-                    throw new IllegalArgumentException("posting list cannot be empty");
-                }
-            });
-            return new Index(Map.copyOf(persistedPostings), musicCount);
+            // 紧凑表复用加载器的 posting 数组，仅将键转成原始 long。
+            return new Index(persistedPostings, musicCount);
         }
 
         /** Package-private read-only view used only by the atomic persistence writer. */
         Map<Long, long[]> postingsView() {
             return postings;
+        }
+
+        /** 原生索引实际持有的字节数（包含共享基础层），供离线资源核对。 */
+        long nativeBytes() {
+            return postings instanceof RustFingerprintIndex nativeIndex ? nativeIndex.nativeBytes() : 0;
+        }
+
+        boolean usesRust() {
+            return postings instanceof RustFingerprintIndex;
         }
 
         public Optional<Match> findBest(
@@ -321,16 +342,18 @@ public final class AudioFingerprintEngine {
             if (query == null || query.landmarks().isEmpty() || postings.isEmpty()) {
                 return Optional.empty();
             }
+            if (postings instanceof RustFingerprintIndex nativeIndex) {
+                return nativeIndex.findBest(query, musicCount, minimumAlignedLandmarks, minimumConfidence);
+            }
 
-            Map<Integer, List<Hit>> hitsByMusic = new HashMap<>();
-            Set<String> uniqueQueryLandmarks = new HashSet<>();
+            Map<Integer, Hits> hitsByMusic = new HashMap<>();
+            QueryLandmarks uniqueQueryLandmarks = new QueryLandmarks(query.landmarks().size());
             int comparableLandmarks = 0;
             int comparisons = 0;
             int maximumPostingsPerHash = Math.max(512, musicCount * 64);
 
             for (Landmark queryLandmark : query.landmarks()) {
-                String queryKey = queryLandmark.hash() + ":" + queryLandmark.timeFrame();
-                if (!uniqueQueryLandmarks.add(queryKey)) {
+                if (!uniqueQueryLandmarks.add(queryLandmark.hash(), queryLandmark.timeFrame())) {
                     continue;
                 }
                 boolean foundAny = false;
@@ -346,8 +369,8 @@ public final class AudioFingerprintEngine {
                     for (long posting : matches) {
                         int musicId = (int) (posting >>> 32);
                         int referenceTime = (int) posting;
-                        hitsByMusic.computeIfAbsent(musicId, ignored -> new ArrayList<>())
-                                .add(new Hit(queryLandmark.timeFrame(), referenceTime));
+                        hitsByMusic.computeIfAbsent(musicId, ignored -> new Hits())
+                                .add(queryLandmark.timeFrame(), referenceTime);
                         comparisons++;
                         if (comparisons >= MAX_VOTE_COMPARISONS) {
                             break;
@@ -377,24 +400,25 @@ public final class AudioFingerprintEngine {
                     : minimumConfidence;
             List<Candidate> candidates = new ArrayList<>();
 
-            for (Map.Entry<Integer, List<Hit>> entry : hitsByMusic.entrySet()) {
-                List<Hit> hits = entry.getValue();
-                if (hits.size() < minimumHits) {
+            for (Map.Entry<Integer, Hits> entry : hitsByMusic.entrySet()) {
+                Hits hits = entry.getValue();
+                if (hits.size < minimumHits) {
                     continue;
                 }
-                hits.sort(Comparator.comparingInt(Hit::queryTime));
+                hits.sortByQueryTime();
                 Alignment alignment = estimateAlignment(hits);
                 int aligned = 0;
                 int firstQuery = Integer.MAX_VALUE;
                 int lastQuery = Integer.MIN_VALUE;
-                for (Hit hit : hits) {
-                    double predicted = alignment.slope() * hit.queryTime()
+                for (int i = 0; i < hits.size; i++) {
+                    int queryTime = hits.queryTime(i);
+                    double predicted = alignment.slope() * queryTime
                             + alignment.intercept();
-                    if (Math.abs(hit.deltaTime() - predicted)
+                    if (Math.abs(hits.deltaTime(i) - predicted)
                             <= DEFAULT_ALIGNMENT_TOLERANCE) {
                         aligned++;
-                        firstQuery = Math.min(firstQuery, hit.queryTime());
-                        lastQuery = Math.max(lastQuery, hit.queryTime());
+                        firstQuery = Math.min(firstQuery, queryTime);
+                        lastQuery = Math.max(lastQuery, queryTime);
                     }
                 }
                 if (aligned < minimumHits) {
@@ -435,17 +459,16 @@ public final class AudioFingerprintEngine {
                     runnerUp));
         }
 
-        private static Alignment estimateAlignment(List<Hit> hits) {
+        private static Alignment estimateAlignment(Hits hits) {
             double slope = 0d;
-            double intercept = medianDelta(hits);
-            if (hits.size() >= 4) {
-                int part = Math.max(2, hits.size() / 5);
-                List<Hit> first = hits.subList(0, part);
-                List<Hit> last = hits.subList(hits.size() - part, hits.size());
-                double x1 = averageQueryTime(first);
-                double x2 = averageQueryTime(last);
-                double y1 = medianDelta(first);
-                double y2 = medianDelta(last);
+            // 同一块工作区依次计算两端中位数和全量残差，不保留临时切片。
+            double[] residuals = new double[hits.size];
+            if (hits.size >= 4) {
+                int part = Math.max(2, hits.size / 5);
+                double x1 = averageQueryTime(hits, 0, part);
+                double x2 = averageQueryTime(hits, hits.size - part, hits.size);
+                double y1 = medianDelta(hits, 0, part, residuals);
+                double y2 = medianDelta(hits, hits.size - part, hits.size, residuals);
                 if (Math.abs(x2 - x1) > 1d) {
                     slope = (y2 - y1) / (x2 - x1);
                     if (!Double.isFinite(slope) || Math.abs(slope) > 0.35d) {
@@ -453,42 +476,122 @@ public final class AudioFingerprintEngine {
                     }
                 }
             }
-            double[] residuals = new double[hits.size()];
-            for (int i = 0; i < hits.size(); i++) {
-                Hit hit = hits.get(i);
-                residuals[i] = hit.deltaTime() - slope * hit.queryTime();
+            for (int i = 0; i < hits.size; i++) {
+                residuals[i] = hits.deltaTime(i) - slope * hits.queryTime(i);
             }
-            intercept = median(residuals);
-            return new Alignment(slope, intercept);
+            return new Alignment(slope, median(residuals, residuals.length));
         }
 
-        private static double averageQueryTime(List<Hit> hits) {
+        private static double averageQueryTime(Hits hits, int from, int to) {
             double sum = 0d;
-            for (Hit hit : hits) {
-                sum += hit.queryTime();
+            for (int i = from; i < to; i++) {
+                sum += hits.queryTime(i);
             }
-            return sum / hits.size();
+            return sum / (to - from);
         }
 
-        private static double medianDelta(List<Hit> hits) {
-            double[] values = new double[hits.size()];
-            for (int i = 0; i < hits.size(); i++) {
-                values[i] = hits.get(i).deltaTime();
+        private static double medianDelta(Hits hits, int from, int to, double[] values) {
+            for (int i = from; i < to; i++) {
+                values[i - from] = hits.deltaTime(i);
             }
-            return median(values);
+            return median(values, to - from);
         }
 
-        private static double median(double[] values) {
-            Arrays.sort(values);
-            int middle = values.length / 2;
-            return values.length % 2 == 0
+        private static double median(double[] values, int length) {
+            Arrays.sort(values, 0, length);
+            int middle = length / 2;
+            return length % 2 == 0
                     ? (values[middle - 1] + values[middle]) / 2d
                     : values[middle];
         }
 
-        private record Hit(int queryTime, int referenceTime) {
-            private int deltaTime() {
-                return referenceTime - queryTime;
+        /** 每次命中只存一个 long；常见的有序指纹无需再次排序。 */
+        private static final class Hits {
+            private long[] values = new long[16];
+            private int size;
+            private boolean ordered = true;
+
+            private void add(int queryTime, int referenceTime) {
+                if (size == values.length) {
+                    values = Arrays.copyOf(values, values.length * 2);
+                }
+                if (size > 0 && queryTime < queryTime(size - 1)) {
+                    ordered = false;
+                }
+                values[size++] = ((long) queryTime << 32) | (referenceTime & 0xffff_ffffL);
+            }
+
+            private int queryTime(int index) {
+                return (int) (values[index] >>> 32);
+            }
+
+            private int deltaTime(int index) {
+                return (int) values[index] - queryTime(index);
+            }
+
+            private void sortByQueryTime() {
+                if (!ordered) {
+                    sort(0, size, new long[size]);
+                    ordered = true;
+                }
+            }
+
+            /** 稳定归并：相同 queryTime 必须保留原命中顺序，避免改变对齐采样。 */
+            private void sort(int from, int to, long[] work) {
+                if (to - from < 2) {
+                    return;
+                }
+                int middle = (from + to) >>> 1;
+                sort(from, middle, work);
+                sort(middle, to, work);
+                if (queryTime(middle - 1) <= queryTime(middle)) {
+                    return;
+                }
+                System.arraycopy(values, from, work, from, to - from);
+                int left = from;
+                int right = middle;
+                for (int i = from; i < to; i++) {
+                    if (left < middle && (right == to
+                            || (work[left] >>> 32) <= (work[right] >>> 32))) {
+                        values[i] = work[left++];
+                    } else {
+                        values[i] = work[right++];
+                    }
+                }
+            }
+        }
+
+        /** 对 (完整哈希, 时间) 去重，不拼字符串，也不截断哈希的高位。 */
+        private static final class QueryLandmarks {
+            private final long[] hashes;
+            private final int[] times;
+
+            private QueryLandmarks(int expected) {
+                int capacity = 1;
+                while (expected > capacity * 3L / 4) {
+                    if (capacity >= 1 << 30) {
+                        throw new IllegalArgumentException("查询声纹条目过多");
+                    }
+                    capacity <<= 1;
+                }
+                hashes = new long[capacity];
+                times = new int[capacity];
+            }
+
+            private boolean add(long hash, int time) {
+                int mask = hashes.length - 1;
+                int slot = FingerprintPostings.bucket(hash ^ (0x9e3779b97f4a7c15L * time)) & mask;
+                // Landmark 的时间非负；加一后的零值可安全表示空桶（含 MAX_VALUE）。
+                int storedTime = time + 1;
+                while (times[slot] != 0) {
+                    if (hashes[slot] == hash && times[slot] == storedTime) {
+                        return false;
+                    }
+                    slot = (slot + 1) & mask;
+                }
+                hashes[slot] = hash;
+                times[slot] = storedTime;
+                return true;
             }
         }
 

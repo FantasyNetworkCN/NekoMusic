@@ -16,6 +16,7 @@ backend/releases
 backend/config.yml
 backend/dependency-reduced-pom.xml
 backend/native/build
+backend/native/recognition/target
 backend/native/*.so
 backend/src/main/resources/site
 backend/src/main/resources/GeoIP/*

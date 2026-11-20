@@ -199,9 +199,8 @@ public final class MusicRecognitionWebSocketEndpoint {
 
     private void tryRecognize(Session session, boolean finalAttempt) {
         try {
-            byte[] sample = Arrays.copyOf(pcm, pcmSize);
             Optional<MusicRecognitionService.RecognitionResult> result =
-                    Main.getMusicRecognitionService().recognizePcm16k(sample);
+                    Main.getMusicRecognitionService().recognizePcm16k(pcm, pcmSize);
             if (result.isPresent()) {
                 ObjectNode response = MusicRecognitionHandler.matchResponse(result.get());
                 response.put("type", "result");
