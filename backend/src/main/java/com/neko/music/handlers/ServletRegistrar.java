@@ -31,7 +31,6 @@ public final class ServletRegistrar {
         context.addServlet(siteResourceHolder, "/");
 
         // NekoAuth 统一登录：浏览器跳转端点，不经过 /api 门禁。
-        // /sso 是 NekoMusic 自有命名空间；旧 /oauth/nekocore/* 入口仅作兼容别名。
         ServletHolder nekoAuthSsoStartHolder = new ServletHolder(new NekoAuthOAuthHandler());
         context.addServlet(nekoAuthSsoStartHolder, "/sso/nekocore/start");
         ServletHolder nekoAuthSsoCallbackHolder = new ServletHolder(new NekoAuthOAuthHandler());
@@ -39,13 +38,11 @@ public final class ServletRegistrar {
         ServletHolder nekoAuthSsoForgotPasswordHolder = new ServletHolder(new NekoAuthOAuthHandler());
         context.addServlet(nekoAuthSsoForgotPasswordHolder, "/sso/nekocore/forgot-password");
 
-        // 旧入口保留，避免已打开的旧页面或书签失效；新前端不再使用这些路径。
-        ServletHolder nekoAuthStartHolder = new ServletHolder(new NekoAuthOAuthHandler());
-        context.addServlet(nekoAuthStartHolder, "/oauth/nekocore/start");
-        ServletHolder nekoAuthCallbackHolder = new ServletHolder(new NekoAuthOAuthHandler());
-        context.addServlet(nekoAuthCallbackHolder, "/oauth/nekocore/callback");
-        ServletHolder nekoAuthForgotPasswordHolder = new ServletHolder(new NekoAuthOAuthHandler());
-        context.addServlet(nekoAuthForgotPasswordHolder, "/oauth/nekocore/forgot-password");
+        // 保留旧回调地址：已有部署的 oauth.redirect_uri 可能仍指向该路径。
+        // 回调处理完成后仍统一跳转到当前 /sso/complete 或 /sso/native-complete。
+        ServletHolder nekoAuthLegacyCallbackHolder = new ServletHolder(new NekoAuthOAuthHandler());
+        context.addServlet(nekoAuthLegacyCallbackHolder, "/oauth/nekocore/callback");
+
         ServletHolder nekoAuthSsoClaimHolder = new ServletHolder(new NekoAuthSsoClaimHandler());
         context.addServlet(nekoAuthSsoClaimHolder, "/api/user/sso/claim");
         ServletHolder nekoAuthSharedSessionHolder =

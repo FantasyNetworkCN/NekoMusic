@@ -127,7 +127,7 @@ async function startNekoAuthLogin() {
   loginLoading.value = true
   loginError.value = ''
   const current = window.location.pathname + window.location.search + window.location.hash
-  const safeReturnTo = current.startsWith('/oauth/nekocore/') || current.startsWith('/sso/') ? '/' : current
+  const safeReturnTo = current.startsWith('/sso/') ? '/' : current
   try {
     const response = activeTab.value === 'register'
       ? await axios.get(`${API_CONFIG.BASE_URL}/api/user/sso/portal-url`, {

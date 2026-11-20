@@ -122,8 +122,8 @@ curl -fsS http://127.0.0.1:65535/version
 
 - NekoMusic 从 NekoAuth 的 `/.well-known/openid-configuration` 读取授权、令牌、UserInfo 与 JWKS 端点，不硬编码端点地址。
 - `POST /api/user/sso/start`：请求体 `{"returnTo":"<站内相对路径>"}`，返回 `{url}`。授权请求使用授权码流程、PKCE S256、一次性 state 与 OIDC nonce，前端随后直接导航到 NekoAuth。
-- `GET /sso/nekocore/callback`：规范回调地址。服务端校验 state，用授权码与 `code_verifier` 换取 access token / ID Token，通过 NekoAuth JWKS 验证 ID Token 的签名、issuer、audience、azp、nonce、at_hash 与 `sub`，再读取 UserInfo。旧 `/oauth/nekocore/callback` 保留为兼容别名。
-- `GET /sso/complete`：前端完成页立即从地址栏清除 handoff，调用 `POST /api/user/sso/claim` 领取 token，写入 `localStorage.userToken` 后按原 `returnTo` 返回。交接 120 秒有效且只能领取一次；旧 `/oauth/nekocore/complete` 会重定向到这里。
+- `GET /sso/nekocore/callback`：NekoAuth 回调地址。服务端校验 state，用授权码与 `code_verifier` 换取 access token / ID Token，通过 NekoAuth JWKS 验证 ID Token 的签名、issuer、audience、azp、nonce、at_hash 与 `sub`，再读取 UserInfo。
+- `GET /sso/complete`：前端完成页立即从地址栏清除 handoff，调用 `POST /api/user/sso/claim` 领取 token，写入 `localStorage.userToken` 后按原 `returnTo` 返回。交接 120 秒有效且只能领取一次。
 - `POST /api/user/sso/claim`：请求体 `{"handoff":"..."}`，成功返回 `{token, returnTo, user}`；token 是 NekoAuth access token，`user` 是 NekoMusic 本地业务资料。响应为 `Cache-Control: private, no-store`。
 - `POST /api/user/sso/password-reset-url`：返回 NekoAuth 的 `/forgot-password` 完整地址，前端随后直接导航。
 
@@ -144,8 +144,7 @@ Web 会周期校验登录态；Android 与 PC 回到前台时会重新请求 `GE
 本地登录态，不需要等到用户重启客户端或再次点击受限功能。
 
 已有部署升级时，应把 NekoAuth 客户端登记的回调地址与 `oauth.redirect_uri` 一起更新为
-`https://music.nekocore.cn/sso/nekocore/callback`；旧 `/oauth/nekocore/callback` 仍可继续回调，
-但新部署应直接使用规范地址。
+`https://music.nekocore.cn/sso/nekocore/callback`。
 
 浏览器与旧客户端使用同一个 `localStorage.userToken` / `Authorization` 字段，但 token 已由 NekoMusic 本地随机串改为 NekoAuth access token。NekoMusic 每个受保护请求通过 NekoAuth introspection 校验身份，登出通过 NekoAuth revoke 吊销令牌。密码修改、管理员重置密码和账号停用会推进 NekoAuth 的 token 版本，使旧 token 立即失效。
 

@@ -1,7 +1,7 @@
 /**
  * useAuthDialog —— 全局登录弹窗开关
  * ------------------------------------------------------------
- * 兼容旧调用名：现在不再打开本地弹窗，而是直接进入 NekoAuth。
+ * 登录与注册入口统一跳转到 NekoAuth。
  */
 import { ref, readonly } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
@@ -23,7 +23,7 @@ export async function openAuthDialog(tab = 'login', returnToOverride = '') {
     ? returnToOverride
     : ''
   const returnTo = safeOverride
-    || (current.startsWith('/oauth/nekocore/') || current.startsWith('/sso/') ? '/' : current)
+    || (current.startsWith('/sso/') ? '/' : current)
   try {
     const response = tab === 'register'
       ? await fetch(`${API_CONFIG.BASE_URL}/api/user/sso/portal-url?target=register`, {
