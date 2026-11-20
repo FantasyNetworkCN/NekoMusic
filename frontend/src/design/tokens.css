@@ -9,52 +9,52 @@
  */
 
 :root {
-  /* ===== 颜色 · 背景（黑偏青：极深、低饱和、青相 ~190°） ===== */
-  --n-bg: #04090b;
-  --n-bg-soft: #071115;
-  --n-bg-deep: #010506;
-  --n-bg-elevated: #0a161a;
+  /* ===== 颜色 · 背景（墨色基底 + 暖琥珀主强调 + 薄荷辅助色） ===== */
+  --n-bg: #0e1118;
+  --n-bg-soft: #11151d;
+  --n-bg-deep: #090c12;
+  --n-bg-elevated: #171c26;
 
   /* ===== 颜色 · 表面（青调深玻璃） ===== */
-  --n-surface: rgba(9, 24, 29, 0.82);
-  --n-surface-strong: rgba(13, 33, 39, 0.92);
-  --n-surface-soft: rgba(120, 220, 232, 0.05);
-  --n-surface-hover: rgba(120, 220, 232, 0.09);
-  --n-surface-active: rgba(120, 220, 232, 0.14);
-  --n-surface-sunken: rgba(2, 11, 14, 0.55);
+  --n-surface: rgba(23, 28, 38, 0.84);
+  --n-surface-strong: rgba(28, 34, 45, 0.96);
+  --n-surface-soft: rgba(255, 255, 255, 0.045);
+  --n-surface-hover: rgba(255, 255, 255, 0.075);
+  --n-surface-active: rgba(255, 255, 255, 0.11);
+  --n-surface-sunken: rgba(7, 10, 15, 0.58);
 
   /* ===== 颜色 · 描边（青调） ===== */
-  --n-line: rgba(120, 205, 218, 0.14);
-  --n-line-strong: rgba(120, 205, 218, 0.28);
-  --n-line-subtle: rgba(120, 205, 218, 0.08);
+  --n-line: rgba(213, 222, 235, 0.14);
+  --n-line-strong: rgba(213, 222, 235, 0.28);
+  --n-line-subtle: rgba(213, 222, 235, 0.08);
 
   /* ===== 颜色 · 文本 ===== */
-  --n-text: #eaf8fb;
-  --n-text-muted: #9ab6be;
-  --n-text-faint: #617d85;
-  --n-text-inverse: #04191d;
+  --n-text: #f3f0e9;
+  --n-text-muted: #a7acb8;
+  --n-text-faint: #6d7481;
+  --n-text-inverse: #17120c;
 
   /* ===== 颜色 · 强调（青） ===== */
-  --n-accent: #5fd0e0;
-  --n-accent-soft: rgba(95, 208, 224, 0.14);
-  --n-accent-line: rgba(95, 208, 224, 0.24);
-  --n-accent-strong: #9ceefb;
-  --n-accent-deep: #2f9fb2;
+  --n-accent: #f0b56e;
+  --n-accent-soft: rgba(240, 181, 110, 0.14);
+  --n-accent-line: rgba(240, 181, 110, 0.28);
+  --n-accent-strong: #ffe0a6;
+  --n-accent-deep: #c87945;
 
   /* ===== 颜色 · 语义状态 ===== */
   --n-danger: #ff6b6b;
   --n-danger-soft: rgba(255, 107, 107, 0.13);
   --n-warning: #f7c66a;
   --n-warning-soft: rgba(247, 198, 106, 0.13);
-  --n-success: #5fd6a6;
-  --n-success-soft: rgba(95, 214, 166, 0.13);
+  --n-success: #8dd5b0;
+  --n-success-soft: rgba(141, 213, 176, 0.13);
   --n-info: var(--n-accent);
   --n-info-soft: var(--n-accent-soft);
 
   /* ===== 渐变 ===== */
-  --n-gradient-accent: linear-gradient(135deg, rgba(95, 208, 224, 0.20), rgba(95, 208, 224, 0.07));
-  --n-gradient-text: linear-gradient(120deg, #eafcfe, #9ceefb, #cfedf2);
-  --n-gradient-surface: linear-gradient(180deg, rgba(120, 220, 232, 0.035), transparent);
+  --n-gradient-accent: linear-gradient(135deg, rgba(240, 181, 110, 0.28), rgba(200, 121, 69, 0.12));
+  --n-gradient-text: linear-gradient(120deg, #fff4dc, #f0b56e, #f4c98d);
+  --n-gradient-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent);
 
   /* ===== 间距标尺（4px 基准） ===== */
   --n-space-1: 4px;
@@ -74,7 +74,7 @@
   --n-radius-control: 12px;  /* 按钮 / 输入框 / 分段控件 */
   --n-radius: 14px;
   --n-radius-lg: 18px;       /* 卡片 */
-  --n-radius-xl: 24px;       /* 大面板 / Hero */
+  --n-radius-xl: 20px;       /* 大面板 / Hero */
   --n-radius-pill: 999px;    /* 仅用于确实需要胶囊的场景（如进度条） */
   --n-radius-circle: 50%;
 

@@ -16,7 +16,6 @@ import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NInput, NButton } from '@/ui'
-import PwaInstallButton from '@/components/PwaInstallButton.vue'
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import { playTrack, playTracks, isCurrentMusic } from '@/composables/usePlaybackBridge'
 import { logoutUserGlobally } from '@/api/session.js'
@@ -252,7 +251,10 @@ onUnmounted(() => {
   <header class="site-header">
     <div class="site-header__inner">
       <!-- Logo -->
-      <a class="site-header__logo" href="/" @click.prevent="goHome">{{ $t('common.appName') }}</a>
+      <a class="site-header__logo" href="/" @click.prevent="goHome">
+        <img src="/logo.svg" alt="" width="34" height="37" />
+        <span>{{ $t('common.appName') }}</span>
+      </a>
 
       <!-- 搜索 -->
       <div ref="searchRoot" class="site-header__search">
@@ -306,8 +308,6 @@ onUnmounted(() => {
         >
           {{ $t('nav.downloadClient') }}
         </NButton>
-        <!-- 可安装时出现；已安装/不支持时组件自身不渲染 -->
-        <PwaInstallButton />
         <template v-if="isLoggedIn && user">
           <RouterLink to="/account" class="site-header__user" :title="$t('nav.account')">
             <img :src="userAvatar" :alt="$t('nav.avatarAlt')" class="site-header__avatar" @error="handleAvatarError" />
@@ -357,30 +357,40 @@ onUnmounted(() => {
   z-index: var(--n-z-header);
   /* 刘海屏：内容不下沉到状态栏下面 */
   padding-top: var(--n-safe-top);
-  border-bottom: 1px solid var(--n-line);
-  background: rgba(4, 9, 11, 0.82);
+  border-bottom: 1px solid var(--n-line-subtle);
+  background: rgba(14, 17, 24, 0.78);
   backdrop-filter: var(--n-blur);
   -webkit-backdrop-filter: var(--n-blur);
 }
 
 .site-header__inner {
-  width: min(1400px, calc(100% - 2 * var(--n-content-gutter)));
+  width: min(1500px, calc(100% - 2 * var(--n-content-gutter)));
   margin: 0 auto;
   min-height: var(--n-header-height);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(190px, auto) minmax(220px, 1fr) auto;
   align-items: center;
-  gap: var(--n-space-5);
+  gap: var(--n-space-6);
   padding: var(--n-space-2) 0;
 }
 
 /* ===== Logo ===== */
 .site-header__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: clamp(1.02rem, 1.7vw, 1.25rem);
   font-weight: var(--n-weight-bold);
-  letter-spacing: -0.03em;
   color: var(--n-text);
   white-space: nowrap;
+}
+
+.site-header__logo img {
+  display: block;
+  flex: none;
+  width: 34px;
+  height: 37px;
+  object-fit: contain;
 }
 @media (hover: hover) {
   .site-header__logo:hover {
@@ -425,6 +435,9 @@ onUnmounted(() => {
 .site-header__search {
   position: relative;
   min-width: 0;
+  max-width: 620px;
+  width: 100%;
+  justify-self: center;
 }
 
 .search-panel {
@@ -517,6 +530,10 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--n-space-2);
   justify-content: flex-end;
+}
+
+.site-header__auth :deep(.n-btn--primary) {
+  box-shadow: 0 8px 20px rgba(240, 181, 110, 0.14);
 }
 
 .site-header__user {

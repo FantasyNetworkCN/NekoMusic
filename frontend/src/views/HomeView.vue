@@ -265,329 +265,224 @@ onUnmounted(() => {
 <template>
   <AmbientBackdrop />
 
-  <PageShell width="default">
-    <!-- ==================== 页头 ==================== -->
+  <PageShell width="wide" class="home-page">
     <header class="home-head">
-      <h1 class="home-head__title">{{ $t('home.title') }}</h1>
-      <p class="home-head__greeting">
-        {{ isLoggedIn && nickname ? $t('home.welcome', { greeting, nickname }) : $t('home.welcomeAnon', { greeting }) }}
-      </p>
+      <div>
+        <p class="home-head__kicker"><span /> {{ $t('sidebar.discover') }}</p>
+        <h1 class="home-head__title">{{ $t('home.title') }}</h1>
+        <p class="home-head__greeting">
+          {{ isLoggedIn && nickname ? $t('home.welcome', { greeting, nickname }) : $t('home.welcomeAnon', { greeting }) }}
+        </p>
+      </div>
+      <div class="home-head__meta">
+        <span class="home-head__meta-label">{{ hasDaily ? $t('home.dailyBadge') : $t('home.hotTopBadge') }}</span>
+        <strong>{{ heroFeature?.title || $t('common.loading') }}</strong>
+        <small>{{ heroFeature?.artist || 'Neko Music' }}</small>
+      </div>
     </header>
 
-    <!-- ==================== Hero 横幅 ==================== -->
-    <section class="hero">
-      <div
-        v-if="heroBackdrop"
-        class="hero__bg"
-        :style="{ backgroundImage: `url(${heroBackdrop})` }"
-        aria-hidden="true"
-      />
-      <div class="hero__scrim" aria-hidden="true" />
-
-      <div class="hero__copy">
-        <span class="hero__eyebrow">
-          <NIcon name="sparkles" :size="14" />
-          {{ hasDaily ? $t('home.heroBadgeDaily') : $t('home.heroBadgeBrand') }}
-        </span>
-
-        <h2 class="hero__title">{{ hasDaily ? $t('home.heroTitleDaily') : $t('home.heroTitleBrand') }}</h2>
-
-        <p v-if="hasDaily" class="hero__lede">
-          {{ dailyList.length ? $t('home.heroDescDailyCount', { count: dailyList.length }) : $t('home.heroDescDaily') }}
-        </p>
-        <p v-else class="hero__lede">
-          {{ $t('home.heroDescBrandLead') }}
-          <strong>{{ $t('home.heroDescBrandSources') }}</strong>
-          {{ $t('home.heroDescBrandTail') }}
-        </p>
-
-        <div class="hero__actions">
-          <NButton
-            v-if="hasDaily"
-            variant="primary"
-            icon="play"
-            @click="playHeroList"
-          >
-            {{ $t('home.playRecommended') }}
-          </NButton>
-          <NButton
-            v-else-if="rankingList.length"
-            variant="primary"
-            icon="play"
-            @click="playHeroList"
-          >
-            {{ $t('home.playHot') }}
-          </NButton>
-          <NButton variant="secondary" icon="download" to="/download">
-            {{ $t('home.downloadClient') }}
-          </NButton>
-        </div>
-      </div>
-
-      <button
-        v-if="heroFeature"
-        type="button"
-        class="hero__feature"
-        :class="{ 'hero__feature--mosaic': hasDaily }"
-        @click="playHero"
-      >
-        <!-- 可见文本已含歌名/歌手，用视觉隐藏的「播放」补足动作语义：
-             可访问名由内容计算，避免 aria-label 与可见文本不一致（WCAG 2.5.3） -->
-        <span class="n-visually-hidden">{{ $t('home.heroPlayAria') }}</span>
-        <span v-if="hasDaily" class="hero__mosaic">
-          <img
-            v-for="m in dailyMosaic"
-            :key="m.id"
-            :src="m.coverUrl"
-            :srcset="coverSrcset(m.coverUrl)"
-            sizes="110px"
-            width="110"
-            height="110"
-            :alt="m.title"
-            decoding="async"
-            @error="handleImageError"
+    <div class="home-layout">
+      <div class="home-main">
+        <section class="feature-panel">
+          <div
+            v-if="heroBackdrop"
+            class="feature-panel__backdrop"
+            :style="{ backgroundImage: `url(${heroBackdrop})` }"
+            aria-hidden="true"
           />
-        </span>
-        <img
-          v-else
-          :src="heroFeature.coverUrl"
-          :srcset="coverSrcset(heroFeature.coverUrl)"
-          sizes="220px"
-          width="220"
-          height="220"
-          :alt="heroFeature.title"
-          decoding="async"
-          @error="handleImageError"
-        />
-
-        <span class="hero__badge">
-          <NIcon name="sparkles" :size="12" />
-          {{ hasDaily ? $t('home.dailyBadge') : $t('home.hotTopBadge') }}
-        </span>
-        <span class="hero__play"><NIcon name="play" :size="22" /></span>
-        <span class="hero__feature-meta">
-          <span class="hero__feature-title">{{ heroFeature.title }}</span>
-          <span class="hero__feature-artist">{{ heroFeature.artist }}</span>
-        </span>
-      </button>
-    </section>
-
-    <!-- ==================== 落雪 LXMC 导入入口 ==================== -->
-    <section class="lxmc-entry" :aria-label="$t('home.lxmcTitle')">
-      <div class="lxmc-entry__icon">
-        <NIcon name="file-up" :size="30" />
-        <span>.lxmc</span>
-      </div>
-      <div class="lxmc-entry__copy">
-        <span class="lxmc-entry__badge">
-          <NIcon name="sparkles" :size="13" />
-          {{ $t('home.lxmcBadge') }}
-        </span>
-        <h2>{{ $t('home.lxmcTitle') }}</h2>
-        <p>{{ $t('home.lxmcDesc') }}</p>
-      </div>
-      <div class="lxmc-entry__actions">
-        <NButton variant="primary" icon="file-up" to="/playlists?import=lxmc">
-          {{ $t('home.lxmcImport') }}
-        </NButton>
-        <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/lxmusic">
-          {{ $t('home.lxmcLearn') }}
-        </NButton>
-      </div>
-    </section>
-
-    <!-- ==================== 动作卡 ==================== -->
-    <section class="quick" :aria-label="$t('home.quickAria')">
-      <NCard
-        v-for="q in quickLinks"
-        :key="q.to"
-        as="router-link"
-        :to="q.to"
-        hoverable
-        pad="md"
-        class="quick__card"
-      >
-        <span class="quick__icon"><NIcon :name="q.icon" :size="20" /></span>
-        <span class="quick__body">
-          <span class="quick__title">{{ q.title }}</span>
-          <span class="quick__desc">{{ q.desc }}</span>
-        </span>
-        <NIcon name="chevron-right" :size="16" class="quick__arrow" />
-      </NCard>
-    </section>
-
-    <!-- ==================== 推荐歌单（固定五个） ==================== -->
-    <section class="section playlist-section" :aria-label="$t('home.playlistTitle')">
-      <header class="section__head">
-        <div class="section__heading">
-          <h2 class="section__title">{{ $t('home.playlistTitle') }}</h2>
-          <p class="section__sub">
-            {{ playlistPersonalized ? $t('home.playlistSubPersonalized') : $t('home.playlistSubGuest') }}
-          </p>
-        </div>
-        <NButton
-          variant="ghost"
-          size="sm"
-          icon="refresh"
-          :loading="playlistRefreshing"
-          :disabled="playlistLoading"
-          @click="fetchRecommendedPlaylists(true)"
-        >
-          {{ $t('home.playlistRefresh') }}
-        </NButton>
-      </header>
-
-      <div v-if="playlistLoading && !recommendedPlaylists.length" class="playlist-state">
-        <NSpinner :size="24" />
-        <span>{{ $t('home.playlistLoading') }}</span>
-      </div>
-
-      <div v-else-if="recommendedPlaylists.length" class="playlist-grid">
-        <NCard
-          v-for="playlist in recommendedPlaylists"
-          :key="playlist.id"
-          as="router-link"
-          :to="`/playlist/${playlist.id}`"
-          hoverable
-          pad="none"
-          class="playlist-card"
-        >
-          <div class="playlist-card__art">
-            <div class="playlist-card__mosaic" :class="{ 'playlist-card__mosaic--single': playlist.coverUrls.length === 1 }">
-              <img
-                v-for="(cover, coverIndex) in playlist.coverUrls.slice(0, 4)"
-                :key="`${playlist.id}-${coverIndex}`"
-                :src="cover"
-                :alt="coverIndex === 0 ? playlist.name : ''"
-                loading="lazy"
-                decoding="async"
-                @error="handleImageError"
-              />
-            </div>
-            <span class="playlist-card__badge">
-              <NIcon :name="playlist.source === 'personalized' ? 'sparkles' : 'trending-up'" :size="12" />
-              {{ playlist.source === 'personalized' ? $t('home.playlistPersonalizedBadge') : $t('home.playlistPopularBadge') }}
+          <div class="feature-panel__wash" aria-hidden="true" />
+          <div class="feature-panel__copy">
+            <span class="feature-panel__eyebrow">
+              <NIcon :name="hasDaily ? 'sparkles' : 'flame'" :size="14" />
+              {{ hasDaily ? $t('home.heroBadgeDaily') : $t('home.heroBadgeBrand') }}
             </span>
-            <span class="playlist-card__explore" v-if="playlist.exploration">
-              {{ $t('home.playlistExploreBadge') }}
-            </span>
-          </div>
-          <div class="playlist-card__body">
-            <h3 class="playlist-card__title">{{ playlist.name }}</h3>
-            <p class="playlist-card__meta">
-              <NIcon name="music" :size="13" />
-              {{ $t('track.songCount', { count: playlist.musicCount }) }}
-              <span class="playlist-card__dot">·</span>
-              {{ playlist.creator?.nickname || $t('home.playlistUnknownCreator') }}
+            <h2>{{ hasDaily ? $t('home.heroTitleDaily') : $t('home.heroTitleBrand') }}</h2>
+            <p v-if="hasDaily">
+              {{ $t('home.heroDescDailyCount', { count: dailyList.length }) }}
             </p>
-            <p class="playlist-card__reason">{{ playlist.reason }}</p>
+            <p v-else>
+              {{ $t('home.heroDescBrandLead') }} <strong>{{ $t('home.heroDescBrandSources') }}</strong>{{ $t('home.heroDescBrandTail') }}
+            </p>
+            <div class="feature-panel__actions">
+              <NButton
+                v-if="hasDaily || rankingList.length"
+                variant="primary"
+                icon="play"
+                @click="playHeroList"
+              >
+                {{ hasDaily ? $t('home.playRecommended') : $t('home.playHot') }}
+              </NButton>
+              <NButton variant="ghost" icon="download" to="/download">
+                {{ $t('home.downloadClient') }}
+              </NButton>
+            </div>
           </div>
-        </NCard>
+          <button
+            v-if="heroFeature"
+            type="button"
+            class="feature-panel__art"
+            :aria-label="$t('home.heroPlayAria')"
+            @click="playHero"
+          >
+            <span v-if="hasDaily" class="feature-panel__mosaic">
+              <img
+                v-for="m in dailyMosaic"
+                :key="m.id"
+                :src="m.coverUrl"
+                :alt="m.title"
+                loading="lazy"
+                decoding="async"
+                @error="handleImageError"
+              />
+            </span>
+            <img
+              v-else
+              :src="heroFeature.coverUrl"
+              :srcset="coverSrcset(heroFeature.coverUrl)"
+              :alt="heroFeature.title"
+              loading="eager"
+              decoding="async"
+              @error="handleImageError"
+            />
+            <span class="feature-panel__art-play"><NIcon name="play" :size="20" /></span>
+          </button>
+        </section>
+
+        <section class="section-block" :aria-label="$t('home.playlistTitle')">
+          <header class="section-head">
+            <div>
+              <p class="section-head__eyebrow">{{ $t('home.playlistPersonalizedBadge') }}</p>
+              <h2>{{ $t('home.playlistTitle') }}</h2>
+              <p>{{ playlistPersonalized ? $t('home.playlistSubPersonalized') : $t('home.playlistSubGuest') }}</p>
+            </div>
+            <NButton
+              variant="ghost"
+              size="sm"
+              icon="refresh"
+              :loading="playlistRefreshing"
+              :disabled="playlistLoading"
+              :title="$t('home.playlistRefresh')"
+              @click="fetchRecommendedPlaylists(true)"
+            />
+          </header>
+
+          <div v-if="playlistLoading && !recommendedPlaylists.length" class="playlist-state">
+            <NSpinner :size="24" />
+            <span>{{ $t('home.playlistLoading') }}</span>
+          </div>
+          <div v-else-if="recommendedPlaylists.length" class="playlist-grid">
+            <RouterLink
+              v-for="playlist in recommendedPlaylists"
+              :key="playlist.id"
+              :to="`/playlist/${playlist.id}`"
+              class="playlist-card"
+            >
+              <div class="playlist-card__art">
+                <div class="playlist-card__mosaic" :class="{ 'playlist-card__mosaic--single': playlist.coverUrls.length === 1 }">
+                  <img
+                    v-for="(cover, coverIndex) in playlist.coverUrls.slice(0, 4)"
+                    :key="`${playlist.id}-${coverIndex}`"
+                    :src="cover"
+                    :alt="coverIndex === 0 ? playlist.name : ''"
+                    loading="lazy"
+                    decoding="async"
+                    @error="handleImageError"
+                  />
+                </div>
+                <span class="playlist-card__badge">
+                  <NIcon :name="playlist.source === 'personalized' ? 'sparkles' : 'trending-up'" :size="11" />
+                  {{ playlist.source === 'personalized' ? $t('home.playlistPersonalizedBadge') : $t('home.playlistPopularBadge') }}
+                </span>
+              </div>
+              <h3>{{ playlist.name }}</h3>
+              <p>{{ playlist.reason || $t('home.playlistUnknownCreator') }}</p>
+            </RouterLink>
+          </div>
+          <p v-else class="playlist-state">{{ $t('home.playlistEmpty') }}</p>
+        </section>
+
+        <section v-if="latestGrid.length" class="section-block">
+          <header class="section-head">
+            <div>
+              <p class="section-head__eyebrow">{{ $t('home.latestTitle') }}</p>
+              <h2>{{ $t('home.latestSub') }}</h2>
+            </div>
+            <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/latest">{{ $t('common.more') }}</NButton>
+          </header>
+          <div class="cover-rail">
+            <article v-for="m in latestGrid.slice(0, 6)" :key="m.id" class="cover-card">
+              <div class="cover-card__art">
+                <img :src="m.coverUrl" :srcset="coverSrcset(m.coverUrl)" :alt="m.title" loading="lazy" @error="handleImageError" />
+                <button
+                  type="button"
+                  class="cover-card__play"
+                  :aria-label="$t('home.playAria', { title: m.title })"
+                  @click="playMusic(m, latestGrid)"
+                >
+                  <NIcon :name="isCurrentMusic(m.id) ? 'volume-2' : 'play'" :size="16" />
+                </button>
+              </div>
+              <h3>{{ m.title }}</h3>
+              <p>{{ m.artist }}</p>
+            </article>
+          </div>
+        </section>
       </div>
 
-      <p v-else class="playlist-state">{{ $t('home.playlistEmpty') }}</p>
-    </section>
-
-    <!-- ==================== 加载态 ==================== -->
-    <div v-if="loadingAll" class="loading">
-      <NSpinner :size="28" />
-      <p>{{ $t('home.loadingMusic') }}</p>
-    </div>
-
-    <template v-else>
-      <!-- ==================== 热门音乐（横向栏） ==================== -->
-      <section v-if="hotList.length" class="section">
-        <header class="section__head">
-          <div class="section__heading">
-            <h2 class="section__title">{{ $t('home.hotTitle') }}</h2>
-            <p class="section__sub">{{ $t('home.hotSub') }}</p>
-          </div>
-          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/ranking">{{ $t('common.more') }}</NButton>
-        </header>
-
-        <div class="rail">
-          <article
-            v-for="(m, i) in hotList"
-            :key="m.id"
-            class="cover-card"
-          >
-            <div class="cover-card__art">
-              <img
-                :src="m.coverUrl"
-                :srcset="coverSrcset(m.coverUrl)"
-                sizes="152px"
-                width="152"
-                height="152"
-                :alt="m.title"
-                loading="lazy"
-                decoding="async"
-                @error="handleImageError"
-              />
-              <span class="cover-card__rank">{{ i + 1 }}</span>
-              <span class="cover-card__play"><NIcon :name="isCurrentMusic(m.id) ? 'volume-2' : 'play'" :size="16" /></span>
+      <aside class="home-side">
+        <section class="side-panel">
+          <header class="side-panel__head">
+            <div>
+              <p class="section-head__eyebrow">{{ $t('home.hotTitle') }}</p>
+              <h2>{{ $t('home.hotSub') }}</h2>
             </div>
-            <h3 class="cover-card__title">
-              <span class="cover-card__title-text">{{ m.title }}</span>
-              <NowPlayingTag v-if="isCurrentMusic(m.id)" />
-              <QualityBadge :quality="m.maxQuality" />
-            </h3>
-            <p class="cover-card__artist">{{ m.artist }}</p>
+            <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/ranking">{{ $t('common.more') }}</NButton>
+          </header>
+          <div v-if="loadingAll" class="side-panel__loading"><NSpinner :size="22" /></div>
+          <div v-else class="rank-list">
             <button
+              v-for="(m, i) in hotList.slice(0, 7)"
+              :key="m.id"
               type="button"
-              class="cover-card__hit"
-              :aria-label="$t('home.playAria', { title: m.title })"
+              class="rank-row"
               @click="playMusic(m, hotList)"
-            ></button>
-          </article>
-        </div>
-      </section>
-
-      <!-- ==================== 最新上架（横向栏） ==================== -->
-      <section v-if="latestGrid.length" class="section">
-        <header class="section__head">
-          <div class="section__heading">
-            <h2 class="section__title">{{ $t('home.latestTitle') }}</h2>
-            <p class="section__sub">{{ $t('home.latestSub') }}</p>
+            >
+              <span class="rank-row__number">{{ String(i + 1).padStart(2, '0') }}</span>
+              <img :src="m.coverUrl" :alt="m.title" loading="lazy" @error="handleImageError" />
+              <span class="rank-row__copy">
+                <strong>{{ m.title }}</strong>
+                <small>{{ m.artist }}</small>
+              </span>
+              <NIcon :name="isCurrentMusic(m.id) ? 'volume-2' : 'play'" :size="15" class="rank-row__icon" />
+            </button>
           </div>
-          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/latest">{{ $t('common.more') }}</NButton>
-        </header>
+        </section>
 
-        <div class="rail">
-          <article
-            v-for="m in latestGrid"
-            :key="m.id"
-            class="cover-card"
-          >
-            <div class="cover-card__art">
-              <img
-                :src="m.coverUrl"
-                :srcset="coverSrcset(m.coverUrl)"
-                sizes="152px"
-                width="152"
-                height="152"
-                :alt="m.title"
-                loading="lazy"
-                decoding="async"
-                @error="handleImageError"
-              />
-              <span class="cover-card__play"><NIcon :name="isCurrentMusic(m.id) ? 'volume-2' : 'play'" :size="16" /></span>
+        <section class="import-panel">
+          <div class="import-panel__icon"><NIcon name="file-up" :size="22" /></div>
+          <p class="section-head__eyebrow">{{ $t('home.lxmcBadge') }}</p>
+          <h2>{{ $t('home.lxmcTitle') }}</h2>
+          <p>{{ $t('home.lxmcDesc') }}</p>
+          <NButton variant="secondary" block icon="file-up" to="/playlists?import=lxmc">
+            {{ $t('home.lxmcImport') }}
+          </NButton>
+        </section>
+
+        <section class="quick-panel" :aria-label="$t('home.quickAria')">
+          <header class="side-panel__head">
+            <div>
+              <p class="section-head__eyebrow">{{ $t('home.quickAria') }}</p>
+              <h2>{{ $t('sidebar.tools') }}</h2>
             </div>
-            <h3 class="cover-card__title">
-              <span class="cover-card__title-text">{{ m.title }}</span>
-              <NowPlayingTag v-if="isCurrentMusic(m.id)" />
-              <QualityBadge :quality="m.maxQuality" />
-            </h3>
-            <p class="cover-card__artist">{{ m.artist }}</p>
-            <button
-              type="button"
-              class="cover-card__hit"
-              :aria-label="$t('home.playAria', { title: m.title })"
-              @click="playMusic(m, latestGrid)"
-            ></button>
-          </article>
-        </div>
-      </section>
-    </template>
+          </header>
+          <RouterLink v-for="q in quickLinks" :key="q.to" :to="q.to" class="quick-row">
+            <span><NIcon :name="q.icon" :size="17" /></span>
+            <strong>{{ q.title }}</strong>
+            <NIcon name="chevron-right" :size="14" />
+          </RouterLink>
+        </section>
+      </aside>
+    </div>
   </PageShell>
 </template>
 
@@ -1412,6 +1307,654 @@ onUnmounted(() => {
 
   .playlist-card__body {
     padding: var(--n-space-2) var(--n-space-1) var(--n-space-1);
+  }
+}
+
+/* ==========================================================================
+   新版首页工作台
+   --------------------------------------------------------------------------
+   旧首页样式保留在文件内供历史页面分支复用；以下规则覆盖首页当前结构，
+   让首页成为左侧导航下的双栏内容工作区。
+   ========================================================================== */
+.home-page {
+  max-width: 1560px;
+  padding-top: clamp(22px, 3vw, 38px);
+}
+
+.home-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--n-space-6);
+  margin-bottom: 26px;
+}
+
+.home-head__kicker,
+.section-head__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  color: var(--n-accent);
+  font-size: 0.68rem;
+  font-weight: var(--n-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.home-head__kicker span {
+  display: inline-block;
+  width: 22px;
+  height: 2px;
+  background: var(--n-accent);
+}
+
+.home-head__title {
+  font-size: clamp(1.9rem, 3vw, 2.65rem);
+  letter-spacing: -0.04em;
+}
+
+.home-head__greeting {
+  margin-top: 7px;
+  color: var(--n-text-muted);
+}
+
+.home-head__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 180px;
+  padding: 12px 16px;
+  border-left: 1px solid var(--n-line);
+}
+
+.home-head__meta-label {
+  color: var(--n-accent);
+  font-size: var(--n-text-xs);
+}
+
+.home-head__meta strong,
+.home-head__meta small {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-head__meta strong {
+  font-size: var(--n-text-sm);
+}
+
+.home-head__meta small {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+.home-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.62fr) minmax(300px, 0.78fr);
+  align-items: start;
+  gap: clamp(22px, 3vw, 36px);
+}
+
+.home-main,
+.home-side {
+  min-width: 0;
+}
+
+.home-side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.feature-panel {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px);
+  align-items: center;
+  min-height: 316px;
+  margin-bottom: 30px;
+  padding: clamp(24px, 4vw, 42px);
+  overflow: hidden;
+  border: 1px solid var(--n-line);
+  border-radius: 18px;
+  background: var(--n-surface);
+  box-shadow: var(--n-shadow);
+}
+
+.feature-panel__backdrop {
+  position: absolute;
+  inset: -18%;
+  background-position: center;
+  background-size: cover;
+  filter: blur(46px) saturate(0.8);
+  opacity: 0.24;
+  transform: scale(1.08);
+}
+
+.feature-panel__wash {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(23, 28, 38, 0.98) 12%, rgba(23, 28, 38, 0.8) 57%, rgba(23, 28, 38, 0.36)),
+    linear-gradient(0deg, rgba(23, 28, 38, 0.6), transparent 60%);
+}
+
+.feature-panel__copy,
+.feature-panel__art {
+  position: relative;
+  z-index: 1;
+}
+
+.feature-panel__copy {
+  max-width: 500px;
+}
+
+.feature-panel__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
+}
+
+.feature-panel h2 {
+  max-width: 10ch;
+  margin: 14px 0 12px;
+  color: var(--n-text);
+  font-size: clamp(2rem, 4vw, 3.45rem);
+  line-height: 1.03;
+  letter-spacing: -0.055em;
+}
+
+.feature-panel p {
+  max-width: 44ch;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-base);
+}
+
+.feature-panel p strong {
+  color: var(--n-text);
+}
+
+.feature-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.feature-panel__art {
+  justify-self: end;
+  width: min(100%, 252px);
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--n-line-strong);
+  border-radius: 16px;
+  background: var(--n-surface-sunken);
+  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.feature-panel__art > img,
+.feature-panel__mosaic {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.feature-panel__art > img {
+  object-fit: cover;
+  transition: transform var(--n-duration-slow) var(--n-ease);
+}
+
+.feature-panel__mosaic {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+}
+
+.feature-panel__mosaic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feature-panel__art-play {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: var(--n-text-inverse);
+  background: var(--n-accent);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.32);
+}
+
+@media (hover: hover) {
+  .feature-panel__art:hover > img {
+    transform: scale(1.05);
+  }
+}
+
+.section-block {
+  margin-bottom: 34px;
+}
+
+.section-head,
+.side-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 15px;
+}
+
+.section-head h2,
+.side-panel__head h2 {
+  font-size: 1.12rem;
+  letter-spacing: -0.02em;
+}
+
+.section-head > div > p:last-child {
+  margin-top: 4px;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+.section-head__eyebrow {
+  margin-bottom: 4px;
+  color: var(--n-text-faint);
+  font-size: 0.62rem;
+}
+
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.playlist-card {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--n-line);
+  border-radius: 13px;
+  color: inherit;
+  background: var(--n-surface);
+  transition: transform var(--n-duration-fast) var(--n-ease), border-color var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
+}
+
+.playlist-card:hover {
+  border-color: var(--n-line-strong);
+  background: var(--n-surface-hover);
+  transform: translateY(-3px);
+}
+
+.playlist-card__art {
+  border-radius: 0;
+}
+
+.playlist-card h3 {
+  padding: 12px 12px 0;
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-card > p {
+  min-height: 2.8em;
+  padding: 4px 12px 12px;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.side-panel,
+.quick-panel {
+  padding: 20px;
+  border: 1px solid var(--n-line);
+  border-radius: 16px;
+  background: rgba(23, 28, 38, 0.7);
+}
+
+.side-panel__head {
+  align-items: flex-end;
+}
+
+.rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 22px 40px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  padding: 7px 5px;
+  border-radius: 10px;
+  color: var(--n-text);
+  text-align: left;
+  transition: background var(--n-duration-fast) var(--n-ease);
+}
+
+.rank-row:hover {
+  background: var(--n-surface-hover);
+}
+
+.rank-row__number {
+  color: var(--n-text-faint);
+  font-family: var(--n-font-mono);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.rank-row:nth-child(-n + 3) .rank-row__number {
+  color: var(--n-accent);
+}
+
+.rank-row img {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  object-fit: cover;
+  background: var(--n-surface-sunken);
+}
+
+.rank-row__copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.rank-row__copy strong,
+.rank-row__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-row__copy strong {
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+}
+
+.rank-row__copy small {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+.rank-row__icon {
+  color: var(--n-text-faint);
+}
+
+.rank-row:hover .rank-row__icon {
+  color: var(--n-accent);
+}
+
+.side-panel__loading {
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+}
+
+.import-panel {
+  position: relative;
+  overflow: hidden;
+  padding: 22px;
+  border: 1px solid var(--n-accent-line);
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, rgba(240, 181, 110, 0.15), transparent 62%),
+    var(--n-surface);
+}
+
+.import-panel::after {
+  content: '.LXMC';
+  position: absolute;
+  top: 17px;
+  right: 16px;
+  color: rgba(240, 181, 110, 0.18);
+  font-size: 1.35rem;
+  font-weight: var(--n-weight-bold);
+  letter-spacing: 0.06em;
+}
+
+.import-panel__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 22px;
+  border-radius: 12px;
+  color: var(--n-accent-strong);
+  background: var(--n-accent-soft);
+}
+
+.import-panel h2 {
+  max-width: 15ch;
+  margin: 8px 0 8px;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.import-panel > p:not(.section-head__eyebrow) {
+  min-height: 4.2em;
+  margin-bottom: 18px;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  line-height: 1.55;
+}
+
+.quick-panel {
+  padding-bottom: 12px;
+}
+
+.quick-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  border-top: 1px solid var(--n-line-subtle);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+.quick-row span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--n-accent);
+  background: var(--n-accent-soft);
+}
+
+.quick-row strong {
+  color: var(--n-text);
+  font-weight: var(--n-weight-medium);
+}
+
+.quick-row > :last-child {
+  color: var(--n-text-faint);
+}
+
+.cover-rail {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cover-card {
+  width: auto;
+}
+
+.cover-card__art {
+  border-radius: 13px;
+}
+
+.cover-card__play {
+  right: 9px;
+  bottom: 9px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  opacity: 1;
+  transform: none;
+  cursor: pointer;
+}
+
+.cover-card h3 {
+  margin-top: 9px;
+  overflow: hidden;
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cover-card p {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .home-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .quick-panel {
+    grid-column: 1 / -1;
+  }
+
+  .cover-rail {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .home-head {
+    align-items: flex-start;
+  }
+
+  .home-head__meta {
+    display: none;
+  }
+
+  .feature-panel {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    min-height: 0;
+  }
+
+  .feature-panel h2 {
+    max-width: 12ch;
+  }
+
+  .feature-panel__art {
+    justify-self: start;
+    width: min(100%, 210px);
+  }
+
+  .home-side {
+    display: flex;
+  }
+
+  .playlist-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cover-rail {
+    display: flex;
+    overflow-x: auto;
+    margin-inline: calc(-1 * var(--n-content-gutter));
+    padding: 0 var(--n-content-gutter) 8px;
+    scrollbar-width: none;
+  }
+
+  .cover-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cover-card {
+    flex: 0 0 132px;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-page {
+    padding-top: 20px;
+  }
+
+  .home-head {
+    margin-bottom: 20px;
+  }
+
+  .home-head__title {
+    font-size: 2rem;
+  }
+
+  .feature-panel {
+    margin-inline: -4px;
+    padding: 22px;
+  }
+
+  .feature-panel h2 {
+    font-size: 2.2rem;
+  }
+
+  .feature-panel__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .feature-panel__actions :deep(.n-btn) {
+    width: 100%;
+  }
+
+  .section-block {
+    margin-bottom: 28px;
+  }
+
+  .playlist-grid {
+    gap: 10px;
+  }
+
+  .side-panel,
+  .quick-panel,
+  .import-panel {
+    padding: 16px;
   }
 }
 </style>

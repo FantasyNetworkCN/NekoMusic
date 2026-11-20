@@ -14,6 +14,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import SiteHeader from './layouts/SiteHeader.vue'
 import SiteFooter from './layouts/SiteFooter.vue'
+import SiteNav from './components/SiteNav.vue'
 import GlobalPlayer from './components/GlobalPlayer.vue'
 import MobileAppBanner from './components/MobileAppBanner.vue'
 import AuthDialog from './components/AuthDialog.vue'
@@ -48,6 +49,19 @@ const isFlushMain = computed(() => !String(route.name || '').startsWith('admin')
 
 /** 管理后台 */
 const isAdminPage = computed(() => String(route.name || '').startsWith('admin'))
+
+/** 普通内容页使用新版工作区导航，播放页与独立流程保持全屏布局。 */
+const showSiteNavigation = computed(() => {
+  const standaloneRoutes = [
+    'download',
+    'together-launch',
+    'detail',
+    'oauth-complete',
+    'oauth-native-complete',
+    'forgot-password',
+  ]
+  return !isAdminPage.value && !standaloneRoutes.includes(route.name)
+})
 
 /**
  * 手机端「下载 APP」软引导横幅。
@@ -143,7 +157,11 @@ onUnmounted(() => {
 <template>
   <div
     id="app"
-    :class="{ 'app--home': isChromeDarkShell, 'app--player-visible': hasTrack }"
+    :class="{
+      'app--home': isChromeDarkShell,
+      'app--player-visible': hasTrack,
+      'app--workspace': showSiteNavigation,
+    }"
     :style="{ '--app-header-h': headerHeight + 'px' }"
   >
     <AuthDialog />
@@ -159,6 +177,8 @@ onUnmounted(() => {
       :aria-hidden="isChromeHeaderHidden || undefined"
     />
 
+    <SiteNav v-if="showSiteNavigation" />
+
     <MobileAppBanner v-if="showAppBanner" />
 
     <main :class="{ 'main--flush': isFlushMain }">
@@ -167,7 +187,9 @@ onUnmounted(() => {
 
     <div
       class="app-footer"
-      :class="{ 'app-footer--raised': hasTrack && !isDownloadPage && !isLyricsToolPage }"
+      :class="{
+        'app-footer--raised': hasTrack && !isDownloadPage && !isLyricsToolPage,
+      }"
     >
       <SiteFooter v-if="!isDownloadPage && !isTogetherLaunchPage" />
     </div>
@@ -192,9 +214,9 @@ onUnmounted(() => {
 /* 深色内容页：三层背景（黑偏青，与玻璃页共用） */
 #app.app--home {
   background:
-    radial-gradient(1200px 700px at 12% -10%, rgba(95, 208, 224, 0.15), transparent 55%),
-    radial-gradient(900px 600px at 92% 8%, rgba(96, 140, 150, 0.1), transparent 50%),
-    linear-gradient(180deg, #04090b, #071115 42%, #010506 100%);
+    radial-gradient(1000px 620px at 62% -8%, rgba(240, 181, 110, 0.1), transparent 58%),
+    radial-gradient(880px 620px at 96% 46%, rgba(121, 175, 153, 0.08), transparent 52%),
+    linear-gradient(180deg, #0e1118, #11151d 42%, #0a0d13 100%);
 }
 
 main {
@@ -206,6 +228,24 @@ main {
 /* 页面自行控制内边距（非管理端） */
 main.main--flush {
   padding: 0;
+}
+
+@media (max-width: 900px) {
+  .app--workspace main {
+    padding-bottom: 92px;
+  }
+
+  .app--workspace .app-footer {
+    padding-bottom: 86px;
+  }
+
+  .app--workspace.app--player-visible :deep(.site-mobile-nav) {
+    bottom: calc(var(--n-player-height) + 16px + var(--n-safe-bottom));
+  }
+
+  .app--workspace.app--player-visible main {
+    padding-bottom: calc(var(--n-player-height) + 104px + var(--n-safe-bottom));
+  }
 }
 
 /* ===== 顶栏：下载页 / 管理后台收起，并同步收拢布局占位 =====

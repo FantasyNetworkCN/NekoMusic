@@ -2278,4 +2278,90 @@ onUnmounted(() => {
     transition: none;
   }
 }
+
+/* ==========================================================================
+   新版播放条
+   --------------------------------------------------------------------------
+   播放条是全站持续存在的工作区，不再模拟悬浮玻璃卡片；视觉上收窄、
+   信息层级更明确，桌面端与左侧导航形成完整的底部控制带。
+   ========================================================================== */
+.global-player {
+  height: calc(78px + var(--n-safe-bottom));
+  background: rgba(16, 19, 27, 0.97);
+  border-top-color: var(--n-line-strong);
+  box-shadow: 0 -16px 36px rgba(0, 0, 0, 0.2);
+}
+
+.global-player--chrome-dark {
+  background: rgba(16, 19, 27, 0.97);
+}
+
+.gp-grid {
+  width: min(1520px, 100%);
+  margin: 0 auto;
+  padding-inline: clamp(14px, 3vw, 34px);
+}
+
+.gp-track__cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+}
+
+.gp-track__title {
+  font-size: var(--n-text-sm);
+}
+
+.gp-play {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--n-accent);
+  border-color: var(--n-accent);
+  box-shadow: 0 8px 20px rgba(240, 181, 110, 0.22);
+}
+
+.gp-play:hover:not(:disabled) {
+  background: var(--n-accent-strong);
+  box-shadow: 0 10px 26px rgba(240, 181, 110, 0.3);
+}
+
+.gp-icon {
+  border-radius: 10px;
+}
+
+.gp-icon:hover:not(:disabled) {
+  background: var(--n-surface-hover);
+}
+
+.gp-seek__fill {
+  background: linear-gradient(90deg, var(--n-accent-deep), var(--n-accent));
+}
+
+.gp-pop {
+  right: clamp(12px, 3vw, 34px);
+  bottom: calc(100% + 14px);
+  border-color: var(--n-line-strong);
+  background: rgba(28, 34, 45, 0.98);
+}
+
+@media (max-width: 560px) {
+  .global-player {
+    height: calc(64px + var(--n-safe-bottom));
+  }
+
+  .gp-grid {
+    padding-inline: 10px;
+  }
+
+  .gp-track__cover {
+    width: 38px;
+    height: 38px;
+  }
+
+  .gp-play {
+    width: 44px;
+    height: 44px;
+  }
+}
 </style>

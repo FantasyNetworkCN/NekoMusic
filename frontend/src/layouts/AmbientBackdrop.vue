@@ -9,9 +9,7 @@
 
 <template>
   <div class="n-ambient" aria-hidden="true">
-    <span class="n-ambient__blob n-ambient__blob--a" />
-    <span class="n-ambient__blob n-ambient__blob--b" />
-    <span class="n-ambient__blob n-ambient__blob--c" />
+    <span class="n-ambient__glow" />
     <span class="n-ambient__grid" />
   </div>
 </template>
@@ -25,38 +23,14 @@
   overflow: hidden;
 }
 
-.n-ambient__blob {
+.n-ambient__glow {
   position: absolute;
-  border-radius: var(--n-radius-circle);
-  filter: blur(88px);
-  opacity: 0.28;
-  animation: n-ambient-float 22s var(--n-ease) infinite;
-}
-
-.n-ambient__blob--a {
-  width: 400px;
-  height: 400px;
-  background: rgba(95, 208, 224, 0.3);
-  top: -120px;
-  right: -80px;
-}
-
-.n-ambient__blob--b {
-  width: 340px;
-  height: 340px;
-  background: rgba(96, 150, 160, 0.2);
-  bottom: -60px;
-  left: -60px;
-  animation-delay: -8s;
-}
-
-.n-ambient__blob--c {
-  width: 260px;
-  height: 260px;
-  background: rgba(95, 208, 224, 0.14);
-  top: 38%;
-  left: 30%;
-  animation-delay: -14s;
+  inset: 0 0 auto;
+  height: 360px;
+  background:
+    linear-gradient(110deg, rgba(240, 181, 110, 0.08), transparent 34%),
+    linear-gradient(250deg, rgba(141, 213, 176, 0.06), transparent 42%);
+  opacity: 0.9;
 }
 
 .n-ambient__grid {
@@ -64,19 +38,13 @@
   inset: 0;
   opacity: 0.24;
   background-image:
-    linear-gradient(rgba(120, 205, 218, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 205, 218, 0.05) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(ellipse 80% 55% at 50% 15%, black, transparent);
-}
-
-@keyframes n-ambient-float {
-  0%,
-  100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-16px, 12px) scale(1.04); }
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .n-ambient__blob { animation: none; }
+  .n-ambient__glow { opacity: 0.7; }
 }
 </style>
