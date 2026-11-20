@@ -158,7 +158,7 @@ async function redirectToAuthForSharedSession() {
   }
 
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  const returnTo = current.startsWith('/oauth/nekocore/') || current.startsWith('/sso/') ? '/' : current
+  const returnTo = current.startsWith('/sso/') ? '/' : current
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/sso/login-entry`, {
       method: 'POST',

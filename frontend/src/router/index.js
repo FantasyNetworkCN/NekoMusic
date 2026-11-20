@@ -188,12 +188,7 @@ const router = createRouter({
       }
     },
     {
-      // 兼容历史分享链接 /search/{query}，统一转到查询串形式
-      path: '/search/:query',
-      redirect: (to) => ({ path: '/search', query: { q: to.params.query } })
-    },
-    {
-      // 登录已改为全局弹窗：旧链接/书签仍可用，落到首页并弹出登录
+      // 登录由 NekoAuth 全局入口发起。
       path: '/login',
       name: 'login',
       redirect: () => {
@@ -238,11 +233,6 @@ const router = createRouter({
         description: '正在完成 NekoAuth 统一登录。',
         keywords: '登录,NekoAuth,单点登录'
       }
-    },
-    {
-      // 旧回调地址兼容；服务端只会在新流程中跳转到 /sso/complete。
-      path: '/oauth/nekocore/complete',
-      redirect: (to) => ({ path: '/sso/complete', query: to.query }),
     },
     {
       path: '/favorites',
@@ -519,7 +509,7 @@ const NOINDEX_PREFIXES = [
   '/admin', '/favorites', '/playlists', '/account', '/vip', '/upload',
   '/lyrics-report',
   '/notifications', '/playlist/create', '/forgot-password', '/login', '/register',
-  '/oauth/nekocore', '/sso', '/together',
+  '/sso', '/together',
 ]
 
 /**

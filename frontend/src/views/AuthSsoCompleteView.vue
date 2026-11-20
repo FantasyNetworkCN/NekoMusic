@@ -26,7 +26,7 @@ function readHandoff() {
 function safeReturnTo(value) {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return '/'
   if (value.includes('\\') || [...value].some((char) => char.charCodeAt(0) < 0x20)) return '/'
-  if (value.startsWith('/oauth/nekocore/') || value.startsWith('/sso/')) return '/'
+  if (value.startsWith('/sso/')) return '/'
   return value
 }
 

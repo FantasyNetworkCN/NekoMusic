@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
  * <p>这是 OAuth 浏览器导航，不是 JSON API；回调使用一次性 state 做请求关联与 CSRF 校验。
  * 保证。回调只跳转到前端完成页并携带一次性 handoff，不把 Token 放进 URL。</p>
  *
- * <p>规范入口全部位于 {@code /sso/nekocore/*}；旧 {@code /oauth/nekocore/*} 路径仅作为兼容别名保留。</p>
+ * <p>新部署使用 {@code /sso/nekocore/*}；旧 callback 入口仅保留给尚未迁移配置的已有部署。</p>
  */
 public final class NekoAuthOAuthHandler extends ApiServlet {
 
