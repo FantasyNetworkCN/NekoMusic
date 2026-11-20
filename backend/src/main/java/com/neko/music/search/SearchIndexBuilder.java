@@ -165,6 +165,14 @@ public final class SearchIndexBuilder implements AutoCloseable {
                 }
             }
 
+            if (!full && changed.isEmpty() && removed == 0) {
+                // 不写元数据：无内容变化的提交同样会改变 data_version，令查询与模糊词典缓存失效。
+                store.close();
+                store = null;
+                logger.debug("曲库索引内容未变化，保留查询缓存");
+                return;
+            }
+
             for (int offset = 0; offset < changed.size(); offset += DETAIL_BATCH) {
                 if (closed) {
                     // 停机时不再继续下一批；已提交的增量批次可保留，剩余交由下次刷新补齐。
@@ -210,6 +218,8 @@ public final class SearchIndexBuilder implements AutoCloseable {
 
             if (full) {
                 indexVersion++;
+            } else {
+                SearchSession.invalidateQueryCache();
             }
             logger.info("曲库索引{}完成: 变更 {} 首（新增/改写 {}，删除 {}），耗时 {} ms，文件 {}",
                     full ? "全量重建" : "增量刷新", changedCount, changed.size(), removed,
@@ -374,8 +384,8 @@ public final class SearchIndexBuilder implements AutoCloseable {
     /** 逐行扫描元数据（不读歌词），把每首曲目的指纹回调给调用方。 */
     private void scanTracks(TrackRefConsumer consumer) throws SQLException {
         String sql = """
-                SELECT m.id, m.title, m.artist, m.album, m.language, m.updated_at AS music_updated_at,
-                       l.updated_at AS lyrics_updated_at, l.size_bytes AS lyrics_size,
+                SELECT m.id, m.title, m.artist, m.album, m.language,
+                       l.format AS lyrics_format, l.size_bytes AS lyrics_size,
                        l.content_hash AS lyrics_hash, l.is_placeholder AS lyrics_placeholder
                 FROM music m
                 LEFT JOIN music_lyrics l ON l.music_id = m.id
@@ -398,10 +408,9 @@ public final class SearchIndexBuilder implements AutoCloseable {
                     String lyricsHash = nz(rs.getString("lyrics_hash"));
                     boolean placeholder = rs.getBoolean("lyrics_placeholder");
                     long lyricsSize = rs.getLong("lyrics_size");
-                    long musicUpdatedAt = epochSeconds(rs.getTimestamp("music_updated_at"));
-                    long lyricsUpdatedAt = epochSeconds(rs.getTimestamp("lyrics_updated_at"));
+                    String format = nz(rs.getString("lyrics_format"));
                     long fingerprint = fingerprint(title, artist, album, language,
-                            lyricsHash, placeholder, lyricsSize, musicUpdatedAt, lyricsUpdatedAt);
+                            lyricsHash, placeholder, lyricsSize, format);
                     consumer.accept(new TrackRef(musicId, String.valueOf(musicId), fingerprint));
                 }
             }
@@ -416,7 +425,7 @@ public final class SearchIndexBuilder implements AutoCloseable {
         }
         String placeholders = String.join(", ", java.util.Collections.nCopies(musicIds.size(), "?"));
         String sql = """
-                SELECT m.id, m.title, m.artist, m.album, m.language, m.updated_at AS music_updated_at,
+                SELECT m.id, m.title, m.artist, m.album, m.language,
                        l.content, l.plain_text, l.format, l.is_placeholder, l.size_bytes,
                        l.updated_at AS lyrics_updated_at, l.content_hash
                 FROM music m
@@ -442,11 +451,10 @@ public final class SearchIndexBuilder implements AutoCloseable {
                     String format = nz(rs.getString("format"));
                     boolean placeholder = rs.getBoolean("is_placeholder");
                     long size = rs.getLong("size_bytes");
-                    long musicUpdatedAt = epochSeconds(rs.getTimestamp("music_updated_at"));
                     long lyricsUpdatedAt = epochSeconds(rs.getTimestamp("lyrics_updated_at"));
                     String hash = nz(rs.getString("content_hash"));
                     long fingerprint = fingerprint(title, artist, album, language,
-                            hash, placeholder, size, musicUpdatedAt, lyricsUpdatedAt);
+                            hash, placeholder, size, format);
                     map.put(musicId, new TrackDetail(musicId, title, artist, album, language,
                             content, plain, format, placeholder, size, lyricsUpdatedAt, fingerprint));
                 }

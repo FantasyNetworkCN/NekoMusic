@@ -5,6 +5,7 @@ import com.neko.music.util.LrcValidator;
 import com.neko.music.util.LyricsPlaceholderFilter;
 import com.neko.music.util.LyricsPlainTextExtractor;
 import com.neko.music.util.NekoLyrics;
+import com.neko.music.util.WeightedLoadingCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,11 +18,8 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HexFormat;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class LyricsDatabaseManager {
     private static final Logger logger = LoggerFactory.getLogger(LyricsDatabaseManager.class);
@@ -30,13 +28,20 @@ public class LyricsDatabaseManager {
      * 进程内歌词缓存条目上限与兜底 TTL。
      *
      * <p>失效有三条路：{@link #upsert} / {@link #delete} 主动失效；{@code music} 行被级联删除时
-     * 不经过本类，靠 TTL 自愈；条目数超限时随机淘汰一条（歌词是只读热点，不需要 LRU 精度）。
+     * 不经过本类，靠 TTL 自愈；超出条目数或字节预算时按访问顺序淘汰冷数据。
      */
     private static final int CACHE_MAX_ENTRIES = 2048;
+    private static final long CACHE_MAX_BYTES = 64L * 1024 * 1024;
     private static final long CACHE_TTL_MILLIS = 30 * 60 * 1000L;
 
     private final DatabaseManager databaseManager;
-    private final Map<Integer, CachedLyrics> lyricsCache = new ConcurrentHashMap<>();
+    private final WeightedLoadingCache<Integer, CachedLyrics> lyricsCache =
+            new WeightedLoadingCache<>(CACHE_MAX_ENTRIES, CACHE_MAX_BYTES, cached -> {
+                StoredLyrics lyrics = cached.lyrics();
+                // 按 UTF-16 上界计费，涵盖正文、纯文本和元数据，不为计费重新编码大字符串。
+                return 256L + stringWeight(lyrics.content()) + stringWeight(lyrics.plainText())
+                        + stringWeight(lyrics.contentHash()) + stringWeight(lyrics.format());
+            });
 
     private record CachedLyrics(StoredLyrics lyrics, long expiresAt) {
     }
@@ -53,25 +58,20 @@ public class LyricsDatabaseManager {
         if (musicId <= 0) {
             return Optional.empty();
         }
-        CachedLyrics cached = lyricsCache.get(musicId);
-        if (cached != null && cached.expiresAt() > System.currentTimeMillis()) {
-            return Optional.of(cached.lyrics());
-        }
-        Optional<StoredLyrics> loaded = findByMusicId(musicId);
-        loaded.ifPresent(lyrics -> {
-            if (lyricsCache.size() >= CACHE_MAX_ENTRIES) {
-                Iterator<Integer> it = lyricsCache.keySet().iterator();
-                if (it.hasNext()) {
-                    lyricsCache.remove(it.next());
-                }
-            }
-            lyricsCache.put(musicId, new CachedLyrics(lyrics, System.currentTimeMillis() + CACHE_TTL_MILLIS));
-        });
-        return loaded;
+        CachedLyrics cached = lyricsCache.get(musicId,
+                entry -> entry.expiresAt() > System.currentTimeMillis(),
+                () -> findByMusicId(musicId)
+                        .map(lyrics -> new CachedLyrics(lyrics, System.currentTimeMillis() + CACHE_TTL_MILLIS))
+                        .orElse(null));
+        return Optional.ofNullable(cached).map(CachedLyrics::lyrics);
     }
 
     private void invalidateCached(int musicId) {
-        lyricsCache.remove(musicId);
+        lyricsCache.invalidate(musicId);
+    }
+
+    private static long stringWeight(String value) {
+        return value == null ? 0 : 2L * value.length();
     }
 
     public Optional<StoredLyrics> findByMusicId(int musicId) {

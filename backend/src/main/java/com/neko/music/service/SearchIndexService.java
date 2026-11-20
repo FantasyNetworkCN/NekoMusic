@@ -167,7 +167,6 @@ public final class SearchIndexService implements AutoCloseable {
         submit(() -> {
             try {
                 current.refreshOne(musicId);
-                SearchSession.invalidateQueryCache();
             } catch (Exception e) {
                 logger.warn("单曲索引刷新失败 musicId={}: {}", musicId, e.getMessage());
             }
@@ -186,7 +185,6 @@ public final class SearchIndexService implements AutoCloseable {
         submit(() -> {
             try {
                 current.removeOne(musicId);
-                SearchSession.invalidateQueryCache();
             } catch (Exception e) {
                 logger.warn("曲目索引删除失败 musicId={}: {}", musicId, e.getMessage());
             }
@@ -205,7 +203,6 @@ public final class SearchIndexService implements AutoCloseable {
         submit(() -> {
             try {
                 current.refresh();
-                SearchSession.invalidateQueryCache();
             } catch (Exception e) {
                 logger.warn("索引增量刷新失败: {}", e.getMessage());
             }
@@ -275,7 +272,6 @@ public final class SearchIndexService implements AutoCloseable {
             submit(() -> {
                 try {
                     created.ensureReady();
-                    SearchSession.invalidateQueryCache();
                     logger.info("本地搜索索引就绪: {}", indexPath);
                 } catch (Exception e) {
                     logger.error("本地搜索索引构建失败", e);
@@ -297,7 +293,6 @@ public final class SearchIndexService implements AutoCloseable {
             SearchIndexBuilder current = ensureIndexer();
             if (current != null) {
                 current.refresh();
-                SearchSession.invalidateQueryCache();
             }
         } catch (Exception e) {
             logger.warn("周期刷新本地搜索索引失败: {}", e.getMessage());
