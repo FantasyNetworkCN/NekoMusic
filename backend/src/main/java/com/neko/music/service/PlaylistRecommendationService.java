@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Pattern;
 
 /**
  * 推荐歌单服务。
@@ -42,6 +43,7 @@ public class PlaylistRecommendationService {
     private static final int MAX_TRACKS_PER_PLAYLIST_GUEST = 40;
     private static final int PROFILE_INTERACTIONS_PER_SOURCE = 600;
     private static final int SEARCH_SIGNALS = 40;
+    private static final Pattern TAG_SEPARATOR = Pattern.compile("[,|/;，、\\s]+");
 
     private final DatabaseManager databaseManager;
 
@@ -59,9 +61,7 @@ public class PlaylistRecommendationService {
                 return List.of();
             }
             UserTaste taste = authenticated ? loadUserTaste(userId) : UserTaste.empty();
-            Map<Integer, List<TrackFeature>> tracksByPlaylist = loadPlaylistTracks(seeds.stream()
-                    .map(PlaylistSeed::id)
-                    .toList(), authenticated
+            Map<Integer, PlaylistTracks> tracksByPlaylist = loadPlaylistTracks(seeds, authenticated
                     ? MAX_TRACKS_PER_PLAYLIST_AUTHENTICATED
                     : MAX_TRACKS_PER_PLAYLIST_GUEST);
             List<PlaylistFeature> candidates = buildFeatures(seeds, tracksByPlaylist,
@@ -148,14 +148,18 @@ public class PlaylistRecommendationService {
         return seeds;
     }
 
-    private Map<Integer, List<TrackFeature>> loadPlaylistTracks(List<Integer> playlistIds,
-                                                               int maxTracksPerPlaylist) throws Exception {
-        if (playlistIds.isEmpty()) {
+    private Map<Integer, PlaylistTracks> loadPlaylistTracks(List<PlaylistSeed> seeds,
+                                                           int maxTracksPerPlaylist) throws Exception {
+        if (seeds.isEmpty()) {
             return Map.of();
         }
-        Map<Integer, List<TrackFeature>> byPlaylist = new LinkedHashMap<>();
-        for (int start = 0; start < playlistIds.size(); start += 300) {
-            List<Integer> chunk = playlistIds.subList(start, Math.min(playlistIds.size(), start + 300));
+        Map<Integer, PlaylistSeed> seedById = new HashMap<>();
+        for (PlaylistSeed seed : seeds) {
+            seedById.put(seed.id(), seed);
+        }
+        Map<Integer, PlaylistTracks> byPlaylist = new LinkedHashMap<>();
+        for (int start = 0; start < seeds.size(); start += 300) {
+            List<PlaylistSeed> chunk = seeds.subList(start, Math.min(seeds.size(), start + 300));
             String sql = """
                     SELECT pm.playlist_id, m.id, m.title, m.artist, m.language, m.tags, m.play_count
                     FROM playlist_music pm
@@ -167,21 +171,16 @@ public class PlaylistRecommendationService {
             try (Connection conn = databaseManager.getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
                 int index = 1;
-                for (Integer playlistId : chunk) {
-                    ps.setInt(index++, playlistId);
+                for (PlaylistSeed seed : chunk) {
+                    ps.setInt(index++, seed.id());
                 }
                 ps.setInt(index, maxTracksPerPlaylist);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         int playlistId = rs.getInt("playlist_id");
-                        byPlaylist.computeIfAbsent(playlistId, ignored -> new ArrayList<>())
-                                .add(new TrackFeature(
-                                        rs.getInt("id"),
-                                        nullToEmpty(rs.getString("title")),
-                                        nullToEmpty(rs.getString("artist")),
-                                        nullToEmpty(rs.getString("language")),
-                                        nullToEmpty(rs.getString("tags")),
-                                        rs.getInt("play_count")));
+                        // 逐行聚合，避免为至多 600×80 条歌曲记录保留对象和整份文本。
+                        byPlaylist.computeIfAbsent(playlistId,
+                                ignored -> new PlaylistTracks(seedById.get(playlistId))).add(rs);
                     }
                 }
             }
@@ -190,58 +189,35 @@ public class PlaylistRecommendationService {
     }
 
     private List<PlaylistFeature> buildFeatures(List<PlaylistSeed> seeds,
-                                                Map<Integer, List<TrackFeature>> tracksByPlaylist,
+                                                Map<Integer, PlaylistTracks> tracksByPlaylist,
                                                 Map<Integer, Double> collaborativeScores,
                                                 Map<Integer, Double> creatorAffinity) {
         List<PlaylistFeature> features = new ArrayList<>();
         for (PlaylistSeed seed : seeds) {
-            List<TrackFeature> tracks = tracksByPlaylist.getOrDefault(seed.id(), List.of());
-            if (tracks.isEmpty()) {
+            PlaylistTracks tracks = tracksByPlaylist.get(seed.id());
+            if (tracks == null) {
                 continue;
             }
-            Map<String, Double> artists = new HashMap<>();
-            Map<String, Double> tags = new HashMap<>();
-            Map<String, Double> languages = new HashMap<>();
-            Set<Integer> trackIds = new LinkedHashSet<>();
-            long playCount = 0;
-            StringBuilder searchable = new StringBuilder(256);
-            searchable.append(seed.name()).append(' ').append(seed.description()).append(' ');
-            for (TrackFeature track : tracks) {
-                trackIds.add(track.id());
-                playCount += Math.max(0, track.playCount());
-                artists.merge(normalizeTerm(track.artist()), 1.0, Double::sum);
-                languages.merge(normalizeTerm(track.language()), 1.0, Double::sum);
-                Set<String> trackTags = splitTags(track.tags());
-                double tagWeight = trackTags.isEmpty() ? 0 : 1.0 / Math.sqrt(trackTags.size());
-                for (String tag : trackTags) {
-                    tags.merge(tag, tagWeight, Double::sum);
-                }
-                if (searchable.length() < 2400) {
-                    searchable.append(track.title()).append(' ')
-                            .append(track.artist()).append(' ')
-                            .append(track.tags()).append(' ');
-                }
-            }
-            artists.remove("");
-            tags.remove("");
-            languages.remove("");
+            tracks.artists.remove("");
+            tracks.tags.remove("");
+            tracks.languages.remove("");
             features.add(new PlaylistFeature(
                     seed.id(),
                     seed.userId(),
                     seed.name(),
                     seed.description(),
-                    Math.max(seed.musicCount(), tracks.size()),
-                    artists,
-                    tags,
-                    languages,
-                    trackIds,
+                    Math.max(seed.musicCount(), tracks.count),
+                    tracks.artists,
+                    tracks.tags,
+                    tracks.languages,
+                    tracks.trackIds,
                     seed.favoriteCount(),
-                    playCount,
+                    tracks.playCount,
                     seed.createdAtEpochDay(),
                     seed.updatedAtEpochDay(),
                     collaborativeScores.getOrDefault(seed.id(), 0.0),
                     creatorAffinity.getOrDefault(seed.userId(), 0.0),
-                    searchable.toString()));
+                    tracks.searchable.toString()));
         }
         return features;
     }
@@ -483,7 +459,7 @@ public class PlaylistRecommendationService {
             return Set.of();
         }
         Set<String> result = new LinkedHashSet<>();
-        for (String tag : tags.split("[,|/;，、\\s]+")) {
+        for (String tag : TAG_SEPARATOR.split(tags)) {
             String normalized = normalizeTerm(tag);
             if (!normalized.isEmpty()) {
                 result.add(normalized);
@@ -524,12 +500,36 @@ public class PlaylistRecommendationService {
             int favoriteCount) {
     }
 
-    private record TrackFeature(
-            int id,
-            String title,
-            String artist,
-            String language,
-            String tags,
-            int playCount) {
+    private static final class PlaylistTracks {
+        private final Map<String, Double> artists = new HashMap<>();
+        private final Map<String, Double> tags = new HashMap<>();
+        private final Map<String, Double> languages = new HashMap<>();
+        private final Set<Integer> trackIds = new LinkedHashSet<>();
+        private final StringBuilder searchable = new StringBuilder(256);
+        private int count;
+        private long playCount;
+
+        private PlaylistTracks(PlaylistSeed seed) {
+            searchable.append(seed.name()).append(' ').append(seed.description()).append(' ');
+        }
+
+        private void add(ResultSet rs) throws Exception {
+            count++;
+            trackIds.add(rs.getInt("id"));
+            playCount += Math.max(0, rs.getInt("play_count"));
+            String artist = nullToEmpty(rs.getString("artist"));
+            String trackTags = nullToEmpty(rs.getString("tags"));
+            artists.merge(normalizeTerm(artist), 1.0, Double::sum);
+            languages.merge(normalizeTerm(rs.getString("language")), 1.0, Double::sum);
+            Set<String> normalizedTags = splitTags(trackTags);
+            double tagWeight = normalizedTags.isEmpty() ? 0 : 1.0 / Math.sqrt(normalizedTags.size());
+            for (String tag : normalizedTags) {
+                tags.merge(tag, tagWeight, Double::sum);
+            }
+            if (searchable.length() < 2400) {
+                searchable.append(nullToEmpty(rs.getString("title"))).append(' ')
+                        .append(artist).append(' ').append(trackTags).append(' ');
+            }
+        }
     }
 }

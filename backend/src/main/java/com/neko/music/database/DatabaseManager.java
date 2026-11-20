@@ -19,6 +19,15 @@ public class DatabaseManager {
     }
 
     public void init() throws SQLException {
+        init(configManager.getHikariMaximumPoolSize(), configManager.getHikariMinimumIdle());
+    }
+
+    /** 启动引导阶段只需串行读取建表与系统设置，避免先按出厂值预建大量连接。 */
+    public void initBootstrap() throws SQLException {
+        init(1, 0);
+    }
+
+    private void init(int maximumPoolSize, int minimumIdle) throws SQLException {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl("jdbc:mysql://" + configManager.getMysqlHost() + ":" +
                          configManager.getMysqlPort() + "/" + configManager.getMysqlDatabase() +
@@ -27,8 +36,8 @@ public class DatabaseManager {
                          "&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true");
         config.setUsername(configManager.getMysqlUsername());
         config.setPassword(configManager.getMysqlPassword());
-        config.setMaximumPoolSize(configManager.getHikariMaximumPoolSize());
-        config.setMinimumIdle(Math.min(configManager.getHikariMinimumIdle(), configManager.getHikariMaximumPoolSize()));
+        config.setMaximumPoolSize(maximumPoolSize);
+        config.setMinimumIdle(Math.min(minimumIdle, maximumPoolSize));
         config.setConnectionTimeout(30000);
         config.setIdleTimeout(600000);
         config.setMaxLifetime(1800000);
@@ -39,7 +48,23 @@ public class DatabaseManager {
         this.dataSource = new HikariDataSource(config);
         
         // 初始化数据库表
-        initializeTables();
+        try {
+            initializeTables();
+        } catch (SQLException | RuntimeException e) {
+            dataSource.close();
+            throw e;
+        }
+    }
+
+    /** 仅在启动时、加载 system_settings 后调用；后台保存仍遵循重启生效约定。 */
+    public void applyRuntimePoolSettings() {
+        int maximum = configManager.getHikariMaximumPoolSize();
+        int minimum = Math.min(configManager.getHikariMinimumIdle(), maximum);
+        var poolConfig = dataSource.getHikariConfigMXBean();
+        poolConfig.setMinimumIdle(0);
+        poolConfig.setMaximumPoolSize(maximum);
+        poolConfig.setMinimumIdle(minimum);
+        logger.info("主库连接池配置已应用: maximumPoolSize={}, minimumIdle={}", maximum, minimum);
     }
 
     /** 仅创建当前表结构；已有部署须事先满足当前 schema，不执行自动升级。 */

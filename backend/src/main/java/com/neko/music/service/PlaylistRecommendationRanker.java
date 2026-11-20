@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 歌单推荐排序器。
@@ -45,6 +46,8 @@ public final class PlaylistRecommendationRanker {
     private static final double[] GUEST_WEIGHTS = {
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.35, 0.55, 0.55, 0.0, 0.0
     };
+    private static final Pattern NON_WORD = Pattern.compile("[^\\p{L}\\p{N}]+");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private PlaylistRecommendationRanker() {
     }
@@ -110,40 +113,46 @@ public final class PlaylistRecommendationRanker {
         Map<Integer, Map<String, Double>> tagVectors = new HashMap<>();
         Map<Integer, Map<String, Double>> languageVectors = new HashMap<>();
         Map<Integer, Double> searchRaw = new HashMap<>();
-        List<Double> popularityRaw = new ArrayList<>(candidates.size());
+        double[] popularityRaw = new double[candidates.size()];
+        List<PreparedSearch> searches = prepareSearches(taste.searches(), today);
         double maxPopularityLog = 0;
         double maxCollaborativeLog = 0;
         double maxCreatorAffinityLog = 0;
         double maxSearch = 0;
 
-        for (PlaylistFeature feature : candidates) {
+        for (int i = 0; i < candidates.size(); i++) {
+            PlaylistFeature feature = candidates.get(i);
             artistVectors.put(feature.id(), normalizeVector(feature.artistWeights()));
             tagVectors.put(feature.id(), normalizeVector(feature.tagWeights()));
             languageVectors.put(feature.id(), normalizeVector(feature.languageWeights()));
             double rawPopularity = Math.log1p(Math.max(0, feature.favoriteCount()) * 5.0
                     + Math.max(0, feature.playCount()));
-            popularityRaw.add(rawPopularity);
+            popularityRaw[i] = rawPopularity;
             maxPopularityLog = Math.max(maxPopularityLog, rawPopularity);
             maxCollaborativeLog = Math.max(maxCollaborativeLog,
                     Math.log1p(Math.max(0, feature.collaborativeScore())));
             maxCreatorAffinityLog = Math.max(maxCreatorAffinityLog,
                     Math.log1p(Math.max(0, feature.creatorAffinity())));
-            double search = searchAffinity(taste.searches(), feature.searchableText(), today);
+            double search = searchAffinity(searches, feature.searchableText());
             searchRaw.put(feature.id(), search);
             maxSearch = Math.max(maxSearch, search);
         }
 
-        List<Example> examples = buildTrainingExamples(candidates, taste, artistVectors, tagVectors,
-                languageVectors, searchRaw, maxSearch, maxPopularityLog, maxCollaborativeLog,
-                maxCreatorAffinityLog, today);
+        // 训练和推理使用相同向量；每个候选只计算一次，保留原运算顺序与数值结果。
+        double[][] vectors = new double[candidates.size()][];
+        for (int i = 0; i < candidates.size(); i++) {
+            vectors[i] = featureVector(candidates.get(i), taste, artistVectors, tagVectors, languageVectors,
+                    searchRaw, maxSearch, popularityRaw[i], maxPopularityLog,
+                    maxCollaborativeLog, maxCreatorAffinityLog, today);
+        }
+        List<Example> examples = taste.interactionCount() < 3
+                ? List.of() : buildTrainingExamples(candidates, taste, vectors);
         double[] weights = trainLogistic(examples, taste, candidates);
 
         List<ScoredPlaylist> scored = new ArrayList<>(candidates.size());
         for (int i = 0; i < candidates.size(); i++) {
             PlaylistFeature feature = candidates.get(i);
-            double[] x = featureVector(feature, taste, artistVectors, tagVectors, languageVectors,
-                    searchRaw, maxSearch, popularityRaw.get(i), maxPopularityLog,
-                    maxCollaborativeLog, maxCreatorAffinityLog, today);
+            double[] x = vectors[i];
             double score = dot(weights, x);
             double[] contribution = new double[x.length];
             for (int j = 0; j < x.length; j++) {
@@ -156,23 +165,13 @@ public final class PlaylistRecommendationRanker {
 
     private static List<Example> buildTrainingExamples(List<PlaylistFeature> candidates,
                                                        UserTaste taste,
-                                                       Map<Integer, Map<String, Double>> artistVectors,
-                                                       Map<Integer, Map<String, Double>> tagVectors,
-                                                       Map<Integer, Map<String, Double>> languageVectors,
-                                                       Map<Integer, Double> searchRaw,
-                                                       double maxSearch,
-                                                       double maxPopularityLog,
-                                                       double maxCollaborativeLog,
-                                                       double maxCreatorAffinityLog,
-                                                       LocalDate today) {
-        List<Example> examples = new ArrayList<>();
+                                                       double[][] vectors) {
+        List<Example> examples = new ArrayList<>(candidates.size());
         boolean hasExplicitPlaylistLabels = !taste.ownPlaylistIds().isEmpty()
                 || !taste.favoritePlaylistIds().isEmpty();
-        for (PlaylistFeature feature : candidates) {
-            double[] x = featureVector(feature, taste, artistVectors, tagVectors, languageVectors,
-                    searchRaw, maxSearch, Math.log1p(Math.max(0, feature.favoriteCount()) * 5.0
-                            + Math.max(0, feature.playCount())), maxPopularityLog,
-                    maxCollaborativeLog, maxCreatorAffinityLog, today);
+        for (int i = 0; i < candidates.size(); i++) {
+            PlaylistFeature feature = candidates.get(i);
+            double[] x = vectors[i];
             boolean positive;
             if (hasExplicitPlaylistLabels) {
                 positive = taste.ownPlaylistIds().contains(feature.id())
@@ -295,26 +294,36 @@ public final class PlaylistRecommendationRanker {
         return "popular";
     }
 
-    private static double searchAffinity(List<SearchSignal> searches, String searchableText,
-                                         LocalDate today) {
+    private record PreparedSearch(String query, List<String> tokens, double recency, double frequency) {
+    }
+
+    /** 同一用户的搜索信号在一个请求里只规范化、分词及计算时间权重一次。 */
+    private static List<PreparedSearch> prepareSearches(List<SearchSignal> searches, LocalDate today) {
+        List<PreparedSearch> prepared = new ArrayList<>(searches.size());
+        for (SearchSignal signal : searches) {
+            String query = normalizeText(signal.query());
+            if (query.length() >= 2) {
+                long days = Math.max(0, today.toEpochDay() - signal.lastSearchedEpochDay());
+                prepared.add(new PreparedSearch(query, searchTokens(query),
+                        Math.exp(-days / 120.0), Math.log1p(Math.max(1, signal.count()))));
+            }
+        }
+        return prepared;
+    }
+
+    private static double searchAffinity(List<PreparedSearch> searches, String searchableText) {
         if (searches.isEmpty() || searchableText == null || searchableText.isBlank()) {
             return 0;
         }
         String haystack = normalizeText(searchableText);
         double score = 0;
-        for (SearchSignal signal : searches) {
-            String query = normalizeText(signal.query());
-            if (query.length() < 2) {
-                continue;
-            }
-            long days = Math.max(0, today.toEpochDay() - signal.lastSearchedEpochDay());
-            double recency = Math.exp(-days / 120.0);
-            double frequency = Math.log1p(Math.max(1, signal.count()));
+        for (PreparedSearch signal : searches) {
+            String query = signal.query();
             double match = 0;
             if (haystack.contains(query)) {
                 match = 1.0;
             } else {
-                List<String> tokens = searchTokens(query);
+                List<String> tokens = signal.tokens();
                 if (!tokens.isEmpty()) {
                     int hits = 0;
                     for (String token : tokens) {
@@ -328,14 +337,14 @@ public final class PlaylistRecommendationRanker {
                     }
                 }
             }
-            score += match * recency * frequency;
+            score += match * signal.recency() * signal.frequency();
         }
         return score;
     }
 
     private static List<String> searchTokens(String query) {
         Set<String> tokens = new LinkedHashSet<>();
-        for (String token : query.split("[^\\p{L}\\p{N}]+")) {
+        for (String token : NON_WORD.split(query)) {
             if (token.length() >= 2) {
                 tokens.add(token);
             }
@@ -344,10 +353,8 @@ public final class PlaylistRecommendationRanker {
     }
 
     private static String normalizeText(String text) {
-        return text.toLowerCase(Locale.ROOT)
-                .replaceAll("[^\\p{L}\\p{N}]+", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
+        String words = NON_WORD.matcher(text.toLowerCase(Locale.ROOT)).replaceAll(" ");
+        return WHITESPACE.matcher(words).replaceAll(" ").trim();
     }
 
     private static double trackOverlap(PlaylistFeature feature, Set<Integer> favoriteTrackIds) {

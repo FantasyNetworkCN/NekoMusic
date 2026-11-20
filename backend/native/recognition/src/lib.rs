@@ -181,8 +181,9 @@ fn delta(hit: u64) -> i32 {
     (hit as i32).wrapping_sub(query_time(hit))
 }
 
-fn alignment(hits: &[u64]) -> (f64, f64) {
-    let mut work = vec![0.0; hits.len()];
+fn alignment(hits: &[u64], work: &mut Vec<f64>) -> (f64, f64) {
+    // 每次查询共用一块工作区，避免为每首候选曲目反复分配和释放。
+    work.resize(hits.len(), 0.0);
     let mut slope = 0.0;
     if hits.len() >= 4 {
         let part = 2.max(hits.len() / 5);
@@ -214,7 +215,22 @@ fn alignment(hits: &[u64]) -> (f64, f64) {
     for (target, &hit) in work.iter_mut().zip(hits) {
         *target = delta(hit) as f64 - slope * query_time(hit) as f64;
     }
-    (slope, median(&mut work))
+    (slope, median(work))
+}
+
+fn retain_best(best: &mut Option<Match>, runner: &mut i32, candidate: Match) {
+    match *best {
+        None => *best = Some(candidate),
+        Some(previous)
+            if candidate.aligned > previous.aligned
+                || (candidate.aligned == previous.aligned
+                    && candidate.music_id < previous.music_id) =>
+        {
+            *runner = (*runner).max(previous.aligned);
+            *best = Some(candidate);
+        }
+        Some(_) => *runner = (*runner).max(candidate.aligned),
+    }
 }
 
 fn find(
@@ -226,15 +242,30 @@ fn find(
     minimum_confidence: f64,
 ) -> Option<Match> {
     let mut by_music: HashMap<i32, Vec<u64>, FeatureBuildHasher> = HashMap::default();
-    let mut unique =
-        HashSet::with_capacity_and_hasher(query.len() / 2, FeatureBuildHasher::default());
+    // 提取器按时间、signed hash 排序，重复点必然相邻；该路径无需为整段录音建立去重哈希表。
+    // 先验证顺序，无序输入仍保留完整去重语义。
+    let ordered = query
+        .chunks_exact(2)
+        .map(|point| (point[1] as i32, point[0] as i64))
+        .is_sorted();
+    let mut unique = if ordered {
+        HashSet::default()
+    } else {
+        HashSet::with_capacity_and_hasher(query.len() / 2, FeatureBuildHasher::default())
+    };
+    let mut previous = None;
     let mut comparable = 0;
     let mut comparisons = 0;
     let maximum = 512.max(music_count.wrapping_mul(64)) as usize;
     for point in query.chunks_exact(2) {
         let hash = point[0];
         let time = point[1] as i32;
-        if !unique.insert((hash, time)) {
+        if ordered {
+            if previous == Some((hash, time)) {
+                continue;
+            }
+            previous = Some((hash, time));
+        } else if !unique.insert((hash, time)) {
             continue;
         }
         let mut any = false;
@@ -282,10 +313,10 @@ fn find(
     } else {
         minimum_confidence
     };
-    let mut candidates = Vec::new();
-    let mut ordered_music: Vec<_> = by_music.into_iter().collect();
-    ordered_music.sort_unstable_by_key(|(music, _)| *music);
-    for (music, mut hits) in ordered_music {
+    let mut best = None;
+    let mut runner = 0;
+    let mut work = Vec::new();
+    for (music, mut hits) in by_music {
         if hits.len() < minimum as usize {
             continue;
         }
@@ -295,7 +326,7 @@ fn find(
         {
             hits.sort_by_key(|&hit| query_time(hit));
         }
-        let (slope, intercept) = alignment(&hits);
+        let (slope, intercept) = alignment(&hits, &mut work);
         let mut aligned = 0;
         let mut first = i32::MAX;
         let mut last = i32::MIN;
@@ -316,17 +347,20 @@ fn find(
         if confidence < confidence_threshold {
             continue;
         }
-        candidates.push(Match {
-            music_id: music,
-            aligned,
-            confidence,
-            offset: ((intercept + 0.5).floor() as i64 as i32).max(0),
-            runner_up: 0,
-        });
+        // 保持原先「对齐数降序、歌曲 ID 升序」的稳定择优，只维护判定需要的前两名。
+        retain_best(
+            &mut best,
+            &mut runner,
+            Match {
+                music_id: music,
+                aligned,
+                confidence,
+                offset: ((intercept + 0.5).floor() as i64 as i32).max(0),
+                runner_up: 0,
+            },
+        );
     }
-    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.aligned));
-    let mut best = *candidates.first()?;
-    let runner = candidates.get(1).map_or(0, |candidate| candidate.aligned);
+    let mut best = best?;
     let gap = if short { 1 } else { 3 };
     if runner != 0
         && best.aligned < runner + gap
@@ -572,5 +606,44 @@ mod tests {
             })
         );
         assert_eq!(find(&index, &[987654321, 0], 128_000, 1, 3, 0.05), None);
+        let mut ordered: Vec<_> = query
+            .chunks_exact(2)
+            .map(|point| [point[0], point[1]])
+            .collect();
+        ordered.sort_by_key(|point| (point[1] as i32, point[0] as i64));
+        let ordered: Vec<_> = ordered.into_iter().flatten().collect();
+        assert_eq!(
+            find(&index, &ordered, 128_000, 1, 3, 0.05),
+            find(&index, &points, 128_000, 1, 3, 0.05)
+        );
+    }
+
+    #[test]
+    fn top_two_preserves_stable_ties_and_runner_for_every_input_order() {
+        let mut random = 7_u64;
+        for _ in 0..2000 {
+            let mut candidates = Vec::new();
+            for music_id in -20..20 {
+                random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
+                candidates.push(Match {
+                    music_id,
+                    aligned: 3 + (random % 32) as i32,
+                    confidence: 0.5,
+                    offset: music_id.abs(),
+                    runner_up: 0,
+                });
+            }
+            let mut expected = candidates.clone();
+            expected.sort_by_key(|candidate| {
+                (std::cmp::Reverse(candidate.aligned), candidate.music_id)
+            });
+            let mut best = None;
+            let mut runner = 0;
+            for candidate in candidates.iter().rev() {
+                retain_best(&mut best, &mut runner, *candidate);
+            }
+            assert_eq!(best, Some(expected[0]));
+            assert_eq!(runner, expected[1].aligned);
+        }
     }
 }

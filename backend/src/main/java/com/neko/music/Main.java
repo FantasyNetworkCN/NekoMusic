@@ -158,7 +158,7 @@ public class Main {
         
         // 初始化数据库管理器
         databaseManager = new DatabaseManager(configManager);
-        databaseManager.init();
+        databaseManager.initBootstrap();
         lyricsDatabaseManager = new LyricsDatabaseManager(databaseManager);
         
         // 初始化数据库表
@@ -182,6 +182,7 @@ public class Main {
         systemSettingsDatabaseManager.pruneUnregistered();
         java.util.Map<String, String> storedSettings = systemSettingsDatabaseManager.loadAll();
         configManager.applyOverrides(storedSettings);
+        databaseManager.applyRuntimePoolSettings();
         logger.info("已从数据库加载 {} 条系统设置", storedSettings.size());
 
         // 访问日志 / 操作日志：独立日志库（不共用主库），失败只停用日志能力
