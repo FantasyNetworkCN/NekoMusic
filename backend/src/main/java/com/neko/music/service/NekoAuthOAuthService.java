@@ -79,24 +79,8 @@ public final class NekoAuthOAuthService {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 生成 NekoAuth 授权地址，并把相对返回路径写入一次性 state。
-     *
-     * @param returnTo 登录成功后的站内相对路径（必须以单个 / 开头）
-     */
-    public String authorizationUrl(String returnTo) throws OAuthLoginException {
-        return authorizationUrl(returnTo, "web", false);
-    }
-
+    /** 生成原生客户端授权地址，将返回路径绑定到一次性 state。 */
     public String authorizationUrl(String returnTo, String client) throws OAuthLoginException {
-        return authorizationUrl(returnTo, client, false);
-    }
-
-    /**
-     * @param silent 为 true 时使用 {@code prompt=none}，仅复用 NekoAuth 已有浏览器会话
-     */
-    public String authorizationUrl(String returnTo, String client, boolean silent)
-            throws OAuthLoginException {
         requireEnabled();
         OidcDiscovery discovery = discovery();
         String clientId = requireConfigured(configManager.getOAuthClientId(), "oauth.client_id");
@@ -113,7 +97,7 @@ public final class NekoAuthOAuthService {
         String stateValue;
         try {
             stateValue = objectMapper.writeValueAsString(new OAuthState(
-                    safeReturnTo, System.currentTimeMillis(), codeVerifier, nonce, safeClient, silent));
+                    safeReturnTo, System.currentTimeMillis(), codeVerifier, nonce, safeClient));
         } catch (IOException exception) {
             throw new OAuthLoginException("oauth_unavailable", "无法创建登录会话", exception);
         }
@@ -131,34 +115,7 @@ public final class NekoAuthOAuthService {
         query.put("nonce", nonce);
         query.put("code_challenge", pkceChallenge(codeVerifier));
         query.put("code_challenge_method", "S256");
-        if (silent) {
-            query.put("prompt", "none");
-        }
         return discovery.authorizationEndpoint() + "?" + encodeForm(query);
-    }
-
-    /**
-     * 消费静默登录的 state。NekoAuth 无法复用现有会话时会回调
-     * {@code login_required} / {@code consent_required}；此时安静返回原页面，不展示登录失败页。
-     */
-    public Optional<String> silentReturnTo(String state) {
-        if (state == null || state.isBlank() || state.length() > MAX_STATE_LENGTH) {
-            return Optional.empty();
-        }
-        String stateJson = redisService.getDel(STATE_PREFIX + state);
-        if (stateJson == null || stateJson.isBlank()) {
-            return Optional.empty();
-        }
-        try {
-            OAuthState stored = objectMapper.readValue(stateJson, OAuthState.class);
-            long ageMs = System.currentTimeMillis() - stored.issuedAt();
-            if (!stored.silent() || ageMs < 0 || ageMs > STATE_TTL_SECONDS * 1000L) {
-                return Optional.empty();
-            }
-            return Optional.of(normalizeReturnTo(stored.returnTo()));
-        } catch (IOException | OAuthLoginException exception) {
-            return Optional.empty();
-        }
     }
 
     /** NekoAuth 找回密码页地址；不依赖 OAuth 客户端配置，避免入口被登录开关锁死。 */
@@ -186,23 +143,6 @@ public final class NekoAuthOAuthService {
         String absoluteReturnTo = originOf(redirectUri) + safeReturnTo.substring(1);
         return issuerUri() + "/login?return_to="
                 + URLEncoder.encode(absoluteReturnTo, StandardCharsets.UTF_8);
-    }
-
-    /** 标准 OIDC RP-Initiated Logout 地址。 */
-    public String logoutUrl(String idToken) throws OAuthLoginException {
-        requireEnabled();
-        if (idToken == null || idToken.isBlank() || idToken.length() > 8192) {
-            throw new OAuthLoginException("id_token_missing", "缺少登录凭据，无法同步退出 NekoAuth");
-        }
-        String clientId = requireConfigured(configManager.getOAuthClientId(), "oauth.client_id");
-        String redirectUri = requireConfigured(configManager.getOAuthRedirectUri(), "oauth.redirect_uri");
-        validateRedirectUri(redirectUri);
-        String postLogoutRedirect = URI.create(redirectUri).resolve("/").toString();
-        Map<String, String> query = new LinkedHashMap<>();
-        query.put("id_token_hint", idToken);
-        query.put("client_id", clientId);
-        query.put("post_logout_redirect_uri", postLogoutRedirect);
-        return issuerUri() + "/oauth2/logout?" + encodeForm(query);
     }
 
     /**
@@ -893,7 +833,7 @@ public final class NekoAuthOAuthService {
     }
 
     private record OAuthState(String returnTo, long issuedAt, String codeVerifier, String nonce,
-                              String client, boolean silent) {
+                              String client) {
     }
 
     private record OidcDiscovery(String issuer, URI authorizationEndpoint, URI tokenEndpoint,

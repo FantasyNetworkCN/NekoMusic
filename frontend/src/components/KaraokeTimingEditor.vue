@@ -188,7 +188,6 @@ import { NButton, NSelect } from '@/ui'
 import {
   comparableLyricsText,
   isTimingText,
-  remapTimingUnits,
   splitTimingUnits,
 } from '@/utils/timingUnits'
 
@@ -291,24 +290,15 @@ function ensureSegments(line) {
   const joined = Array.isArray(line.words)
     ? line.words.map((word) => wordText(word)).join('')
     : ''
-  const needsEnglishResplit = hasLatinWord(line.text) && line.timingVersion !== 2
   if (!Array.isArray(line.words) || line.words.length === 0
       || hasInvalidWords
-      || comparableLyricsText(joined) !== comparableLyricsText(line.text)
-      || needsEnglishResplit) {
-    line.words = needsEnglishResplit
-      ? remapTimingUnits(line.text || '', line.words)
-      : splitTimingUnits(line.text || '')
-    line.timingVersion = 2
+      || comparableLyricsText(joined) !== comparableLyricsText(line.text)) {
+    line.words = splitTimingUnits(line.text || '')
   }
 }
 
 function wordText(word) {
   return word && typeof word.text === 'string' ? word.text : ''
-}
-
-function hasLatinWord(text) {
-  return /[\p{Script=Latin}]{2,}/u.test(String(text || ''))
 }
 
 function togglePlay() {
@@ -410,7 +400,6 @@ function resplitLine() {
   const line = currentLine.value
   if (!line) return
   line.words = splitTimingUnits(line.text || '')
-  line.timingVersion = 2
   cursor.value = 0
   finished.value = false
   emit('change')

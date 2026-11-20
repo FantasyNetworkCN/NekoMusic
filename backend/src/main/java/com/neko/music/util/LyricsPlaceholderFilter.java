@@ -27,11 +27,6 @@ public final class LyricsPlaceholderFilter {
         return "//".equals(value) || "null".equalsIgnoreCase(value);
     }
 
-    /** 兼容旧调用方；{@code //} 与 {@code null} 都按占位符处理。 */
-    public static boolean isSlashPlaceholder(String text) {
-        return isPlaceholder(text);
-    }
-
     /** 判断整行是否为 LRC 翻译占位格式，如 {@code {"null"}}。 */
     public static boolean isPlaceholderTranslation(String text) {
         return text != null && PLACEHOLDER_TRANSLATION.matcher(text.trim()).matches();

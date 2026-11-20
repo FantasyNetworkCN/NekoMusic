@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -78,7 +77,8 @@ public final class MusicAssetLocator {
                 } catch (NumberFormatException ignored) {
                     return;
                 }
-                if (wanted.contains(musicId)) {
+                String extension = name.substring(dot + 1);
+                if (wanted.contains(musicId) && AUDIO_EXT_PRIORITY.contains(extension)) {
                     candidates.computeIfAbsent(musicId, ignored -> new ArrayList<>()).add(path);
                 }
             });
@@ -164,7 +164,6 @@ public final class MusicAssetLocator {
      * 在并发下（目录不在页缓存时要真读盘）会放大到秒级；
      * 直接拼路径后正常情况只需几次 {@code stat}。</p>
      *
-     * <p>白名单扩展名全部未命中时才回退一次目录扫描，保证历史遗留的非常规扩展名仍能被找到。</p>
      */
     static Optional<Path> findIdNamedFile(Path dir, int musicId, List<String> extPriority)
             throws IOException {
@@ -178,20 +177,7 @@ public final class MusicAssetLocator {
                 return Optional.of(candidate);
             }
         }
-        return pickOne(listIdNamedFiles(dir, musicId), extPriority);
-    }
-
-    private static List<Path> listIdNamedFiles(Path dir, int musicId) throws IOException {
-        if (!Files.isDirectory(dir)) {
-            return List.of();
-        }
-        String prefix = musicId + ".";
-        try (Stream<Path> stream = Files.list(dir)) {
-            return stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> isSingleSegmentExtension(p.getFileName().toString(), prefix))
-                    .collect(Collectors.toList());
-        }
+        return Optional.empty();
     }
 
     private static Optional<Path> pickOne(List<Path> candidates, List<String> extPriority) {
@@ -213,7 +199,7 @@ public final class MusicAssetLocator {
                 return Optional.of(byExt.get(pref));
             }
         }
-        return candidates.stream().min(Comparator.comparing(p -> p.getFileName().toString()));
+        return Optional.empty();
     }
 
     private static void deleteIdNamedFiles(Path dir, int musicId, String kind) {

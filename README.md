@@ -77,16 +77,16 @@ docker compose logs -f neko-music
 检查服务：
 
 ```bash
-curl -fsS http://127.0.0.1:65535/version
+curl -fsSI http://127.0.0.1:65535/
 ```
 
-音频文件位于 `backend/Music/{id}.*`，封面嵌入音频；声纹索引位于 `backend/Music/.fingerprints/`，待审核上传与客户端发布包分别位于 `backend/user_upload/` 与 `backend/releases/`。头像统一由 NekoAuth 保存。升级已有部署时，将原音频子目录中的音频文件及 `derived/{id}` 派生音质目录移到 `Music/` 与 `Music/derived/{id}`，保留 `.fingerprints/`。复用已有部署的数据时，可在 `backend/.env` 设置 `NEKO_DATA_DIR=/原后端运行目录`；配置文件为 `backend/config.yml`（只含 MySQL 引导信息，密码等敏感项请勿提交到 Git）；运行时配置存
+音频文件位于 `backend/Music/{id}.*`，封面嵌入音频；声纹索引位于 `backend/Music/.fingerprints/`，待审核上传与客户端发布包分别位于 `backend/user_upload/` 与 `backend/releases/`。头像统一由 NekoAuth 保存。复用已有部署的数据时，可在 `backend/.env` 设置 `NEKO_DATA_DIR=/原后端运行目录`；配置文件为 `backend/config.yml`（只含 MySQL 引导信息，密码等敏感项请勿提交到 Git）；运行时配置存
 主库 `system_settings` 表，同样不要外泄。升级代码后执行
 `NEKO_WEB_VERSION="$(git describe --tags --always)" docker compose build --pull && docker compose up -d`。
 
-首次启动会自动建表 `system_settings`，并把出厂默认值（或旧 `config.yml` 里的现值）灌一次；之后
-所有运行时配置（端口、Redis、JWT、邮件、频率限制、网络与安全、视频渲染、支付、日志等）都在管理后台
-「系统设置」页维护，改完即时生效，`config.yml` 里对应项不再生效。
+首次启动会自动建表 `system_settings`，空表只写入登记的出厂默认值；之后
+所有运行时配置（端口、Redis、邮件、频率限制、网络与安全、视频渲染、支付、日志等）都在管理后台
+「系统设置」页维护；标记需重启的设置在重启后生效。`config.yml` 只读取 `mysql.*`，其它节不再导入。
 
 默认配置使用 `video_render.pipeline: cuda_native`，需要 NVIDIA GPU、驱动和容器工具包，并要求 FFmpeg 具备 NVENC/CUDA。没有 GPU 时，在管理后台「系统设置 → 视频渲染」把 `pipeline` 改为 `cpu_legacy`、把 `video_codec` 改为
 `libx264`（需重启后端），并从 `backend/docker-compose.yaml` 删除 `gpus: all`；在 Docker Desktop 上还需将 `network_mode: host` 改为 `ports: ["65535:65535"]`，并按实际地址修改 MySQL/Redis 的 host。
@@ -97,15 +97,15 @@ curl -fsS http://127.0.0.1:65535/version
 用户账号、密码、登录会话与用户 Token 的唯一权威源是 NekoAuth。NekoMusic 不再保存用户密码或用户 Token，`users` 表只保留本地业务资料：
 
 - `auth_user_id` 保存 NekoAuth 的稳定数字用户 ID，并建立唯一索引；这是账号关联的第一依据。
-- `email` 是 NekoAuth 返回的邮箱快照，用于旧 API 响应、后台展示、邮件通知和首次关联补偿；它不是密码或登录凭据。
+- `email` 是 NekoAuth 返回的邮箱快照，用于当前 API 响应、后台展示和邮件通知；它不是密码或登录凭据。
 - 邮箱验证状态由 NekoAuth 管理，不作为 NekoMusic 登录门槛；NekoMusic 按 `sub` 关联本地业务资料。
 - `nickname` 以 NekoAuth 为唯一权威源。NekoMusic 的 MySQL 不保存昵称列；评论、通知、歌单、用户搜索和后台展示都通过 NekoAuth 的公开资料接口实时解析，避免出现过期副本。
 - 头像以 NekoAuth 为唯一权威源：上传、替换、默认头像和公开读取都由 NekoAuth 处理；NekoMusic 只保留头像只读代理。`vip_expires_at` 继续由 NekoMusic 本地维护。
 - 用户密码、注册验证码、找回密码验证码、账号启用状态、用户 access token 的签发、校验与吊销全部由 NekoAuth 处理；NekoMusic 的 Redis 不再保存任何 `user_token` 键。
 
-旧邮箱密码注册、登录、验证码、找回密码与改密接口已下线。Web、Android 与 PC 必须通过 NekoAuth 登录页或扫码登录取得 NekoAuth access token；旧客户端需要升级。
+Web、Android 与 PC 通过 NekoAuth 登录页或扫码登录取得 NekoAuth access token。
 
-首次登录或注册成功后，NekoMusic 会按 `auth_user_id` 查找本地资料；不存在时自动创建，只在本地保留邮箱映射和 VIP，不写入昵称或头像。若本地已有同邮箱资料但尚未绑定，会在首次认证时补绑；同一邮箱已绑定其他 NekoAuth 用户时拒绝登录，避免账号串绑。
+首次登录或注册成功后，NekoMusic 会按 `auth_user_id` 查找本地资料；不存在时自动创建，只在本地保留邮箱映射和 VIP，不写入昵称或头像。不再按相同邮箱自动关联已有本地资料；旧账号的身份映射必须事先准备好，邮箱冲突会明确报错。
 
 ### 配置
 
@@ -123,12 +123,11 @@ curl -fsS http://127.0.0.1:65535/version
 
 ### 单点登录
 
-浏览器登录完全由 NekoAuth 完成，NekoMusic 作为标准 OIDC 机密客户端接入：
+Web 通过父域共享会话恢复登录；原生客户端由 NekoMusic 作为标准 OIDC 机密客户端接入：
 
 - NekoMusic 从 NekoAuth 的 `/.well-known/openid-configuration` 读取授权、令牌、UserInfo 与 JWKS 端点，不硬编码端点地址。
-- `POST /api/user/sso/start`：请求体 `{"returnTo":"<站内相对路径>"}`，返回 `{url}`。授权请求使用授权码流程、PKCE S256、一次性 state 与 OIDC nonce，前端随后直接导航到 NekoAuth。
+- `POST /api/user/sso/start`：原生客户端请求体 `{"client":"android|pc","returnTo":"<站内相对路径>"}`，返回 `{url}`。授权请求使用授权码流程、PKCE S256、一次性 state 与 OIDC nonce，前端随后直接导航到 NekoAuth。
 - `GET /sso/nekocore/callback`：NekoAuth 回调地址。服务端校验 state，用授权码与 `code_verifier` 换取 access token / ID Token，通过 NekoAuth JWKS 验证 ID Token 的签名、issuer、audience、azp、nonce、at_hash 与 `sub`，再读取 UserInfo。
-- `GET /sso/complete`：前端完成页立即从地址栏清除 handoff，调用 `POST /api/user/sso/claim` 领取 token，写入 `localStorage.userToken` 后按原 `returnTo` 返回。交接 120 秒有效且只能领取一次。
 - `POST /api/user/sso/claim`：请求体 `{"handoff":"..."}`，成功返回 `{token, returnTo, user}`；token 是 NekoAuth access token，`user` 是 NekoMusic 本地业务资料。响应为 `Cache-Control: private, no-store`。
 - `POST /api/user/sso/password-reset-url`：返回 NekoAuth 的 `/forgot-password` 完整地址，前端随后直接导航。
 
@@ -139,11 +138,11 @@ Android / PC 调用 `/api/user/sso/start` 时分别传 `client=android`、`clien
 注册、找回密码和账号资料修改统一跳转 NekoAuth：Web 在当前浏览器中打开，Android 使用应用内
 WebView，PC 使用系统浏览器。
 
-Web 登录按钮使用标准 NekoAuth OAuth 授权码流程。Auth 会在父域写入只读的
-`nekoauth_session_hint`；NekoMusic 检测到该提示且本地没有 token 时，发起 `prompt=none` 静默授权。
+Web 登录按钮打开 NekoAuth 登录页。Auth 会在父域写入会话与只读提示
+`nekoauth_session_hint`；NekoMusic 通过 `POST /api/user/sso/shared-session` 直接恢复登录态，不发起静默 OIDC 跳转。
 提示本身不含身份凭据。
 
-NekoMusic Web 退出时先吊销当前 access token，再通过标准 OIDC RP-Initiated Logout 退出 Auth 浏览器会话。
+NekoMusic Web 退出时吊销当前 access token 与父域共享会话，并清理共享会话 Cookie，不发起跳转式登出。
 NekoAuth 后台撤销某台设备时，该设备会话族绑定的 OAuth 授权链和 NekoMusic access token 也会立即失效。
 Web 会周期校验登录态；Android 与 PC 回到前台时会重新请求 `GET /api/user/info`，收到 `401` 后清除
 本地登录态，不需要等到用户重启客户端或再次点击受限功能。
@@ -168,10 +167,21 @@ Web 会周期校验登录态；Android 与 PC 回到前台时会重新请求 `GE
 - 头像与 VIP：头像由 NekoAuth 账号中心统一维护，NekoMusic 的后端头像 API 只代理 Auth；VIP 状态和到期时间继续由 NekoMusic 本地维护。
 - 旧客户端迁移：邮箱密码、注册、验证码、找回密码与改密接口已经删除，旧客户端必须升级到 NekoAuth 登录页/扫码登录。
 - 扫码登录：手机端确认时把当前有效 NekoAuth access token 放入一次性扫码会话，PC 通过原有 `deliveryKey` 领取；不再调用内部 token exchange。
-- 登出：NekoMusic 先吊销当前 access token，再通过标准 OIDC RP-Initiated Logout 退出 Auth 浏览器会话；本地 Redis 不保留用户 token 副本。
+- 登出：NekoMusic 吊销当前 access token，Web 同步撤销父域共享会话并清理会话 Cookie；本地 Redis 不保留用户 token 副本。
 - 用户管理：NekoMusic 后台不再管理普通用户，用户创建、密码重置、头像和昵称统一在 NekoAuth 管理后台/账号中心处理。
 
 OAuth、扫码与账号资料接口异常时返回既有格式的错误响应；需要等待时保留 NekoAuth 的 `Retry-After` 语义。日志只记录操作类型、状态与用户 ID，不记录密码、验证码或 client secret。
+
+## 当前版本边界
+
+- 数据库初始化只创建当前完整表结构，不再自动补列、删列、转换旧字段、修复历史日志或全表回填拼音。
+  已有部署须事先满足当前 schema，升级前应核对；应用不会在启动时替旧数据库做迁移。
+- NekoAuth 应用登记使用 `/sso/nekocore/callback`，原生客户端通过 `/sso/native-complete` 完成授权。
+  Web 通过父域共享会话登录，退出时直接撤销共享会话。
+- 搜索和外部歌单详情的失败响应统一为 `{"success":false,"message":"..."}`，不再保留旧错误体。
+- 已移除本地 JWT、注册邮箱白名单、验证码冷却等已下线账号功能的配置，以及按邮箱自动补绑定。
+- 已移除审核 `temp_*` 文件恢复、旧渲染目录扫描、未知音频扩展名回退扫描和旧歌词打轴草稿迁移。
+  当前上传事务恢复、原生音频格式解析、头像代理、CPU 视频渲染和第三方音乐平台接入继续保留。
 
 ## 本地前端开发
 
@@ -181,7 +191,7 @@ npm install
 npm run dev
 ```
 
-dev server（默认 `http://localhost:5173`）会把 `/api`、`/version` 反向代理到本地后端，
+dev server（默认 `http://localhost:5173`）会把 `/api` 反向代理到本地后端，
 前端与接口/音频/封面保持同源，**不需要后端为浏览器放开 CORS**。代理目标默认取
 `frontend/.env.development` 的 `VITE_DEV_PROXY_TARGET`（`http://localhost:65535`，
 即后端默认端口）；需要指向别的地址（例如线上 `https://music.nekocore.cn`）时，
@@ -194,9 +204,10 @@ dev server（默认 `http://localhost:5173`）会把 `/api`、`/version` 反向�
 
 经典声纹的倒排数据、候选聚合、去重和时间对齐由 `backend/native/recognition/` 的 Rust 引擎负责。
 Java 通过 FFM 批量传入查询，Rust 持有连续 posting 数据，增量索引共享已有基础层；Java 保留音频
-特征提取、和声兜底及 HTTP 业务层。加载日志会明确显示 Rust 是否启用，库缺失或不可加载时会告警并
-降级到 Java；正常构建默认打包并使用 Rust，集成测试会断言实际启用原生引擎。
-已有声纹缓存格式与客户端接口保持兼容。离线验证见 [后端性能探针](backend/benchmarks/README.md)。
+特征提取、和声兜底及 HTTP 业务层。经典匹配只使用 Rust；库缺失或不可加载时明确报错，不再降级到
+Java 匹配。正常构建自动打包原生库，集成测试断言实际启用 Rust。
+总索引只读取当前 v3 / 算法 v5 格式；单曲缓存必须包含当前和声特征尾段。更早版本的缓存会被视为
+不可用并重新生成，不再提供 v2 总索引读取、缺失和声补齐或旧格式迁移分支。当前 v3 文件和目录不变。离线验证见 [后端性能探针](backend/benchmarks/README.md)。
 
 同时提供 `WS /api/music/recognize/ws` 流式识曲：客户端可边录边发 16 kHz 单声道 PCM 分片，服务端持续尝试匹配，识别成功后立即返回；现有 HTTP 接口保持不变。
 
@@ -365,7 +376,7 @@ curl -s -X POST 'https://music.nekocore.cn/api/sensitive-word/check' \
 
 商业版数据库需要自行购买并遵守 MaxMind 授权，**不要提交到仓库或公开构建产物**；把文件挂载到 `GeoIP/` 或 `/app/GeoIP/` 即可在启动时优先加载。ASN 映射只收录省级运营商网络，全国性 ASN（如中国移动 `9808`、电信 `4134`、联通 `4837`）不会强行映射到注册地。
 
-展示规则：国内普通省份只显示省级行政区（如 `江西`、`广东`），不显示普通地级市；北京、上海、天津、重庆因本身就是省级行政区，显示为 `北京` / `上海` / `天津` / `重庆`。港澳台统一带「中国」前缀（`中国香港` / `中国澳门` / `中国台湾`）；国外只显示国家名，不显示省 / 市；内网 / 回环地址显示「本地」；国内省级信息解析不到时显示「中国」，所有来源都无法识别时显示「其他」。数据库缺失时服务照常运行。`ip_region` 是评论发表时的快照，历史评论不会随数据库升级自动重算，但历史 `unknown` / `未知` 会在接口输出时显示为「其他」。原始客户端 IP 另存于 `music_comments.client_ip`，仅用于服务端复核与后续重新解析，不通过评论接口返回。
+展示规则：国内普通省份只显示省级行政区（如 `江西`、`广东`），不显示普通地级市；北京、上海、天津、重庆因本身就是省级行政区，显示为 `北京` / `上海` / `天津` / `重庆`。港澳台统一带「中国」前缀（`中国香港` / `中国澳门` / `中国台湾`）；国外只显示国家名，不显示省 / 市；内网 / 回环地址显示「本地」；国内省级信息解析不到时显示「中国」，所有来源都无法识别时显示「其他」。数据库缺失时服务照常运行。`ip_region` 是评论发表时的快照，历史评论不会随数据库升级自动重算，但已保存的非空地区值原样展示，不再转换旧占位值。原始客户端 IP 另存于 `music_comments.client_ip`，仅用于服务端复核与后续重新解析，不通过评论接口返回。
 
 ## 每日推荐（Redis）
 

@@ -30,7 +30,7 @@ public class QQMusicSongListDetailHandler extends ApiServlet {
 
         String disstid = request.getParameter("disstid");
         if (disstid == null || !disstid.matches("[0-9]{1,19}")) {
-            sendErrorObject(response, HttpServletResponse.SC_BAD_REQUEST,
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                     "source.qq.disstid_required");
             return;
         }
@@ -43,11 +43,11 @@ public class QQMusicSongListDetailHandler extends ApiServlet {
             response.getWriter().write(Main.getObjectMapper().writeValueAsString(result));
         } catch (QQMusicClient.UpstreamException e) {
             logger.warn("QQ 音乐歌单接口返回 HTTP {}，disstid={}", e.getStatusCode(), disstid);
-            sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY,
                     ApiMessages.translate("source.qq.api_failed", e.getStatusCode()));
         } catch (IOException e) {
             logger.warn("请求 QQ 音乐歌单接口失败，disstid={}: {}", disstid, e.getMessage());
-            sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY,
                     e.getMessage() == null ? "source.qq.request_failed" : e.getMessage());
         }
     }

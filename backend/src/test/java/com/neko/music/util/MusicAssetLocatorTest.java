@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 资产定位：优先直接探测 {@code {id}.<ext>}，白名单扩展名都不命中时才回退一次目录扫描。
+ * 资产定位：仅直接探测当前支持的 {@code {id}.<ext>}。
  *
  * <p>这里锁住的是「直接探测与原来的全目录扫描结果一致」——{@code Music} 有数万个条目，
  * 定位方式退化回全目录扫描会把每次音频请求的固定开销从微秒级拉回几十毫秒。</p>
@@ -57,11 +57,10 @@ class MusicAssetLocatorTest {
         assertTrue(MusicAssetLocator.findIdNamedFile(dir, 12, AUDIO_EXT).isEmpty());
     }
 
-    /** 非常规扩展名仍要能找到：走的是回退的那一次目录扫描。 */
     @Test
-    void fallsBackToDirectoryScanForUnknownExtension() throws IOException {
-        Path opus = touch("9.opus");
-        assertEquals(opus, MusicAssetLocator.findIdNamedFile(dir, 9, AUDIO_EXT).orElseThrow());
+    void rejectsUnregisteredExtensionsWithoutDirectoryFallback() throws IOException {
+        touch("9.opus");
+        assertTrue(MusicAssetLocator.findIdNamedFile(dir, 9, AUDIO_EXT).isEmpty());
     }
 
     @Test

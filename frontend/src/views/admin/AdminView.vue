@@ -198,7 +198,6 @@ const renderTrendChart = (data) => {
   const dates = []
   const userCounts = []
   const musicCounts = []
-  const visitCounts = []
   
   // 生成最近7天的日期标签
   for (let i = 6; i >= 0; i--) {
@@ -216,12 +215,10 @@ const renderTrendChart = (data) => {
     // 音乐添加数
     musicCounts.push(data.musicTrendData && data.musicTrendData[date] ? data.musicTrendData[date] : 0)
     
-    // 访问量
-    visitCounts.push(data.visitTrendData && data.visitTrendData[date] ? data.visitTrendData[date] : 0)
   })
   
   // 计算y轴的最大值，至少为50
-  const allDataValues = [...userCounts, ...musicCounts, ...visitCounts]
+  const allDataValues = [...userCounts, ...musicCounts]
   const maxValue = Math.max(50, ...allDataValues)
   
   // 创建趋势图

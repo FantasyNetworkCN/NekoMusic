@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 用户管理的业务边界：校验、角色策略、口令哈希、会话吊销与事务调度都集中在这里。
+ * 本地业务资料读取与管理员角色校验。
  */
 public final class UserManagementService {
 

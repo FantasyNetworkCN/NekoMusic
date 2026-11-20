@@ -74,9 +74,9 @@ class AdminSettingsHandlerTest {
     @DisplayName("列表型配置：多行取值压成一行，不把一条变更拆成多行")
     void flattensListValues() {
         List<OperationAudit.Change> changes = AdminSettingsHandler.settingChanges(
-                Map.of("whitelist_email", "qq.com\ngmail.com"),
-                Map.of("whitelist_email", "qq.com\ngmail.com\noutlook.com"));
-        assertEquals("注册邮箱域名白名单：qq.com\\ngmail.com → qq.com\\ngmail.com\\noutlook.com",
+                Map.of("network.extra_client_ip_headers", "X-Custom-IP\nX-Other-IP"),
+                Map.of("network.extra_client_ip_headers", "X-Custom-IP\nX-Other-IP\nX-Third-IP"));
+        assertEquals("额外客户端 IP 头：X-Custom-IP\\nX-Other-IP → X-Custom-IP\\nX-Other-IP\\nX-Third-IP",
                 OperationAudit.describe(changes));
     }
 

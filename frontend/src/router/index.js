@@ -215,16 +215,6 @@ const router = createRouter({
       }
     },
     {
-      path: '/sso/complete',
-      name: 'oauth-complete',
-      component: () => import('@/views/AuthSsoCompleteView.vue'),
-      meta: {
-        title: '正在完成登录 - Neko歌姬计划',
-        description: '正在完成 NekoAuth 统一登录。',
-        keywords: '登录,NekoAuth,单点登录'
-      }
-    },
-    {
       path: '/sso/native-complete',
       name: 'oauth-native-complete',
       component: () => import('@/views/AuthNativeSsoCompleteView.vue'),

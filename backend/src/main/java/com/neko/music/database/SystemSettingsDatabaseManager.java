@@ -1,6 +1,5 @@
 package com.neko.music.database;
 
-import com.neko.music.config.ConfigManager;
 import com.neko.music.config.SystemSettingDefinition;
 import com.neko.music.config.SystemSettingRegistry;
 import org.slf4j.Logger;
@@ -48,17 +47,15 @@ public class SystemSettingsDatabaseManager {
                 values.put(key, value == null ? "" : value);
             }
         } catch (SQLException e) {
-            logger.error("读取系统设置失败（本次回退为 config.yml 的值）: {}", e.getMessage());
+            logger.error("读取系统设置失败（本次使用出厂默认值）: {}", e.getMessage());
         }
         return values;
     }
 
     /**
-     * 首次启动：表里一条记录都没有时，把 config.yml 的当前生效值（缺失则取出厂默认值）灌进去。
-     *
-     * <p>迁移友好：老部署升级上来后行为与原来完全一致，管理员随后在后台改的就是这些值。</p>
+     * 首次启动：表为空时仅写入登记的出厂默认值。
      */
-    public void seedIfEmpty(ConfigManager configManager) {
+    public void seedIfEmpty() {
         try {
             if (countRows() > 0) {
                 return;
@@ -66,15 +63,12 @@ public class SystemSettingsDatabaseManager {
             Map<String, String> seeds = new LinkedHashMap<>();
             for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {
                 String value = definition.defaultValue();
-                if (configManager != null) {
-                    value = configManager.effectiveValue(definition.key()).orElse(value);
-                }
                 seeds.put(definition.key(), value == null ? "" : value);
             }
             int written = upsertAll(seeds, null);
-            logger.info("系统设置表为空，已按 config.yml 现值写入 {} 条设置", written);
+            logger.info("系统设置表为空，已写入 {} 条出厂默认设置", written);
         } catch (SQLException e) {
-            logger.error("初始化系统设置失败（继续使用 config.yml 的值）: {}", e.getMessage());
+            logger.error("初始化系统设置失败（继续使用出厂默认值）: {}", e.getMessage());
         }
     }
 

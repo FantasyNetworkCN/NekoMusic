@@ -26,7 +26,7 @@ public class QishuiPlaylistDetailHandler extends ApiServlet {
                 request.getParameter("url"),
                 request.getParameter("id"));
         if (input == null || input.isBlank() || input.length() > 2048) {
-            sendErrorData(response, HttpServletResponse.SC_BAD_REQUEST,
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                     "source.qishui.playlist_id_required");
             return;
         }
@@ -35,9 +35,9 @@ public class QishuiPlaylistDetailHandler extends ApiServlet {
             QishuiMusicClient client = Main.getExternalImportService().getQishuiMusicClient();
             sendResponse(response, true, "ok", client.fetchPlaylistDetailRaw(input.trim()));
         } catch (IllegalArgumentException e) {
-            sendErrorData(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (IOException e) {
-            sendErrorData(response, HttpServletResponse.SC_BAD_GATEWAY, e.getMessage());
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, e.getMessage());
         }
     }
 

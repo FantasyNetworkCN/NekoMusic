@@ -6,7 +6,6 @@ import com.neko.music.model.UserUpload;
 import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.MusicIngestSupport;
 import com.neko.music.service.SearchIndexService;
-import com.neko.music.service.UploadStorageRecovery;
 import com.neko.music.util.AtomicFiles;
 import com.neko.music.util.LyricsFileValidator;
 import com.neko.music.util.MusicAdMetadataPatcher;
@@ -192,9 +191,6 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 return;
             }
             
-            // 旧版本可能在事务提交前把源文件移到了 temp_ 路径；重试时先原位恢复。
-            UploadStorageRecovery.restoreLegacyTempFiles(upload);
-
             Path sourceMusicPath = Paths.get(upload.getMusicFilePath());
             Path sourceCoverPath = upload.getCoverFilePath() == null || upload.getCoverFilePath().isBlank()
                     ? null : Paths.get(upload.getCoverFilePath());

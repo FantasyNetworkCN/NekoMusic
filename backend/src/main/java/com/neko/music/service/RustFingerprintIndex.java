@@ -38,14 +38,7 @@ final class RustFingerprintIndex extends FingerprintPostings {
     private final long count;
     private final long nativeBytes;
 
-    static boolean available() {
-        return NATIVE != null;
-    }
-
     static RustFingerprintIndex create(Map<Long, long[]> additions, RustFingerprintIndex base) {
-        if (!available()) {
-            throw new IllegalStateException("Rust 识曲库未加载");
-        }
         return new RustFingerprintIndex(additions, base);
     }
 
@@ -344,12 +337,10 @@ final class RustFingerprintIndex extends FingerprintPostings {
             LoggerFactory.getLogger(RustFingerprintIndex.class).info("经典声纹索引与匹配已启用 Rust 引擎");
             return bindings;
         } catch (Throwable error) {
-            if (error instanceof VirtualMachineError || error instanceof ThreadDeath) {
-                throw (Error) error;
+            if (error instanceof Error fatal) {
+                throw fatal;
             }
-            LoggerFactory.getLogger(RustFingerprintIndex.class)
-                    .warn("Rust 识曲库不可用，降级到 Java 匹配: {}", error.toString());
-            return null;
+            throw new IllegalStateException("Rust 识曲库不可用，请检查原生库打包与运行环境", error);
         }
     }
 

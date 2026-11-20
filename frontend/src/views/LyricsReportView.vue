@@ -206,7 +206,7 @@ import {
   toReportLines,
 } from '@/utils/lyricsReport'
 import { resolveMediaUrl } from '@/utils/mediaUrl.js'
-import { remapTimingUnits } from '@/utils/timingUnits'
+import { splitTimingUnits } from '@/utils/timingUnits'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NSpinner, NTag } from '@/ui'
 import KaraokeTimingEditor from '@/components/KaraokeTimingEditor.vue'
@@ -237,7 +237,7 @@ const note = ref('')
 const activeTab = ref('text')
 const draftSaved = ref(false)
 const draftKey = computed(() => `nekoLyricsReportDraft:${musicId.value}`)
-const REPORT_DRAFT_VERSION = 3
+const REPORT_DRAFT_VERSION = 4
 let lineSequence = 0
 let draftTimer = null
 
@@ -272,7 +272,6 @@ async function load() {
     } else {
       lines.value = (initial.length ? initial : [emptyReportLine()]).map(withUid)
     }
-    normalizeEnglishTimingSegments()
     loadAudio()
     applyPageSeo({
       title: `${payload.data.title} - 歌词报错 | Neko歌姬计划`,
@@ -298,10 +297,8 @@ function updateOriginal(line, text) {
   if (line.text === text) return
   line.text = text
   line.words = []
-  line.timingVersion = 0
   if (/[\p{Script=Latin}]{2,}/u.test(String(text || ''))) {
-    line.words = remapTimingUnits(text, [])
-    line.timingVersion = 2
+    line.words = splitTimingUnits(text)
   }
 }
 
@@ -310,27 +307,13 @@ function removeLine(index) {
   lines.value.splice(index, 1)
 }
 
-function normalizeEnglishTimingSegments() {
-  lines.value = lines.value.map((line) => {
-    if (!/[\p{Script=Latin}]{2,}/u.test(String(line.text || ''))
-        || line.timingVersion === 2) {
-      return line
-    }
-    return {
-      ...line,
-      words: remapTimingUnits(line.text || '', line.words),
-      timingVersion: 2,
-    }
-  })
-}
-
 function restoreDraft() {
   try {
     const draft = JSON.parse(window.localStorage.getItem(draftKey.value) || 'null')
     if (!draft || !Array.isArray(draft.lines) || draft.lines.length === 0) return false
     if (draft.version !== REPORT_DRAFT_VERSION || !isValidDraft(draft)) {
       window.localStorage.removeItem(draftKey.value)
-      toast.error('旧版或异常本地草稿已清理，已重新加载服务器歌词')
+      toast.error('本地草稿格式无效，已重新加载服务器歌词')
       return false
     }
     lines.value = draft.lines.map((line) => withUid({
@@ -339,7 +322,6 @@ function restoreDraft() {
       text: String(line.text || ''),
       translation: String(line.translation || ''),
       romanization: String(line.romanization || ''),
-      timingVersion: Number(line.timingVersion) || 0,
       words: Array.isArray(line.words)
         ? line.words.map((word) => ({
             text: String(word.text || ''),
@@ -379,7 +361,6 @@ function saveDraft() {
         text: typeof line.text === 'string' ? line.text : '',
         translation: typeof line.translation === 'string' ? line.translation : '',
         romanization: typeof line.romanization === 'string' ? line.romanization : '',
-        timingVersion: Number(line.timingVersion) || 0,
         words: Array.isArray(line.words)
           ? line.words
               .filter((word) => word && typeof word === 'object' && typeof word.text === 'string')

@@ -56,7 +56,6 @@ const showSiteNavigation = computed(() => {
     'download',
     'together-launch',
     'detail',
-    'oauth-complete',
     'oauth-native-complete',
     'forgot-password',
   ]

@@ -90,14 +90,11 @@ public class ChartDataHandler extends ApiServlet {
                 chartData.put("musicTrendData", musicTrendData);
             }
             
-            // 获取最近7天的访问量数据 - 已移除访问日志功能
-            chartData.put("visitTrendData", new HashMap<>());
         } catch (Exception e) {
             logger.error("查询图表数据时出错", e);
             // 出错时返回空数据
             chartData.put("userTrendData", new HashMap<>());
             chartData.put("musicTrendData", new HashMap<>());
-            chartData.put("visitTrendData", new HashMap<>()); // 保留此值以便界面兼容，但不再使用访问日志
         }
         
         return chartData;

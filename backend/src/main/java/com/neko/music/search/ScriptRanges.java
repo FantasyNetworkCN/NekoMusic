@@ -42,11 +42,6 @@ public final class ScriptRanges {
                 || (codePoint >= 0x31350 && codePoint <= 0x323AF);
     }
 
-    /** 兼容旧调用；代理项会自然返回 false。 */
-    public static boolean isCjk(char c) {
-        return isCjk((int) c);
-    }
-
     /**
      * 需要子串索引的脚本：假名（平 / 片 / 半角 / 片假名音标扩展）+ 谚文（音节 / 字母 / 兼容字母）。
      *
@@ -54,11 +49,6 @@ public final class ScriptRanges {
      */
     public static boolean isSubstringScript(int codePoint) {
         return isKana(codePoint) || isHangul(codePoint);
-    }
-
-    /** 兼容旧调用；代理项会自然返回 false。 */
-    public static boolean isSubstringScript(char c) {
-        return isSubstringScript((int) c);
     }
 
     /** 假名：平假名 / 片假名 / 音标扩展 / 半角片假名 / 补充平面假名。 */

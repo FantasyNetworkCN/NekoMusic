@@ -117,9 +117,9 @@ class IpRegionServiceTest {
     }
 
     @Test
-    void legacyUnknownIsNormalizedForDisplay() {
-        assertEquals("其他", IpRegionService.displayStored("unknown"));
-        assertEquals("其他", IpRegionService.displayStored("未知"));
+    void storedRegionIsDisplayedWithoutLegacyValueTranslation() {
+        assertEquals("unknown", IpRegionService.displayStored("unknown"));
+        assertEquals("未知", IpRegionService.displayStored("未知"));
         assertEquals("其他", IpRegionService.displayStored(""));
         assertEquals("上海", IpRegionService.displayStored("上海"));
     }

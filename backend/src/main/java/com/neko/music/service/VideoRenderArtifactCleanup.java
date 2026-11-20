@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -18,7 +17,6 @@ import java.util.stream.Stream;
  */
 public class VideoRenderArtifactCleanup {
     private static final Logger logger = LoggerFactory.getLogger(VideoRenderArtifactCleanup.class);
-    private static final Path LEGACY_VIDEO_DIR = Paths.get("/tmp/NekoMusic-video-render");
 
     private final long retentionMs;
     private final ScheduledExecutorService scheduler;
@@ -81,7 +79,6 @@ public class VideoRenderArtifactCleanup {
                     }
                 }
             }
-            sweepMp4InDir(LEGACY_VIDEO_DIR, cutoff);
         } catch (IOException e) {
             logger.warn("扫描过期渲染文件失败: {}", e.getMessage());
         }
@@ -102,17 +99,6 @@ public class VideoRenderArtifactCleanup {
         }
     }
 
-    private void sweepMp4InDir(Path dir, long cutoffEpochMs) throws IOException {
-        if (!Files.isDirectory(dir)) {
-            return;
-        }
-        try (Stream<Path> files = Files.list(dir)) {
-            files.filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".mp4"))
-                    .filter(p -> isOlderThan(p, cutoffEpochMs))
-                    .forEach(this::deleteQuiet);
-        }
-    }
 
     public void shutdown() {
         scheduler.shutdownNow();

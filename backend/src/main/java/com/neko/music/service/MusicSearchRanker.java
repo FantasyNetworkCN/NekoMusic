@@ -314,7 +314,7 @@ public final class MusicSearchRanker {
         int score = textScoreWithSimplified(fields.title(), queryLower, querySimplifiedLower, TITLE_WEIGHTS)
                 + textScoreWithSimplified(fields.artist(), queryLower, querySimplifiedLower, ARTIST_WEIGHTS)
                 + textScoreWithSimplified(fields.album(), queryLower, querySimplifiedLower, ALBUM_WEIGHTS);
-        return Math.max(score, legacyPinyinScore(fields, queryLower));
+        return Math.max(score, wholeQueryPinyinScore(fields, queryLower));
     }
 
     private static int fieldScore(
@@ -459,7 +459,7 @@ public final class MusicSearchRanker {
     }
 
     /** 整串拼音匹配：歌名 → 歌手 → 专辑，命中即止（与旧实现一致）。 */
-    private static int legacyPinyinScore(MusicFields fields, String termLower) {
+    private static int wholeQueryPinyinScore(MusicFields fields, String termLower) {
         int title = pinyinFieldScore(fields.titleWordInitials(), fields.titlePinyin(),
                 fields.titlePinyinInitials(), termLower);
         if (title > 0) {

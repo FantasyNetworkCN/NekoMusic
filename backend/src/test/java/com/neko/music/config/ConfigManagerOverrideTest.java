@@ -18,6 +18,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 会现场建树，因此可以直接断言「数据库值能否走到读取端」。</p>
  */
 class ConfigManagerOverrideTest {
+    @Test
+    @DisplayName("启动 YAML 只接收 mysql，运行时配置使用登记默认值")
+    void bootstrapIgnoresRuntimeSettingsFromYaml() {
+        ConfigManager config = new ConfigManager();
+        var yaml = JsonNodeFactory.instance.objectNode();
+        yaml.putObject("mysql").put("host", "bootstrap.example").put("port", 3307);
+        yaml.put("port", 12345);
+        yaml.putObject("smtp").put("host", "obsolete.example");
+        yaml.putObject("video_render").put("non_vip_max_duration_sec", 999);
+
+        JsonNode bootstrap = config.bootstrapConfigNode(yaml);
+        assertEquals("bootstrap.example", bootstrap.path("mysql").path("host").asText());
+        assertEquals(3307, bootstrap.path("mysql").path("port").asInt());
+        assertEquals("65535", bootstrap.path("port").asText());
+        assertEquals("", bootstrap.path("smtp").path("host").asText());
+        assertTrue(bootstrap.path("video_render").path("non_vip_max_duration_sec").isMissingNode());
+        assertEquals(12345, yaml.path("port").asInt(), "读取不能修改原输入");
+    }
+
 
     @Test
     @DisplayName("登记键：按点分路径合并后读取端立即生效")
@@ -96,10 +115,10 @@ class ConfigManagerOverrideTest {
     @DisplayName("列表项：按行拆成数组，读取端还原为逗号分隔")
     void listValuesBecomeArrays() {
         ConfigManager config = new ConfigManager();
-        config.applyOverrides(Map.of("whitelist_email", "a.com\nb.com"));
+        config.applyOverrides(Map.of("network.extra_client_ip_headers", "X-Custom-IP\nX-Other-IP"));
 
-        assertEquals("a.com,b.com", config.getEmailWhitelist());
-        assertEquals("a.com\nb.com", config.effectiveValue("whitelist_email").orElseThrow());
+        assertEquals(java.util.List.of("X-Custom-IP", "X-Other-IP"), config.getExtraClientIpHeaders());
+        assertEquals("X-Custom-IP\nX-Other-IP", config.effectiveValue("network.extra_client_ip_headers").orElseThrow());
     }
 
     @Test

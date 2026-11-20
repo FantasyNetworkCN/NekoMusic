@@ -43,7 +43,7 @@ class UserManagementServiceTest {
     }
 
     @Test
-    void missingUserKeepsLegacySelfServiceFailures() {
+    void missingCurrentUserReturnsNotFound() {
         UserManagementService service = new UserManagementService(new FakeStore());
 
         UserManagementException profile = assertThrows(UserManagementException.class,
@@ -82,12 +82,7 @@ class UserManagementServiceTest {
             return users;
         }
 
-        @Override
-        public Optional<UserAccount> findUser(int id) {
-            return users.stream().filter(user -> user.id() == id).findFirst();
-        }
-
-        @Override
+         @Override
         public Optional<UserProfile> findUserProfile(int id) {
             if (id != 7) {
                 return Optional.empty();
@@ -96,24 +91,5 @@ class UserManagementServiceTest {
                     "2026-01-01", vip));
         }
 
-        @Override
-        public boolean userEmailExists(String email) {
-            return false;
         }
-
-        @Override
-        public void createUser(String email) {
-        }
-
-        @Override
-        public boolean updateUserVip(int id, Timestamp vipExpiresAt) {
-            vip = vipExpiresAt;
-            return id == 7;
-        }
-
-        @Override
-        public boolean deleteUser(int id) {
-            return false;
-        }
-    }
 }

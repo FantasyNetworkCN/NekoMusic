@@ -176,10 +176,9 @@ public class Main {
         vipPricingDatabaseManager = new VipPricingDatabaseManager(databaseManager);
         vipPayOrderDatabaseManager = new VipPayOrderDatabaseManager(databaseManager);
 
-        // 运行时配置改由主库 system_settings 表承载：首次启动把 config.yml 的现值灌进表里，
-        // 之后用表里的值覆盖配置树。必须在依赖配置的服务（Redis 等）之前完成。
+        // 运行时配置来自 system_settings；空表写入出厂默认值，必须在配置依赖服务之前完成。
         systemSettingsDatabaseManager = new SystemSettingsDatabaseManager(databaseManager);
-        systemSettingsDatabaseManager.seedIfEmpty(configManager);
+        systemSettingsDatabaseManager.seedIfEmpty();
         systemSettingsDatabaseManager.pruneUnregistered();
         java.util.Map<String, String> storedSettings = systemSettingsDatabaseManager.loadAll();
         configManager.applyOverrides(storedSettings);
