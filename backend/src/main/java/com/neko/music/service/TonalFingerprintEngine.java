@@ -47,6 +47,30 @@ final class TonalFingerprintEngine {
     private static final double[] MAJOR_TEMPLATE = {1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0};
     private static final double[] MINOR_TEMPLATE = {1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0};
     private static final double[] TEMPO_SCALES = {1d, 0.98d, 1.02d, 0.96d, 1.04d, 0.94d, 1.06d};
+    // 仅依赖固定采样率与 FFT 大小；保留原运算表达式，避免每帧重算 cos / log。
+    private static final double[] WINDOW = createWindow();
+    private static final byte[] BIN_PITCH_CLASSES = createBinPitchClasses();
+
+    private static double[] createWindow() {
+        double[] values = new double[FFT_SIZE];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = 0.5d - 0.5d * Math.cos(2d * Math.PI * i / (FFT_SIZE - 1d));
+        }
+        return values;
+    }
+
+    private static byte[] createBinPitchClasses() {
+        byte[] values = new byte[FFT_SIZE / 2];
+        Arrays.fill(values, (byte) -1);
+        for (int bin = 4; bin < values.length; bin++) {
+            double frequency = bin * (double) AudioFingerprintEngine.SAMPLE_RATE / FFT_SIZE;
+            if (frequency >= MIN_FREQUENCY && frequency <= MAX_FREQUENCY) {
+                double midi = 69d + 12d * Math.log(frequency / 440d) / Math.log(2d);
+                values[bin] = (byte) Math.floorMod((int) Math.round(midi), 12);
+            }
+        }
+        return values;
+    }
 
     TonalFingerprint extract(short[] samples) {
         if (samples == null || samples.length == 0) {
@@ -68,12 +92,10 @@ final class TonalFingerprintEngine {
             for (int offset = -FFT_SIZE / 4; offset < FFT_SIZE; offset += WINDOW_STEP) {
                 transform(fft, frame, samples, center + offset);
                 for (int bin = 4; bin < FFT_SIZE / 2; bin++) {
-                    double frequency = bin * (double) AudioFingerprintEngine.SAMPLE_RATE / FFT_SIZE;
-                    if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
+                    int pitchClass = BIN_PITCH_CLASSES[bin];
+                    if (pitchClass < 0) {
                         continue;
                     }
-                    double midi = 69d + 12d * Math.log(frequency / 440d) / Math.log(2d);
-                    int pitchClass = Math.floorMod((int) Math.round(midi), 12);
                     double magnitude = fft.modulus(frame, bin);
                     chromaAccumulator[pitchClass] += Math.sqrt(Math.max(0d, magnitude));
                 }
@@ -112,8 +134,7 @@ final class TonalFingerprintEngine {
             if (sampleIndex < 0 || sampleIndex >= samples.length) {
                 continue;
             }
-            double window = 0.5d - 0.5d * Math.cos(2d * Math.PI * i / (FFT_SIZE - 1d));
-            frame[i] = (float) (samples[sampleIndex] / 32768d * window);
+            frame[i] = (float) (samples[sampleIndex] / 32768d * WINDOW[i]);
         }
         fft.forwardTransform(frame);
     }
@@ -212,11 +233,11 @@ final class TonalFingerprintEngine {
 
     /** 和声与主音高轮廓的紧凑倒排索引。 */
     static final class Index {
-        private final Map<Long, long[]> postings;
+        private final FingerprintPostings postings;
         private final int musicCount;
 
         private Index(Map<Long, long[]> postings, int musicCount) {
-            this.postings = postings;
+            this.postings = FingerprintPostings.copyOf(postings);
             this.musicCount = musicCount;
         }
 
@@ -232,7 +253,7 @@ final class TonalFingerprintEngine {
             if (musicCount < 0) {
                 throw new IllegalArgumentException("musicCount cannot be negative");
             }
-            return new Index(Map.copyOf(postings), musicCount);
+            return new Index(postings, musicCount);
         }
 
         int musicCount() {
@@ -248,17 +269,15 @@ final class TonalFingerprintEngine {
         }
 
         static final class Builder {
-            private final Map<Long, long[]> basePostings;
+            private final FingerprintPostings basePostings;
             private final Map<Long, LongList> mutable = new HashMap<>();
             private int indexedMusic;
             private long totalPostings;
 
             private Builder(Index base) {
-                basePostings = base == null ? Map.of() : base.postings;
+                basePostings = base == null ? FingerprintPostings.empty() : base.postings;
                 indexedMusic = base == null ? 0 : base.musicCount;
-                for (long[] values : basePostings.values()) {
-                    totalPostings += values.length;
-                }
+                totalPostings = basePostings.postingCount();
             }
 
             void add(int musicId, TonalFingerprint fingerprint) {
@@ -315,11 +334,11 @@ final class TonalFingerprintEngine {
                 mutable.forEach((hash, values) -> additions.put(hash, values.toArray()));
                 mutable.clear();
                 if (basePostings.isEmpty()) {
-                    return new Index(Map.copyOf(additions), indexedMusic);
+                    return new Index(additions, indexedMusic);
                 }
                 // 与精确声纹索引相同：增量构建只在旧表上覆盖少量 hash，
                 // 不复制整张基础表，避免额外占用数与百万计的条目。
-                return new Index(new CompositePostings(basePostings, Map.copyOf(additions)), indexedMusic);
+                return new Index(new CompositePostings(basePostings, additions), indexedMusic);
             }
         }
 

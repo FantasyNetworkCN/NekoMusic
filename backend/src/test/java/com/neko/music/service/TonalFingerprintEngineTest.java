@@ -3,6 +3,10 @@ package com.neko.music.service;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Arrays;
+import java.util.HexFormat;
+import java.util.Random;
+import java.security.MessageDigest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,6 +15,27 @@ class TonalFingerprintEngineTest {
     private static final int[] ROOTS = {0, 5, 7, 3, 8, 0, 10, 5, 7, 0, 3, 8, 5, 7, 0, 3, 10, 5};
     private static final int[] QUALITIES = {0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0};
     private static final int[] PITCHES = {0, 4, 7, 5, 9, 2, 7, 2, 11, 4, 7, 2, 5, 9, 0, 7, 2, 5};
+
+    @Test
+    void precomputedTablesPreserveTheOriginalExtractedFeatures() throws Exception {
+        byte[] pcm = new byte[8 * AudioFingerprintEngine.SAMPLE_RATE * 2];
+        new Random(7).nextBytes(pcm);
+        short[] audio = new short[pcm.length / 2];
+        for (int i = 0; i < audio.length; i++) {
+            audio[i] = (short) ((pcm[i * 2] & 0xff) | (pcm[i * 2 + 1] << 8));
+        }
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        TonalFingerprintEngine engine = new TonalFingerprintEngine();
+        for (int count : new int[]{0, 1, 7_999, 8_000, 16_001, audio.length}) {
+            var extracted = engine.extract(Arrays.copyOf(audio, count));
+            digest.update(extracted.chroma());
+            digest.update(extracted.chords());
+            digest.update(extracted.pitches());
+        }
+        // 由优化前实现生成，覆盖空输入、窗口边界和尾部不足一帧的情况。
+        assertEquals("e010e9c4bfa04c9ae7d91d5c48d4ca344c8acbe34ccc3ab0177d426398729954",
+                HexFormat.of().formatHex(digest.digest()));
+    }
 
     @Test
     void matchesSameHarmonicProgression() {

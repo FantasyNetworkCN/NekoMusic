@@ -8,6 +8,7 @@ import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,6 +18,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MusicRecognitionPersistenceTest {
     @TempDir
     Path tempDirectory;
+
+    @Test
+    void restoresDirectlyIntoRustAcrossBufferedDirectoryBoundaries() throws Exception {
+        var track = track(1, "Large");
+        var catalog = List.of(entry(track, "1.mp3", 1, 1));
+        List<AudioFingerprintEngine.Landmark> points = new ArrayList<>();
+        for (int i = 0; i < 20_000; i++) {
+            points.add(new AudioFingerprintEngine.Landmark(1000L * i, i));
+        }
+        var original = AudioFingerprintEngine.Index.build(Map.of(1,
+                new AudioFingerprintEngine.Fingerprint(points, 160_000)));
+        var cache = cache();
+        cache.save(new MusicRecognitionService.IndexSnapshot(
+                original, Map.of(1, track), catalog, System.currentTimeMillis()));
+        var restored = cache.load().orElseThrow().index();
+        assertTrue(restored.usesRust());
+        assertEquals(original.uniqueHashCount(), restored.uniqueHashCount());
+        for (int i : new int[]{0, 1, 3276, 3277, 19_999}) {
+            org.junit.jupiter.api.Assertions.assertArrayEquals(
+                    original.postingsView().get(i * 1000L), restored.postingsView().get(i * 1000L));
+        }
+    }
 
     @Test
     void savesAndRestoresDirectlyQueryableInvertedIndex() throws Exception {

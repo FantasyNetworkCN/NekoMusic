@@ -13,6 +13,7 @@
         <maven.compiler.target>27</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <neko.audio.native.skip>false</neko.audio.native.skip>
+        <neko.recognition.native.skip>false</neko.recognition.native.skip>
         <neko.frontend.skip>false</neko.frontend.skip>
     </properties>
 
@@ -299,6 +300,22 @@
                 <version>3.6.4</version>
 
                 <executions>
+                    <!-- 构建 Rust 经典声纹引擎；无外部 Cargo 依赖，制品随 JAR 打入。 -->
+                    <execution>
+                        <id>build-rust-recognition</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${neko.recognition.native.skip}</skip>
+                            <executable>bash</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>${project.basedir}/native/build-recognition.sh</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
                     <!-- 构建 JNI 音频质量库，并由 Maven 资源阶段自动打入 JAR -->
                     <execution>
                         <id>build-native-audio-quality</id>

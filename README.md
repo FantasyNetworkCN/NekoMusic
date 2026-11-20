@@ -30,7 +30,7 @@ Android 与 PC，支持站内曲库搜索、播放、收藏、歌单、评论、
 | Web | 在线播放器 | Vue 3 + Vite | 桌面与移动端自适应，支持 LXMC 歌单导入 |
 | Android | 原生客户端 | Kotlin + Jetpack Compose | 后台识曲、应用内 NekoAuth 登录 |
 | PC | 桌面客户端 | Qt 6 + C++ | Windows / Linux / macOS，系统浏览器登录 |
-| Backend | 统一服务端 | Java 27 + Jetty 12 | MySQL、Redis、FFmpeg、声纹索引与全部 API |
+| Backend | 统一服务端 | Java 27 + Jetty 12 + Rust | MySQL、Redis、FFmpeg、声纹索引与全部 API |
 
 ### 界面预览
 
@@ -56,6 +56,11 @@ Android 与 PC，支持站内曲库搜索、播放、收藏、歌单、评论、
 ## Docker 部署（后端）
 
 后端 Docker 配置位于 `backend/`，默认监听 `65535` 端口。当前 Compose 使用 `network_mode: host` 和 `gpus: all`，适用于安装了 NVIDIA Container Toolkit 的 Linux 主机；非 Linux 或无 NVIDIA GPU 环境请改用 CPU 渲染（见下方说明）。
+
+Docker 会在独立 Rust 阶段编译经典声纹引擎，动态库随后端 JAR 分发，运行镜像不需要 Cargo。
+本地 Maven 构建需安装 Java 27、Rust/Cargo（Rust 1.85 及以上）和已有的 CMake/C++ 工具链；
+`mvn test/package` 的资源阶段会自动编译无外部 Cargo 依赖的 Rust 库。当前原生制品面向 Linux x86_64，
+运行 Java 时保留 `--enable-native-access=ALL-UNNAMED`（Docker 和 Maven 测试已配置）。
 
 首次部署：
 
@@ -186,6 +191,12 @@ dev server（默认 `http://localhost:5173`）会把 `/api`、`/version` 反向�
 ## 本地听歌识曲（后端）
 
 后端提供 `POST /api/music/recognize`，接收 `multipart/form-data` 的 `audio` 字段。服务端使用本地 FFmpeg 将录音转换为 PCM，并用本站 `Music/{id}.*` 曲库建立声纹索引；不会调用第三方识曲 API，也不会把音频转发到外部服务。服务启动时会主动预热索引；单曲声纹及可直接恢复的全曲库倒排索引持久化在 `Music/.fingerprints/`，音频或曲库元数据变更后会在后台重建并原子切换，重建期间继续使用上一份可用索引。
+
+经典声纹的倒排数据、候选聚合、去重和时间对齐由 `backend/native/recognition/` 的 Rust 引擎负责。
+Java 通过 FFM 批量传入查询，Rust 持有连续 posting 数据，增量索引共享已有基础层；Java 保留音频
+特征提取、和声兜底及 HTTP 业务层。加载日志会明确显示 Rust 是否启用，库缺失或不可加载时会告警并
+降级到 Java；正常构建默认打包并使用 Rust，集成测试会断言实际启用原生引擎。
+已有声纹缓存格式与客户端接口保持兼容。离线验证见 [后端性能探针](backend/benchmarks/README.md)。
 
 同时提供 `WS /api/music/recognize/ws` 流式识曲：客户端可边录边发 16 kHz 单声道 PCM 分片，服务端持续尝试匹配，识别成功后立即返回；现有 HTTP 接口保持不变。
 

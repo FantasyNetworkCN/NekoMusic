@@ -3,6 +3,8 @@ package com.neko.music.service;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -15,6 +17,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AudioFingerprintEngineTest {
+    @Test
+    void preservesHighHashBitsAndDeduplicatesUnorderedQueriesByHashAndTime() {
+        Map<Long, long[]> stored = new HashMap<>();
+        List<AudioFingerprintEngine.Landmark> points = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            for (long high : new long[]{0, 1L << 40}) {
+                long hash = high + 10_000L + i * 100;
+                int time = i * 60;
+                stored.put(hash, new long[]{((long) 7 << 32) | (time + 500)});
+                points.add(new AudioFingerprintEngine.Landmark(hash, time, 1));
+                points.add(new AudioFingerprintEngine.Landmark(hash, time, 9));
+            }
+        }
+        Collections.shuffle(points, new Random(20261120));
+        AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.restore(stored, 1);
+        AudioFingerprintEngine.Fingerprint query = new AudioFingerprintEngine.Fingerprint(
+                points, 8L * AudioFingerprintEngine.SAMPLE_RATE);
+        assertEquals(new AudioFingerprintEngine.Match(7, 12, 1d, 500, 0),
+                index.findBest(query, 3, 0.05).orElseThrow());
+    }
+
     @Test
     void matchesAStableSyntheticTrackAndRejectsUnrelatedTrack() {
         AudioFingerprintEngine engine = new AudioFingerprintEngine();

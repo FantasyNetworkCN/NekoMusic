@@ -61,7 +61,9 @@ final class PanakoSpectrumExtractor {
         int start = 0;
         while (start < samples.length) {
             int end = Math.min(samples.length, start + chunkSamples);
-            short[] chunk = Arrays.copyOfRange(samples, start, end);
+            // 单窗口（尤其是实时查询）只读原数组，避免再复制整段 PCM。
+            short[] chunk = start == 0 && end == samples.length
+                    ? samples : Arrays.copyOfRange(samples, start, end);
             unique.addAll(extractChunk(chunk, start, queryMode));
             if (end == samples.length) {
                 break;
