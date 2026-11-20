@@ -54,6 +54,54 @@ class RustFingerprintIndexTest {
     }
 
     @Test
+    void missingNativeLibraryFailsInsteadOfUsingJavaMatching() throws Exception {
+        Path isolated = temporary.resolve("classes");
+        Path classes = Path.of(AudioFingerprintEngine.class.getProtectionDomain()
+                .getCodeSource().getLocation().toURI());
+        try (var files = Files.walk(classes)) {
+            for (Path source : files.filter(path -> path.toString().endsWith(".class")).toList()) {
+                Path target = isolated.resolve(classes.relativize(source));
+                Files.createDirectories(target.getParent());
+                Files.copy(source, target);
+            }
+        }
+        String currentClasspath = System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"));
+        String dependencies = java.util.Arrays.stream(currentClasspath.split(java.io.File.pathSeparator))
+                .filter(entry -> entry.endsWith(".jar"))
+                .collect(java.util.stream.Collectors.joining(java.io.File.pathSeparator));
+        String testClasses = Path.of(RustFingerprintIndexTest.class.getProtectionDomain()
+                .getCodeSource().getLocation().toURI()).toString();
+        Path output = temporary.resolve("missing-native.log");
+        Process process = new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "--enable-native-access=ALL-UNNAMED", "-cp",
+                isolated + java.io.File.pathSeparator + testClasses + java.io.File.pathSeparator + dependencies,
+                MissingLibraryProbe.class.getName())
+                .directory(temporary.toFile()).redirectErrorStream(true).redirectOutput(output.toFile()).start();
+        assertTrue(process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS));
+        assertEquals(0, process.exitValue(), () -> {
+            try {
+                return Files.readString(output);
+            } catch (IOException error) {
+                return error.toString();
+            }
+        });
+    }
+
+    public static final class MissingLibraryProbe {
+        public static void main(String[] arguments) throws Exception {
+            try {
+                Class.forName("com.neko.music.service.RustFingerprintIndex");
+                throw new AssertionError("缺少原生库时不得继续初始化");
+            } catch (ExceptionInInitializerError error) {
+                if (error.getCause() == null || !error.getCause().getMessage().contains("Rust 识曲库不可用")) {
+                    throw error;
+                }
+            }
+        }
+    }
+
+    @Test
     void defaultIndexActuallyOwnsItsDataInRust() {
         long[] original = {posting(1, 100), posting(2, 200)};
         AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.restore(

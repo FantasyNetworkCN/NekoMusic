@@ -1,8 +1,6 @@
 package com.neko.music.service;
 
 import com.neko.music.database.DatabaseManager;
-import com.neko.music.model.UserUpload;
-import com.neko.music.util.AtomicFiles;
 import com.neko.music.util.MusicAssetLocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +25,7 @@ import java.util.stream.Stream;
  * 启动时修复审核文件与数据库之间因重启留下的半完成状态。
  *
  * <p>审核通过现在会在数据库提交后才删上传源文件，因此任意时刻重启都不会丢源文件；本类负责清理
- * 提交后尚未删掉的副本、旧版遗留的 {@code temp_*}，以及事务回滚后没有数据库记录的正式文件。
+ * 提交后尚未删掉的副本，以及事务回滚后没有数据库记录的正式文件。
  * 只有在成功读取数据库记录后才按引用关系清理，数据库不可用时只清理明确无用的暂存文件。</p>
  */
 public final class UploadStorageRecovery {
@@ -48,7 +46,7 @@ public final class UploadStorageRecovery {
         long cutoffMillis = System.currentTimeMillis() - RECOVERY_GRACE_MILLIS;
         List<StoredUpload> uploads = loadUploads(databaseManager);
         if (uploads != null) {
-            Set<Path> pendingFiles = restorePendingUploads(uploads);
+            Set<Path> pendingFiles = pendingUploadPaths(uploads);
             deleteUnreferencedUploadFiles(Paths.get(UPLOAD_DIR), pendingFiles, cutoffMillis);
         }
 
@@ -56,71 +54,16 @@ public final class UploadStorageRecovery {
         cleanupMediaDir(Paths.get(AUDIO_DIR), musicIds, cutoffMillis);
     }
 
-    /** 审核前也复用该恢复逻辑，兼容旧版本已经移动到 {@code temp_*} 的待审核文件。 */
-    public static void restoreLegacyTempFiles(UserUpload upload) {
-        if (upload == null) {
-            return;
-        }
-        restoreLegacyTempFileQuietly(upload.getMusicFilePath(),
-                legacyMusicTempPath(upload.getId(), upload.getMusicFilePath()));
-    }
-
-    private static Set<Path> restorePendingUploads(List<StoredUpload> uploads) {
-        Set<Path> keep = new HashSet<>();
+    private static Set<Path> pendingUploadPaths(List<StoredUpload> uploads) {
+        Set<Path> paths = new HashSet<>();
         for (StoredUpload upload : uploads) {
-            if (!"pending".equals(upload.status())) {
-                continue;
+            if ("pending".equals(upload.status())) {
+                addNormalized(paths, upload.musicFilePath());
+                addNormalized(paths, upload.coverFilePath());
+                addNormalized(paths, upload.lyricsFilePath());
             }
-            addNormalized(keep, upload.musicFilePath());
-            addNormalized(keep, upload.coverFilePath());
-            addNormalized(keep, upload.lyricsFilePath());
-
-            restoreLegacyTempFileQuietly(upload.musicFilePath(),
-                    legacyMusicTempPath(upload.id(), upload.musicFilePath()));
         }
-        return keep;
-    }
-
-    private static void restoreLegacyTempFileQuietly(String sourcePath, Path legacyTempPath) {
-        if (sourcePath == null || sourcePath.isBlank()) {
-            return;
-        }
-        try {
-            restoreLegacyTempFile(Paths.get(sourcePath), legacyTempPath);
-        } catch (Exception e) {
-            logger.error("恢复旧版审核临时文件失败: {} -> {}", legacyTempPath, sourcePath, e);
-        }
-    }
-
-    /**
-     * 源文件缺失时把旧版临时文件原子复制回原路径；源文件还在时删除遗留副本。
-     */
-    static void restoreLegacyTempFile(Path source, Path legacyTempPath) throws IOException {
-        if (Files.isRegularFile(source)) {
-            if (Files.deleteIfExists(legacyTempPath)) {
-                logger.info("清理旧版审核遗留临时文件: {}", legacyTempPath);
-            }
-            return;
-        }
-        if (!Files.isRegularFile(legacyTempPath)) {
-            return;
-        }
-        AtomicFiles.stageAndReplace(legacyTempPath, source);
-        Files.deleteIfExists(legacyTempPath);
-        logger.warn("已恢复旧版审核临时文件: {} -> {}", legacyTempPath, source);
-    }
-
-    private static Path legacyMusicTempPath(int uploadId, String sourcePath) {
-        String extension = extensionOf(sourcePath);
-        return Paths.get(AUDIO_DIR, "temp_" + uploadId + extension);
-    }
-
-    private static String extensionOf(String path) {
-        if (path == null || path.isEmpty()) {
-            return "";
-        }
-        int dot = path.lastIndexOf('.');
-        return dot < 0 ? "" : path.substring(dot);
+        return paths;
     }
 
     private static void addNormalized(Set<Path> paths, String rawPath) {
@@ -158,7 +101,7 @@ public final class UploadStorageRecovery {
 
     /**
      * 清理媒体目录：始终删除暂存文件；若能读到音乐表，再删除没有对应 music 行的
-     * {@code {id}.{ext}} 孤儿文件。旧版 {@code temp_*} 保留，交给待审核记录恢复流程处理。
+     * {@code {id}.{ext}} 孤儿文件。
      */
     static void cleanupMediaDir(Path dir, Set<Integer> knownMusicIds, long cutoffMillis) {
         if (!Files.isDirectory(dir)) {

@@ -50,11 +50,6 @@ public final class SystemSettingRegistry {
                     "Lettuce 连接池上限，建议不小于峰值并发").restart(),
             secret("redis.password", Group.REDIS, "密码", "Redis 密码，留空表示无密码"),
 
-            // ---------- 登录令牌 ----------
-            secret("jwt.secret", Group.JWT, "签名密钥", "用户登录令牌的签名密钥，至少 32 位随机串；改动后所有已发出的令牌立即失效"),
-            number("jwt.expiration", Group.JWT, "有效期（秒）", "86400", 60, 31536000,
-                    "登录令牌过期时间"),
-
             // ---------- NekoAuth 统一登录（OAuth 2.0 授权码） ----------
             flag("oauth.enabled", Group.AUTH, "启用浏览器 OAuth 登录", false,
                     "控制 NekoAuth OAuth 登录入口，需配置下方客户端凭据"),
@@ -80,13 +75,6 @@ public final class SystemSettingRegistry {
             secret("smtp.password", Group.MAIL, "SMTP 密码", "部分邮箱需填授权码而非登录密码"),
             flag("smtp.ssl", Group.MAIL, "启用 SSL", true, "465 端口一般需要开启"),
             flag("smtp.tls", Group.MAIL, "启用 TLS", false, "587 端口一般需要开启"),
-
-            // ---------- 注册与验证 ----------
-            list("whitelist_email", Group.REGISTER, "注册邮箱域名白名单",
-                    "qq.com\ngmail.com\n163.com\n139.com\n126.com\noutlook.com\nhotmail.com",
-                    "只允许这些域名的邮箱注册；留空表示不限制"),
-            number("verification_code.email_cooldown_seconds", Group.REGISTER, "发码冷却（秒）", "60", 0, 86400,
-                    "同一邮箱两次发送验证码之间的最短间隔"),
 
             // ---------- 访问频率限制 ----------
             flag("rate_limit.enabled", Group.RATE_LIMIT, "启用 IP 频率限制", true,

@@ -38,11 +38,6 @@ public final class ServletRegistrar {
         ServletHolder nekoAuthSsoForgotPasswordHolder = new ServletHolder(new NekoAuthOAuthHandler());
         context.addServlet(nekoAuthSsoForgotPasswordHolder, "/sso/nekocore/forgot-password");
 
-        // 保留旧回调地址：已有部署的 oauth.redirect_uri 可能仍指向该路径。
-        // 回调处理完成后仍统一跳转到当前 /sso/complete 或 /sso/native-complete。
-        ServletHolder nekoAuthLegacyCallbackHolder = new ServletHolder(new NekoAuthOAuthHandler());
-        context.addServlet(nekoAuthLegacyCallbackHolder, "/oauth/nekocore/callback");
-
         ServletHolder nekoAuthSsoClaimHolder = new ServletHolder(new NekoAuthSsoClaimHandler());
         context.addServlet(nekoAuthSsoClaimHolder, "/api/user/sso/claim");
         ServletHolder nekoAuthSharedSessionHolder =
@@ -54,8 +49,6 @@ public final class ServletRegistrar {
         context.addServlet(nekoAuthSsoLoginEntryHolder, "/api/user/sso/login-entry");
         ServletHolder nekoAuthSsoPasswordResetHolder = new ServletHolder(new NekoAuthSsoStartHandler());
         context.addServlet(nekoAuthSsoPasswordResetHolder, "/api/user/sso/password-reset-url");
-        ServletHolder nekoAuthSsoLogoutHolder = new ServletHolder(new NekoAuthSsoStartHandler());
-        context.addServlet(nekoAuthSsoLogoutHolder, "/api/user/sso/logout-url");
         ServletHolder nekoAuthPortalHolder = new ServletHolder(new NekoAuthPortalHandler());
         context.addServlet(nekoAuthPortalHolder, "/api/user/sso/portal-url");
         

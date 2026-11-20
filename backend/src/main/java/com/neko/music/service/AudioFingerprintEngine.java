@@ -9,9 +9,7 @@ package com.neko.music.service;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,12 +29,8 @@ public final class AudioFingerprintEngine {
     public static final int HOP_SIZE = PanakoSpectrumExtractor.STEP_SIZE;
     public static final int ALGORITHM_VERSION = 5;
 
-    private static final int HASH_QUERY_RANGE = 2;
-    private static final int MAX_VOTE_COMPARISONS = 8_000_000;
     private static final int MAX_INDEX_POSTINGS_PER_HASH = 65_536;
     private static final long MAX_INDEX_TOTAL_POSTINGS = 600_000_000L;
-    private static final double SHORT_QUERY_SECONDS = 6d;
-    private static final double DEFAULT_ALIGNMENT_TOLERANCE = 2.5d;
 
     private final TonalFingerprintEngine tonalEngine = new TonalFingerprintEngine();
 
@@ -131,7 +125,7 @@ public final class AudioFingerprintEngine {
             }
         }
 
-        /** Compatibility constructor for callers that only need time information. */
+        /** 仅时间定位的特征点，频段信息留空。 */
         public Landmark(long hash, int timeFrame) {
             this(hash, timeFrame, 0);
         }
@@ -151,7 +145,7 @@ public final class AudioFingerprintEngine {
             }
         }
 
-        /** 兼容只包含经典频谱声纹的测试和旧调用方。 */
+        /** 创建仅含经典频谱特征的查询。 */
         public Fingerprint(List<Landmark> landmarks, long sampleCount) {
             this(landmarks, sampleCount, TonalFingerprintEngine.TonalFingerprint.empty(sampleCount));
         }
@@ -175,13 +169,12 @@ public final class AudioFingerprintEngine {
 
     /** Immutable inverted index keyed by a 64-bit Panako hash. */
     public static final class Index {
-        private final FingerprintPostings postings;
+        private final RustFingerprintIndex postings;
         private final int musicCount;
 
         private Index(Map<Long, long[]> postings, int musicCount) {
             this.postings = postings instanceof RustFingerprintIndex nativeIndex ? nativeIndex
-                    : RustFingerprintIndex.available() ? RustFingerprintIndex.create(postings, null)
-                    : FingerprintPostings.copyOf(postings);
+                    : RustFingerprintIndex.create(postings, null);
             this.musicCount = musicCount;
         }
 
@@ -293,11 +286,8 @@ public final class AudioFingerprintEngine {
                 if (basePostings.isEmpty()) {
                     return new Index(additions, indexedMusic);
                 }
-                if (basePostings instanceof RustFingerprintIndex nativeBase) {
-                    return new Index(RustFingerprintIndex.create(additions, nativeBase), indexedMusic);
-                }
-                // 增量构建仅覆盖变化的哈希，继续复用基础表与未变化的数组。
-                return new Index(new CompositePostings(basePostings, additions), indexedMusic);
+                return new Index(RustFingerprintIndex.create(additions,
+                        (RustFingerprintIndex) basePostings), indexedMusic);
             }
         }
 
@@ -328,11 +318,11 @@ public final class AudioFingerprintEngine {
 
         /** 原生索引实际持有的字节数（包含共享基础层），供离线资源核对。 */
         long nativeBytes() {
-            return postings instanceof RustFingerprintIndex nativeIndex ? nativeIndex.nativeBytes() : 0;
+            return postings.nativeBytes();
         }
 
         boolean usesRust() {
-            return postings instanceof RustFingerprintIndex;
+            return true;
         }
 
         public Optional<Match> findBest(
@@ -342,267 +332,7 @@ public final class AudioFingerprintEngine {
             if (query == null || query.landmarks().isEmpty() || postings.isEmpty()) {
                 return Optional.empty();
             }
-            if (postings instanceof RustFingerprintIndex nativeIndex) {
-                return nativeIndex.findBest(query, musicCount, minimumAlignedLandmarks, minimumConfidence);
-            }
-
-            Map<Integer, Hits> hitsByMusic = new HashMap<>();
-            QueryLandmarks uniqueQueryLandmarks = new QueryLandmarks(query.landmarks().size());
-            int comparableLandmarks = 0;
-            int comparisons = 0;
-            int maximumPostingsPerHash = Math.max(512, musicCount * 64);
-
-            for (Landmark queryLandmark : query.landmarks()) {
-                if (!uniqueQueryLandmarks.add(queryLandmark.hash(), queryLandmark.timeFrame())) {
-                    continue;
-                }
-                boolean foundAny = false;
-                for (long hash = queryLandmark.hash() - HASH_QUERY_RANGE;
-                     hash <= queryLandmark.hash() + HASH_QUERY_RANGE;
-                     hash++) {
-                    long[] matches = postings.get(hash);
-                    if (matches == null || matches.length == 0
-                            || matches.length > maximumPostingsPerHash) {
-                        continue;
-                    }
-                    foundAny = true;
-                    for (long posting : matches) {
-                        int musicId = (int) (posting >>> 32);
-                        int referenceTime = (int) posting;
-                        hitsByMusic.computeIfAbsent(musicId, ignored -> new Hits())
-                                .add(queryLandmark.timeFrame(), referenceTime);
-                        comparisons++;
-                        if (comparisons >= MAX_VOTE_COMPARISONS) {
-                            break;
-                        }
-                    }
-                    if (comparisons >= MAX_VOTE_COMPARISONS) {
-                        break;
-                    }
-                }
-                if (foundAny) {
-                    comparableLandmarks++;
-                }
-                if (comparisons >= MAX_VOTE_COMPARISONS) {
-                    break;
-                }
-            }
-            if (hitsByMusic.isEmpty() || comparableLandmarks == 0) {
-                return Optional.empty();
-            }
-
-            boolean shortQuery = query.durationSeconds() < SHORT_QUERY_SECONDS;
-            int minimumHits = shortQuery
-                    ? 3
-                    : Math.max(3, minimumAlignedLandmarks);
-            double effectiveConfidence = shortQuery
-                    ? Math.min(minimumConfidence, 0.03d)
-                    : minimumConfidence;
-            List<Candidate> candidates = new ArrayList<>();
-
-            for (Map.Entry<Integer, Hits> entry : hitsByMusic.entrySet()) {
-                Hits hits = entry.getValue();
-                if (hits.size < minimumHits) {
-                    continue;
-                }
-                hits.sortByQueryTime();
-                Alignment alignment = estimateAlignment(hits);
-                int aligned = 0;
-                int firstQuery = Integer.MAX_VALUE;
-                int lastQuery = Integer.MIN_VALUE;
-                for (int i = 0; i < hits.size; i++) {
-                    int queryTime = hits.queryTime(i);
-                    double predicted = alignment.slope() * queryTime
-                            + alignment.intercept();
-                    if (Math.abs(hits.deltaTime(i) - predicted)
-                            <= DEFAULT_ALIGNMENT_TOLERANCE) {
-                        aligned++;
-                        firstQuery = Math.min(firstQuery, queryTime);
-                        lastQuery = Math.max(lastQuery, queryTime);
-                    }
-                }
-                if (aligned < minimumHits) {
-                    continue;
-                }
-                double alignedSeconds = Math.max(
-                        0d, (lastQuery - firstQuery) * HOP_SIZE / (double) SAMPLE_RATE);
-                if (alignedSeconds < 1d) {
-                    continue;
-                }
-                double confidence = Math.min(
-                        1d, aligned / (double) comparableLandmarks);
-                if (confidence < effectiveConfidence) {
-                    continue;
-                }
-                candidates.add(new Candidate(
-                        entry.getKey(), aligned, confidence,
-                        (int) Math.round(alignment.intercept())));
-            }
-            if (candidates.isEmpty()) {
-                return Optional.empty();
-            }
-            candidates.sort(Comparator.comparingInt(Candidate::aligned).reversed());
-            Candidate best = candidates.get(0);
-            int runnerUp = candidates.size() > 1 ? candidates.get(1).aligned() : 0;
-            int requiredGap = shortQuery ? 1 : 3;
-            boolean distinct = runnerUp == 0
-                    || best.aligned() >= runnerUp + requiredGap
-                    || best.aligned() >= Math.ceil(runnerUp * 1.10d);
-            if (!distinct) {
-                return Optional.empty();
-            }
-            return Optional.of(new Match(
-                    best.musicId(),
-                    best.aligned(),
-                    best.confidence(),
-                    Math.max(0, best.offsetFrames()),
-                    runnerUp));
-        }
-
-        private static Alignment estimateAlignment(Hits hits) {
-            double slope = 0d;
-            // 同一块工作区依次计算两端中位数和全量残差，不保留临时切片。
-            double[] residuals = new double[hits.size];
-            if (hits.size >= 4) {
-                int part = Math.max(2, hits.size / 5);
-                double x1 = averageQueryTime(hits, 0, part);
-                double x2 = averageQueryTime(hits, hits.size - part, hits.size);
-                double y1 = medianDelta(hits, 0, part, residuals);
-                double y2 = medianDelta(hits, hits.size - part, hits.size, residuals);
-                if (Math.abs(x2 - x1) > 1d) {
-                    slope = (y2 - y1) / (x2 - x1);
-                    if (!Double.isFinite(slope) || Math.abs(slope) > 0.35d) {
-                        slope = 0d;
-                    }
-                }
-            }
-            for (int i = 0; i < hits.size; i++) {
-                residuals[i] = hits.deltaTime(i) - slope * hits.queryTime(i);
-            }
-            return new Alignment(slope, median(residuals, residuals.length));
-        }
-
-        private static double averageQueryTime(Hits hits, int from, int to) {
-            double sum = 0d;
-            for (int i = from; i < to; i++) {
-                sum += hits.queryTime(i);
-            }
-            return sum / (to - from);
-        }
-
-        private static double medianDelta(Hits hits, int from, int to, double[] values) {
-            for (int i = from; i < to; i++) {
-                values[i - from] = hits.deltaTime(i);
-            }
-            return median(values, to - from);
-        }
-
-        private static double median(double[] values, int length) {
-            Arrays.sort(values, 0, length);
-            int middle = length / 2;
-            return length % 2 == 0
-                    ? (values[middle - 1] + values[middle]) / 2d
-                    : values[middle];
-        }
-
-        /** 每次命中只存一个 long；常见的有序指纹无需再次排序。 */
-        private static final class Hits {
-            private long[] values = new long[16];
-            private int size;
-            private boolean ordered = true;
-
-            private void add(int queryTime, int referenceTime) {
-                if (size == values.length) {
-                    values = Arrays.copyOf(values, values.length * 2);
-                }
-                if (size > 0 && queryTime < queryTime(size - 1)) {
-                    ordered = false;
-                }
-                values[size++] = ((long) queryTime << 32) | (referenceTime & 0xffff_ffffL);
-            }
-
-            private int queryTime(int index) {
-                return (int) (values[index] >>> 32);
-            }
-
-            private int deltaTime(int index) {
-                return (int) values[index] - queryTime(index);
-            }
-
-            private void sortByQueryTime() {
-                if (!ordered) {
-                    sort(0, size, new long[size]);
-                    ordered = true;
-                }
-            }
-
-            /** 稳定归并：相同 queryTime 必须保留原命中顺序，避免改变对齐采样。 */
-            private void sort(int from, int to, long[] work) {
-                if (to - from < 2) {
-                    return;
-                }
-                int middle = (from + to) >>> 1;
-                sort(from, middle, work);
-                sort(middle, to, work);
-                if (queryTime(middle - 1) <= queryTime(middle)) {
-                    return;
-                }
-                System.arraycopy(values, from, work, from, to - from);
-                int left = from;
-                int right = middle;
-                for (int i = from; i < to; i++) {
-                    if (left < middle && (right == to
-                            || (work[left] >>> 32) <= (work[right] >>> 32))) {
-                        values[i] = work[left++];
-                    } else {
-                        values[i] = work[right++];
-                    }
-                }
-            }
-        }
-
-        /** 对 (完整哈希, 时间) 去重，不拼字符串，也不截断哈希的高位。 */
-        private static final class QueryLandmarks {
-            private final long[] hashes;
-            private final int[] times;
-
-            private QueryLandmarks(int expected) {
-                int capacity = 1;
-                while (expected > capacity * 3L / 4) {
-                    if (capacity >= 1 << 30) {
-                        throw new IllegalArgumentException("查询声纹条目过多");
-                    }
-                    capacity <<= 1;
-                }
-                hashes = new long[capacity];
-                times = new int[capacity];
-            }
-
-            private boolean add(long hash, int time) {
-                int mask = hashes.length - 1;
-                int slot = FingerprintPostings.bucket(hash ^ (0x9e3779b97f4a7c15L * time)) & mask;
-                // Landmark 的时间非负；加一后的零值可安全表示空桶（含 MAX_VALUE）。
-                int storedTime = time + 1;
-                while (times[slot] != 0) {
-                    if (hashes[slot] == hash && times[slot] == storedTime) {
-                        return false;
-                    }
-                    slot = (slot + 1) & mask;
-                }
-                hashes[slot] = hash;
-                times[slot] = storedTime;
-                return true;
-            }
-        }
-
-        private record Alignment(double slope, double intercept) {
-        }
-
-        private record Candidate(
-                int musicId,
-                int aligned,
-                double confidence,
-                int offsetFrames) {
+            return postings.findBest(query, musicCount, minimumAlignedLandmarks, minimumConfidence);
         }
     }
 

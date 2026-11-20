@@ -117,6 +117,10 @@ class SystemSettingRegistryTest {
     @DisplayName("策略项不在清单里：后台既看不到也改不了")
     void policyKeysStayOutOfTheRegistry() {
         Set<String> forbidden = Set.of(
+                "jwt.secret",
+                "jwt.expiration",
+                "whitelist_email",
+                "verification_code.email_cooldown_seconds",
                 "video_render.non_vip_max_duration_sec",
                 "netease_search_fill.language",
                 "netease_search_fill.upload_user_id");

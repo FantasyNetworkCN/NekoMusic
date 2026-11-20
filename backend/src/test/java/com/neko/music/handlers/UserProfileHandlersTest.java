@@ -102,41 +102,13 @@ class UserProfileHandlersTest {
             return List.of();
         }
 
-        @Override
-        public Optional<UserAccount> findUser(int id) {
-            return id == 7 ? Optional.of(new UserAccount(7, nickname, "listener@example.com",
-                    "2026-01-01", false, null)) : Optional.empty();
-        }
-
-        @Override
+         @Override
         public Optional<UserProfile> findUserProfile(int id) {
             return id == 7 ? Optional.of(new UserProfile(7, nickname, "listener@example.com",
                     "2026-01-01", vipExpiresAt)) : Optional.empty();
         }
 
-        @Override
-        public boolean userEmailExists(String email) {
-            return false;
         }
-
-        @Override
-        public void createUser(String email) {
-        }
-
-        @Override
-        public boolean updateUserVip(int id, Timestamp vipExpiresAt) {
-            if (id != 7) {
-                return false;
-            }
-            this.vipExpiresAt = vipExpiresAt;
-            return true;
-        }
-
-        @Override
-        public boolean deleteUser(int id) {
-            return false;
-        }
-    }
 
     @SuppressWarnings("unchecked")
     private static <T> T proxy(Class<T> type, InvocationHandler handler) {

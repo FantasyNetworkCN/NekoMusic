@@ -85,11 +85,7 @@ public class AdminStatsHandler extends ApiServlet {
                 }
             }
             
-            // 获取今日访问量 - 已移除访问日志功能
-            stats.put("todayVisits", 0);
             
-            // 获取总搜索次数 - 已移除搜索日志功能
-            stats.put("totalSearches", 0);
             
             // 获取最近7天的用户注册趋势数据
             String userTrendQuery = "SELECT DATE(created_at) as date, COUNT(*) as count FROM users WHERE DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY DATE(created_at)";
@@ -114,22 +110,14 @@ public class AdminStatsHandler extends ApiServlet {
                 stats.put("musicTrendData", musicTrendMap);
             }
             
-            // 获取最近7天的访问量趋势数据 - 已移除访问日志功能
-            stats.put("visitTrendData", new HashMap<>());
             
-            // 获取最近7天的搜索量趋势数据 - 已移除搜索日志功能
-            stats.put("searchTrendData", new HashMap<>());
         } catch (Exception e) {
             logger.error("查询统计数据时出错", e);
             // 出错时返回默认值
             stats.put("totalMusic", 0);
             stats.put("totalUsers", 0);
-            stats.put("todayVisits", 0); // 保留此值以便界面兼容，但不再使用访问日志
-            stats.put("totalSearches", 0); // 保留此值以便界面兼容，但不再使用搜索日志
             stats.put("userTrendData", new HashMap<>());
             stats.put("musicTrendData", new HashMap<>());
-            stats.put("visitTrendData", new HashMap<>()); // 保留此值以便界面兼容，但不再使用访问日志
-            stats.put("searchTrendData", new HashMap<>()); // 保留此值以便界面兼容，但不再使用搜索日志
         }
         
         return stats;

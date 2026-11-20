@@ -63,11 +63,11 @@ public class MusicSearchHandler extends ApiServlet {
             boolean hasItems = searchRequest.items() != null && !searchRequest.items().isEmpty();
 
             if (hasQuery && hasItems) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "search.query_and_items_conflict");
+                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "search.query_and_items_conflict");
                 return;
             }
             if (!hasQuery && !hasItems) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "search.query_or_items_required");
+                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "search.query_or_items_required");
                 return;
             }
 
@@ -76,17 +76,17 @@ public class MusicSearchHandler extends ApiServlet {
                 return;
             }
 
-            handleLegacySearch(searchRequest.query().trim(), request, response);
+            handleQuerySearch(searchRequest.query().trim(), request, response);
 
         } catch (Exception e) {
             // Jackson 解析异常的 message 含全限定处理器/DTO 类名与字段清单，只能落日志，响应只回泛化提示
             logger.warn("搜索请求处理失败", e);
-            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
+            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
         }
     }
 
 
-    private void handleLegacySearch(String query, HttpServletRequest request, HttpServletResponse response)
+    private void handleQuerySearch(String query, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         List<Music> results = searchMusic(query);
 
@@ -143,7 +143,7 @@ public class MusicSearchHandler extends ApiServlet {
 
         for (SearchItem item : items) {
             if (item == null || item.title() == null || item.title().isBlank()) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "search.items_title_required");
+                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "search.items_title_required");
                 return;
             }
             String title = item.title().trim();

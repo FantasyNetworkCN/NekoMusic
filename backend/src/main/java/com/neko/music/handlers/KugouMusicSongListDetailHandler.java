@@ -29,7 +29,7 @@ public class KugouMusicSongListDetailHandler extends ApiServlet {
 
         String listId = request.getParameter("listid");
         if (listId == null || listId.isBlank()) {
-            sendErrorObject(response, HttpServletResponse.SC_BAD_REQUEST,
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                     "source.kugou.listid_required");
             return;
         }
@@ -42,14 +42,14 @@ public class KugouMusicSongListDetailHandler extends ApiServlet {
             response.getWriter().write(Main.getObjectMapper().writeValueAsString(result));
         } catch (KugouMusicClient.InvalidInputException e) {
             logger.warn("酷狗歌单入参非法，listid={}: {}", listId, e.getMessage());
-            sendErrorObject(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (KugouMusicClient.UpstreamException e) {
             logger.warn("酷狗歌单接口返回 HTTP {}，listid={}", e.getStatusCode(), listId);
-            sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY,
                     ApiMessages.translate("source.kugou.api_failed", e.getStatusCode()));
         } catch (IOException e) {
             logger.warn("请求酷狗歌单接口失败，listid={}: {}", listId, e.getMessage());
-            sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY,
                     e.getMessage() == null ? "source.kugou.request_failed" : e.getMessage());
         }
     }

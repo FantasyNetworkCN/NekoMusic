@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
  * <p>这是 OAuth 浏览器导航，不是 JSON API；回调使用一次性 state 做请求关联与 CSRF 校验。
  * 保证。回调只跳转到前端完成页并携带一次性 handoff，不把 Token 放进 URL。</p>
  *
- * <p>新部署使用 {@code /sso/nekocore/*}；旧 callback 入口仅保留给尚未迁移配置的已有部署。</p>
+ * <p>浏览器授权入口统一使用 {@code /sso/nekocore/*}。</p>
  */
 public final class NekoAuthOAuthHandler extends ApiServlet {
 
@@ -56,7 +56,7 @@ public final class NekoAuthOAuthHandler extends ApiServlet {
             return;
         }
         try {
-            response.sendRedirect(oauthService.authorizationUrl(request.getParameter("return_to")));
+            response.sendRedirect(oauthService.webLoginEntryUrl(request.getParameter("return_to")));
         } catch (NekoAuthOAuthService.OAuthLoginException exception) {
             logger.warn("NekoAuth 登录发起失败: code={} message={}", exception.code(), exception.getMessage());
             sendError(response, exception.code(), exception.getMessage());
@@ -69,16 +69,6 @@ public final class NekoAuthOAuthHandler extends ApiServlet {
     private void handleCallback(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String oauthError = request.getParameter("error");
         if (oauthError != null && !oauthError.isBlank()) {
-            if (oauthService != null) {
-                String silentReturnTo = oauthService
-                        .silentReturnTo(request.getParameter("state"))
-                        .orElse(null);
-                if (silentReturnTo != null) {
-                    logger.debug("NekoAuth 静默登录未复用会话: error={}", oauthError);
-                    response.sendRedirect(silentReturnTo);
-                    return;
-                }
-            }
             String code = "access_denied".equals(oauthError) ? "access_denied" : "authorization_failed";
             logger.info("NekoAuth 授权未完成: error={}", oauthError);
             sendError(response, code, "NekoAuth 授权未完成");
@@ -93,14 +83,9 @@ public final class NekoAuthOAuthHandler extends ApiServlet {
                     request.getParameter("code"), request.getParameter("state"),
                     request.getParameter("iss"));
             String handoff = URLEncoder.encode(result.handoff(), StandardCharsets.UTF_8);
-            String location;
-            if ("android".equals(result.client()) || "pc".equals(result.client())) {
-                location = "/sso/native-complete?client="
-                        + URLEncoder.encode(result.client(), StandardCharsets.UTF_8)
-                        + "&handoff=" + handoff;
-            } else {
-                location = "/sso/complete?handoff=" + handoff;
-            }
+            String location = "/sso/native-complete?client="
+                    + URLEncoder.encode(result.client(), StandardCharsets.UTF_8)
+                    + "&handoff=" + handoff;
             response.setStatus(HttpServletResponse.SC_FOUND);
             response.setHeader("Location", location);
         } catch (NekoAuthOAuthService.OAuthLoginException exception) {

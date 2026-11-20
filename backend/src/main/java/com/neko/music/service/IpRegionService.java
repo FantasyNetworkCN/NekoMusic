@@ -48,7 +48,6 @@ public class IpRegionService {
     private static final Logger logger = LoggerFactory.getLogger(IpRegionService.class);
 
     private static final String FALLBACK = "其他";
-    private static final String LEGACY_UNKNOWN = "未知";
     private static final String LOCAL = "本地";
     private static final String ZH = "zh-CN";
     private static final int MEMORY_CACHE_MAX = 8192;
@@ -419,16 +418,12 @@ public class IpRegionService {
         return "";
     }
 
-    /** 历史评论可能保存过 unknown / 未知，接口输出时统一归一，避免客户端继续看到旧占位。 */
+    /** 显示已保存的当前地区；空值使用统一占位。 */
     public static String displayStored(String region) {
         if (region == null || region.isBlank()) {
             return FALLBACK;
         }
-        String value = region.trim();
-        if ("unknown".equalsIgnoreCase(value) || LEGACY_UNKNOWN.equals(value)) {
-            return FALLBACK;
-        }
-        return value;
+        return region.trim();
     }
 
     /**

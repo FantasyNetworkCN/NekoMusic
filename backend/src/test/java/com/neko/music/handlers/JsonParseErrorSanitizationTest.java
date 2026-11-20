@@ -13,6 +13,7 @@ import java.lang.reflect.Proxy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 请求体解析失败时的错误响应不得回显内部实现细节。
@@ -33,6 +34,10 @@ class JsonParseErrorSanitizationTest {
         String text = body.toString();
 
         assertEquals(400, Holder.status, "畸形请求体应返回 400，实际：" + text);
+        var error = ApiServlet.MAPPER.readTree(text);
+        assertFalse(error.path("success").asBoolean(true));
+        assertTrue(error.hasNonNull("message"));
+        assertFalse(error.has("error"), "不得继续返回旧 error 错误体");
         assertFalse(text.contains("com."), "错误响应泄露了全限定类名：" + text);
         assertFalse(text.contains("$"), "错误响应泄露了内部类名：" + text);
         assertFalse(text.contains("known properties"), "错误响应泄露了 DTO 字段清单：" + text);

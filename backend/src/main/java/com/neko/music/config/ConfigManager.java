@@ -33,17 +33,12 @@ public class ConfigManager {
     private String smtpPassword = "";
     private boolean smtpSsl = false;
     private boolean smtpTls = true;
-    private String emailWhitelist = ""; // 默认为空，表示不限制
     
     // Redis配置
     private String redisHost = "localhost";
     private int redisPort = 6379;
     private String redisPassword = "";
     
-    // JWT配置
-    private String jwtSecret = "defaultSecretKeyForNekoMusic";
-    private int jwtExpiration = 86400; // 24小时（秒）
-
     // NekoAuth 统一登录（OAuth 2.0 授权码 + 机密客户端）
     private boolean oauthEnabled = false;
     private String oauthIssuer = "https://auth.nekocore.cn";
@@ -63,9 +58,6 @@ public class ConfigManager {
     private int rateLimitMaxRequests = 10; // 最大请求数
     private int rateLimitBlockDuration = 3600; // 封锁时间（秒）
     private boolean rateLimitSilentTimeout = true; // 是否静默超时
-
-    /** 验证码发信：同邮箱冷却秒数 */
-    private int verificationCodeEmailCooldownSeconds = 60;
 
     /** 日志：访问日志 / 操作日志落在独立库（不共用主库），见 system_settings 的 logging.* */
     private boolean loggingAccessEnabled = true;
@@ -178,19 +170,28 @@ public class ConfigManager {
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     /**
-     * 最近一次生效的配置树：config.yml 的内容，叠加数据库里的系统设置之后的结果。
+     * 最近一次生效的配置树：MySQL 引导信息、出厂默认值与数据库系统设置。
      * {@link #effectiveValue} 按点分路径从这里取值。
      */
     private JsonNode configFileNode;
 
     public void loadConfig() {
         try {
-            configFileNode = withRegistryDefaults(readConfigFile());
+            configFileNode = bootstrapConfigNode(readConfigFile());
             applyConfigNode(configFileNode);
         } catch (Exception e) {
             logger.error("加载配置时出错", e);
             clampPerformanceConfig();
         }
+    }
+
+    /** YAML 仅允许提供数据库连接信息，运行时设置统一从 system_settings 加载。 */
+    JsonNode bootstrapConfigNode(JsonNode file) {
+        ObjectNode bootstrap = objectMapper.createObjectNode();
+        if (file != null && file.has("mysql")) {
+            bootstrap.set("mysql", file.get("mysql").deepCopy());
+        }
+        return withRegistryDefaults(bootstrap);
     }
 
     /** 读取运行目录下的 config.yml；不存在时先从 classpath 复制一份，读不到返回 null。 */
@@ -292,36 +293,6 @@ public class ConfigManager {
                     if (smtpNode.has("tls")) smtpTls = smtpNode.get("tls").asBoolean();
                 }
                 
-                // 读取邮箱白名单（与发验证码、注册共用；缺省或从配置中删除键 = 不限制）
-                emailWhitelist = "";
-                if (configNode.has("whitelist_email")) {
-                    JsonNode whitelistNode = configNode.get("whitelist_email");
-                    if (whitelistNode.isArray()) {
-                        StringBuilder whitelistBuilder = new StringBuilder();
-                        for (JsonNode node : whitelistNode) {
-                            if (node == null || !node.isTextual()) {
-                                continue;
-                            }
-                            String part = node.asText().trim();
-                            if (part.isEmpty()) {
-                                continue;
-                            }
-                            if (whitelistBuilder.length() > 0) {
-                                whitelistBuilder.append(",");
-                            }
-                            whitelistBuilder.append(part);
-                        }
-                        emailWhitelist = whitelistBuilder.toString();
-                    } else if (whitelistNode.isTextual()) {
-                        emailWhitelist = whitelistNode.asText().trim();
-                    }
-                }
-                if (emailWhitelist.isEmpty()) {
-                    logger.info("  邮箱白名单: (未配置，不限制域名)");
-                } else {
-                    logger.info("  邮箱白名单: {}", emailWhitelist);
-                }
-                
                 // 读取Redis配置
                 JsonNode redisNode = configNode.get("redis");
                 if (redisNode != null) {
@@ -333,13 +304,6 @@ public class ConfigManager {
                     }
                 }
                 
-                // 读取JWT配置
-                JsonNode jwtNode = configNode.get("jwt");
-                if (jwtNode != null) {
-                    if (jwtNode.has("secret")) jwtSecret = jwtNode.get("secret").asText();
-                    if (jwtNode.has("expiration")) jwtExpiration = jwtNode.get("expiration").asInt();
-                }
-
                 JsonNode oauthNode = configNode.get("oauth");
                 if (oauthNode != null) {
                     if (oauthNode.has("enabled")) oauthEnabled = oauthNode.get("enabled").asBoolean();
@@ -397,11 +361,6 @@ public class ConfigManager {
                             }
                         });
                     }
-                }
-
-                JsonNode verificationCodeNode = configNode.get("verification_code");
-                if (verificationCodeNode != null && verificationCodeNode.has("email_cooldown_seconds")) {
-                    verificationCodeEmailCooldownSeconds = verificationCodeNode.get("email_cooldown_seconds").asInt();
                 }
 
                 JsonNode videoRenderNode = configNode.get("video_render");
@@ -653,7 +612,7 @@ public class ConfigManager {
 
     /**
      * 当前生效值（字符串形式，与数据库里的存储形式一致，列表按行分隔）。
-     * 键在配置树里缺省或为空时返回 empty，供首次启动把 config.yml 的现值灌进数据库。
+     * 键在配置树里缺省或为空时返回 empty。
      */
     public Optional<String> effectiveValue(String key) {
         JsonNode node = nodeByPath(configFileNode, key);
@@ -795,8 +754,8 @@ public class ConfigManager {
         }
         String s = raw.trim().toLowerCase(Locale.ROOT);
         return switch (s) {
-            case "cpu", "cpu_legacy", "legacy" -> "cpu_legacy";
-            case "cuda", "cuda_native", "gpu", "full_gpu" -> "cuda_native";
+            case "cpu_legacy" -> "cpu_legacy";
+            case "cuda_native" -> "cuda_native";
             default -> {
                 LoggerFactory.getLogger(ConfigManager.class).warn(
                         "未知的 video_render.pipeline: {}，回退为 cpu_legacy", raw);
@@ -922,14 +881,10 @@ public class ConfigManager {
         return smtpTls;
     }
     
-    public String getEmailWhitelist() {
-        return emailWhitelist;
-    }
-    
     public String getRedisHost() {
         return redisHost;
     }
-    
+
     public int getRedisPort() {
         return redisPort;
     }
@@ -938,14 +893,6 @@ public class ConfigManager {
         return redisPassword;
     }
     
-    public String getJwtSecret() {
-        return jwtSecret;
-    }
-    
-    public int getJwtExpiration() {
-        return jwtExpiration;
-    }
-
     /** 是否在登录面板启用 NekoAuth 统一登录。 */
     public boolean isOAuthEnabled() {
         return oauthEnabled;
@@ -1021,10 +968,6 @@ public class ConfigManager {
     /** {@code auto} 模式下额外优先尝试的自定义客户端 IP 头名列表（可为空）。 */
     public List<String> getExtraClientIpHeaders() {
         return extraClientIpHeaders == null ? List.of() : extraClientIpHeaders;
-    }
-
-    public int getVerificationCodeEmailCooldownSeconds() {
-        return verificationCodeEmailCooldownSeconds;
     }
 
     public int getJettyMaxThreads() {

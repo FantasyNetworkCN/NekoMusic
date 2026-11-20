@@ -4,8 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.Statement;
 
 public class DatabaseInitializer {
@@ -16,10 +14,6 @@ public class DatabaseInitializer {
         
         try (Connection conn = databaseManager.getConnection();
              Statement stmt = conn.createStatement()) {
-
-            // 管理员身份已统一由 NekoAuth 的 ADMIN 角色提供，旧本地管理员表不再使用。
-            // 主动删除，避免遗留本地口令哈希继续占据数据库。
-            stmt.execute("DROP TABLE IF EXISTS admins");
 
             // 创建用户收藏表
             String createFavoritesTable = """
@@ -150,75 +144,7 @@ public class DatabaseInitializer {
 
             executeTableDdl(stmt, createMusicCommentsTable,
                     "music_comments 表创建成功", "创建 music_comments 表失败（可能是表已存在）");
-            migrateMusicCommentsTable(stmt);
             
-            // 回填拼音索引列：为 title_pinyin 等字段为 NULL 的记录计算拼音
-            backfillPinyin(conn,
-                    "SELECT id, title, artist, album FROM music WHERE title_pinyin IS NULL",
-                    "UPDATE music SET title_pinyin=?, title_pinyin_initials=?, artist_pinyin=?, artist_pinyin_initials=?, album_pinyin=?, title_word_initials=?, artist_word_initials=? WHERE id=?",
-                    "已回填 {} 条音乐记录的拼音索引",
-                    "回填拼音索引失败",
-                    (updateStmt, rs) -> {
-                        int id = rs.getInt("id");
-                        String title = rs.getString("title");
-                        String artist = rs.getString("artist");
-                        String album = rs.getString("album");
-                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyin(title));
-                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
-                        updateStmt.setString(3, com.neko.music.util.PinyinUtil.getPinyin(artist));
-                        updateStmt.setString(4, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
-                        updateStmt.setString(5, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
-                        updateStmt.setString(6, com.neko.music.util.PinyinUtil.getWordInitials(title));
-                        updateStmt.setString(7, com.neko.music.util.PinyinUtil.getWordInitials(artist));
-                        updateStmt.setInt(8, id);
-                    });
-
-            // 强制重算所有首字母列（getPinyinInitials和getWordInitials逻辑已变更，需全量更新）
-            backfillPinyin(conn,
-                    "SELECT id, title, artist FROM music",
-                    "UPDATE music SET title_pinyin_initials=?, title_word_initials=?, artist_pinyin_initials=?, artist_word_initials=? WHERE id=?",
-                    "已重算 {} 条音乐记录的首字母索引（中文/英文分离）",
-                    "重算首字母索引失败",
-                    (updateStmt, rs) -> {
-                        int id = rs.getInt("id");
-                        String title = rs.getString("title");
-                        String artist = rs.getString("artist");
-                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
-                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getWordInitials(title));
-                        updateStmt.setString(3, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
-                        updateStmt.setString(4, com.neko.music.util.PinyinUtil.getWordInitials(artist));
-                        updateStmt.setInt(5, id);
-                    });
-
-            // 回填歌单拼音列
-            backfillPinyin(conn,
-                    "SELECT id, name FROM playlists WHERE name_pinyin IS NULL",
-                    "UPDATE playlists SET name_pinyin=?, name_pinyin_initials=?, name_word_initials=? WHERE id=?",
-                    "已回填 {} 条歌单记录的拼音索引",
-                    "回填歌单拼音索引失败",
-                    (updateStmt, rs) -> {
-                        int id = rs.getInt("id");
-                        String name = rs.getString("name");
-                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyin(name));
-                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getPinyinInitials(name));
-                        updateStmt.setString(3, com.neko.music.util.PinyinUtil.getWordInitials(name));
-                        updateStmt.setInt(4, id);
-                    });
-
-            // 强制重算歌单首字母列（逻辑变更）
-            backfillPinyin(conn,
-                    "SELECT id, name FROM playlists",
-                    "UPDATE playlists SET name_pinyin_initials=?, name_word_initials=? WHERE id=?",
-                    "已重算 {} 条歌单记录的首字母索引（中文/英文分离）",
-                    "重算歌单首字母索引失败",
-                    (updateStmt, rs) -> {
-                        int id = rs.getInt("id");
-                        String name = rs.getString("name");
-                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyinInitials(name));
-                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getWordInitials(name));
-                        updateStmt.setInt(3, id);
-                    });
-
             // VIP 价目表（与主库一并备份）
             String createVipPricing = """
                 CREATE TABLE IF NOT EXISTS vip_pricing (
@@ -234,7 +160,7 @@ public class DatabaseInitializer {
             executeTableDdl(stmt, createVipPricing,
                     "vip_pricing 表已就绪", "创建 vip_pricing 表失败（可能已存在）");
 
-            // 系统设置：原 config.yml 的运行时配置迁移到这里，后台可改
+            // 系统设置：运行时配置的唯一持久化来源
             String createSystemSettings = """
                 CREATE TABLE IF NOT EXISTS system_settings (
                     setting_key VARCHAR(128) NOT NULL,
@@ -289,169 +215,22 @@ public class DatabaseInitializer {
             executeTableDdl(stmt, createVipPayOrders,
                     "vip_pay_orders 表已就绪", "创建 vip_pay_orders 表失败（可能已存在）");
 
-            migrateAppReleaseTable(conn, stmt);
+            createAppReleaseTable(stmt);
 
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {
-            logger.error("初始化数据库表失败: {}", e.getMessage(), e);
+            throw new IllegalStateException("初始化当前数据库表失败", e);
         }
     }
 
-    /**
-     * 评论改为物理删除：先清掉历史软删除留下的墓碑行，再把 {@code deleted} 列彻底移除。
-     * 老库执行一次即可，新库本就没有该列（两条语句都会因列不存在而失败，忽略即可）。
-     */
-    private static void migrateMusicCommentsTable(Statement stmt) {
-        try {
-            stmt.execute("""
-                ALTER TABLE music_comments
-                ADD COLUMN IF NOT EXISTS client_ip VARCHAR(45) NOT NULL DEFAULT '' AFTER ip_region
-                """);
-            logger.info("music_comments 已补齐 client_ip 列");
-        } catch (Exception e) {
-            logger.debug("music_comments 添加 client_ip 列: {}", e.getMessage());
-        }
-        try {
-            int purged = stmt.executeUpdate("DELETE FROM music_comments WHERE deleted = 1");
-            if (purged > 0) {
-                logger.info("已清理 {} 条软删除的评论墓碑", purged);
-            }
-        } catch (Exception e) {
-            logger.debug("music_comments 无 deleted 列，跳过墓碑清理: {}", e.getMessage());
-        }
-        try {
-            stmt.execute("ALTER TABLE music_comments DROP COLUMN deleted");
-            logger.info("music_comments 已移除 deleted 列，评论删除改为物理删除（含级联删除回复）");
-        } catch (Exception e) {
-            logger.debug("music_comments 移除 deleted 列: {}", e.getMessage());
-        }
-    }
-
-    /** 执行建表 DDL，失败仅记录告警（表可能已存在）。 */
+    /** 创建当前表结构，失败明确中止初始化。 */
     private static void executeTableDdl(Statement stmt, String ddl, String successMessage, String failureMessage) {
         try {
             stmt.execute(ddl);
             logger.info(successMessage);
         } catch (Exception e) {
-            logger.warn(failureMessage + ": {}", e.getMessage());
-        }
-    }
-
-    /** 扫描查询结果集，由绑定器写入对应拼音列，每 100 条批量执行一次更新。 */
-    private static void backfillPinyin(Connection conn, String selectSql, String updateSql,
-                                       String successMessage, String failureMessage,
-                                       PinyinRowBinder binder) {
-        try {
-            try (var selectStmt = conn.prepareStatement(selectSql);
-                 var rs = selectStmt.executeQuery();
-                 var updateStmt = conn.prepareStatement(updateSql)) {
-                int count = 0;
-                while (rs.next()) {
-                    binder.bind(updateStmt, rs);
-                    updateStmt.addBatch();
-                    count++;
-                    if (count % 100 == 0) {
-                        updateStmt.executeBatch();
-                    }
-                }
-                if (count % 100 != 0) {
-                    updateStmt.executeBatch();
-                }
-                if (count > 0) {
-                    logger.info(successMessage, count);
-                }
-            }
-        } catch (Exception e) {
-            logger.warn(failureMessage + ": {}", e.getMessage());
-        }
-    }
-
-    /** 将结果集当前行绑定到拼音更新语句的参数。 */
-    @FunctionalInterface
-    private interface PinyinRowBinder {
-        void bind(PreparedStatement updateStmt, ResultSet rs) throws Exception;
-    }
-
-    /** 单行版本表：无 id，保存 Android / PC 两端版本 */
-    private static void migrateAppReleaseTable(Connection conn, Statement stmt) {
-        try {
-            boolean tableExists = false;
-            boolean hasIdColumn = false;
-            String listCols = """
-                SELECT column_name FROM information_schema.columns
-                WHERE table_schema = DATABASE() AND table_name = 'app_release'
-                """;
-            try (PreparedStatement ps = conn.prepareStatement(listCols);
-                 ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    tableExists = true;
-                    if ("id".equalsIgnoreCase(rs.getString(1))) {
-                        hasIdColumn = true;
-                    }
-                }
-            }
-
-            if (tableExists && hasIdColumn) {
-                String androidVer = null;
-                String pcVer = null;
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "SELECT android_ver, pc_ver FROM app_release ORDER BY id LIMIT 1");
-                     ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        androidVer = rs.getString("android_ver");
-                        pcVer = rs.getString("pc_ver");
-                    }
-                }
-                stmt.execute("DROP TABLE app_release");
-                logger.info("已删除带 id 的旧 app_release 表，准备重建");
-                createAppReleaseTable(stmt);
-                if (androidVer != null && !androidVer.isBlank() && pcVer != null && !pcVer.isBlank()) {
-                    try (PreparedStatement ins = conn.prepareStatement(
-                            "INSERT INTO app_release (android_ver, pc_ver) VALUES (?, ?)")) {
-                        ins.setString(1, androidVer.trim());
-                        ins.setString(2, pcVer.trim());
-                        ins.executeUpdate();
-                        logger.info("已迁移 app_release 版本数据");
-                    }
-                }
-                return;
-            }
-
-            if (!tableExists) {
-                createAppReleaseTable(stmt);
-                logger.info("app_release 表已创建");
-                return;
-            }
-
-            try {
-                stmt.execute("""
-                    ALTER TABLE app_release
-                    ADD COLUMN IF NOT EXISTS pc_ver VARCHAR(64) NOT NULL DEFAULT '' AFTER android_ver
-                    """);
-            } catch (Exception e) {
-                logger.debug("app_release 添加 pc_ver 列: {}", e.getMessage());
-            }
-
-            try {
-                stmt.execute("""
-                    ALTER TABLE app_release
-                    ADD COLUMN IF NOT EXISTS pending_android_ver VARCHAR(64) NULL AFTER pc_ver
-                    """);
-                stmt.execute("""
-                    ALTER TABLE app_release
-                    ADD COLUMN IF NOT EXISTS pending_pc_ver VARCHAR(64) NULL AFTER pending_android_ver
-                    """);
-                stmt.execute("""
-                    ALTER TABLE app_release
-                    ADD COLUMN IF NOT EXISTS pending_effective_at TIMESTAMP NULL AFTER pending_pc_ver
-                    """);
-            } catch (Exception e) {
-                logger.debug("app_release 添加 pending 列: {}", e.getMessage());
-            }
-            logger.info("app_release 表已就绪");
-        } catch (Exception e) {
-            logger.warn("app_release 表迁移失败: {}", e.getMessage());
+            throw new IllegalStateException(failureMessage, e);
         }
     }
 

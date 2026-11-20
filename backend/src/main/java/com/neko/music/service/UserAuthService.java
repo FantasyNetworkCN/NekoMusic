@@ -44,7 +44,6 @@ public class UserAuthService {
 
     /**
      * 按 NekoAuth 的稳定用户 ID 查找本地资料；首次见到该账号时自动创建本地资料。
-     * 同时兼容旧数据：本地已有同邮箱账号但尚未绑定 auth_user_id 时会自动补绑定。
      * 昵称不落本地库，返回结果直接使用本次 Auth 提供的昵称。
      */
     public User findOrLinkNekoAuthUser(long authUserId, String email, String authNickname) {
@@ -63,18 +62,6 @@ public class UserAuthService {
                 byAuthId = findUserById(byAuthId.id()).orElse(byAuthId);
             }
             return byAuthId;
-        }
-
-        User byEmail = findUserByEmail(normalizedEmail, authNickname);
-        if (byEmail != null) {
-            Long boundAuthUserId = findAuthUserIdByLocalId(byEmail.id());
-            if (boundAuthUserId != null && boundAuthUserId != authUserId) {
-                throw new IllegalStateException("该邮箱已绑定其他 NekoAuth 账号");
-            }
-            updateLocalAccountBinding(byEmail.id(), authUserId, normalizedEmail);
-            logger.info("已关联本地用户资料: localUserId={} authUserId={}", byEmail.id(), authUserId);
-            User linked = findUserById(byEmail.id()).orElse(byEmail);
-            return withNickname(linked, authNickname);
         }
 
         String sql = "INSERT INTO users (email, auth_user_id, created_at) VALUES (?, ?, "
@@ -96,12 +83,6 @@ public class UserAuthService {
             User raced = findUserByAuthId(authUserId, authNickname);
             if (raced != null) {
                 return raced;
-            }
-            User racedByEmail = findUserByEmail(normalizedEmail, authNickname);
-            if (racedByEmail != null) {
-                updateLocalAccountBinding(racedByEmail.id(), authUserId, normalizedEmail);
-                User linked = findUserById(racedByEmail.id()).orElse(racedByEmail);
-                return withNickname(linked, authNickname);
             }
             logger.error("创建本地用户资料失败: authUserId={} email={} error={}",
                     authUserId, normalizedEmail, exception.getMessage(), exception);
@@ -129,39 +110,6 @@ public class UserAuthService {
         }
     }
 
-    private User findUserByEmail(String email, String nicknameOverride) {
-        String sql = "SELECT id, email, created_at, vip_expires_at, auth_user_id "
-                + "FROM users WHERE email = ? LIMIT 1";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, email);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next() ? mapUser(rs, nicknameOverride) : null;
-            }
-        } catch (SQLException e) {
-            logger.error("按邮箱查询本地资料失败: email={} error={}", email, e.getMessage(), e);
-            return null;
-        }
-    }
-
-    private Long findAuthUserIdByLocalId(int localUserId) {
-        String sql = "SELECT auth_user_id FROM users WHERE id = ?";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, localUserId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (!rs.next()) {
-                    return null;
-                }
-                long value = rs.getLong("auth_user_id");
-                return rs.wasNull() ? null : value;
-            }
-        } catch (SQLException e) {
-            logger.error("查询本地账号绑定失败: localUserId={} error={}", localUserId, e.getMessage(), e);
-            return null;
-        }
-    }
-
     private void updateLocalAccountBinding(int localUserId, long authUserId, String email) {
         String sql = "UPDATE users SET email = ?, auth_user_id = ? WHERE id = ?";
         try (Connection conn = databaseManager.getConnection();
@@ -182,7 +130,7 @@ public class UserAuthService {
         if (nickname.isEmpty() || nickname.equals(user.nickname())) {
             return user;
         }
-        return new User(user.id(), nickname, user.password(), user.email(), user.emailVerified(),
+        return new User(user.id(), nickname, user.email(),
                 user.createdAt(), user.vipExpiresAt());
     }
 
@@ -230,20 +178,9 @@ public class UserAuthService {
         return new User(
                 rs.getInt("id"),
                 nickname,
-                null,
                 email,
-                false,
                 DbTimeUtil.formatStoredWallClock(rs.getString("created_at")),
                 hasVip ? vipTs : null);
-    }
-
-    /**
-     * 注销某用户全部会话（改密、重置密码后须重新登录）。
-     */
-    public void revokeAllTokensForUser(int userId) {
-        // 用户令牌只在 NekoAuth 保存。改密 / 重置密码会推进 Auth 的 tokenVersion，
-        // introspection 随即使所有旧令牌失效，因此这里不再维护本地 token 索引。
-        logger.debug("用户 {} 的会话由 NekoAuth tokenVersion 统一失效", userId);
     }
 
     private NekoAuthAccountService requireAuthService() {

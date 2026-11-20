@@ -43,11 +43,9 @@ public final class NekoAuthSsoStartHandler extends ApiServlet {
                 url = oauthService.passwordResetUrl();
             } else if (path.endsWith("/login-entry")) {
                 url = oauthService.webLoginEntryUrl(startRequest.returnTo());
-            } else if (path.endsWith("/logout-url")) {
-                url = oauthService.logoutUrl(startRequest.idToken());
             } else {
                 url = oauthService.authorizationUrl(
-                        startRequest.returnTo(), startRequest.client(), startRequest.silent());
+                        startRequest.returnTo(), startRequest.client());
             }
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("url", url);
@@ -64,23 +62,19 @@ public final class NekoAuthSsoStartHandler extends ApiServlet {
     private StartRequest readStartRequest(HttpServletRequest request) throws IOException {
         String raw = readBody(request);
         if (raw == null || raw.isBlank()) {
-            return new StartRequest("/", "web", false, "");
+            return new StartRequest("/", "web");
         }
         JsonNode body;
         try {
             body = MAPPER.readTree(raw);
         } catch (IOException exception) {
-            return new StartRequest("/", "web", false, "");
+            return new StartRequest("/", "web");
         }
         String returnTo = body == null ? "" : body.path("returnTo").asText("");
         String client = body == null ? "" : body.path("client").asText("");
-        boolean silent = body != null && body.path("silent").asBoolean(false);
-        String idToken = body == null ? "" : body.path("idToken").asText("");
         return new StartRequest(
                 returnTo.isBlank() ? "/" : returnTo,
-                client.isBlank() ? "web" : client,
-                silent,
-                idToken);
+                client.isBlank() ? "web" : client);
     }
 
     private static int responseStatusFor(String code) {
@@ -91,6 +85,6 @@ public final class NekoAuthSsoStartHandler extends ApiServlet {
         };
     }
 
-    private record StartRequest(String returnTo, String client, boolean silent, String idToken) {
+    private record StartRequest(String returnTo, String client) {
     }
 }

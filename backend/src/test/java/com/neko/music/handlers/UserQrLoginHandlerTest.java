@@ -96,8 +96,8 @@ class UserQrLoginHandlerTest {
 
         @Override
         public Optional<User> findUserById(int userId) {
-            return Optional.of(new User(userId, "test", null, "test@example.com",
-                    true, "2026-01-01T00:00:00Z", null));
+            return Optional.of(new User(userId, "test", "test@example.com",
+                    "2026-01-01T00:00:00Z", null));
         }
     }
 

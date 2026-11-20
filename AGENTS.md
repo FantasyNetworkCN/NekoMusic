@@ -70,6 +70,13 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
 - 验证压缩相关改动时，至少分别检查直接访问源站和经 CDN 访问的结果，并使用
   `Accept-Encoding: gzip` 确认响应体可完整解码、无 HTTP/2 流重置。
 
+## 当前版本边界
+
+- 不新增或恢复旧版本兼容分支：数据库只创建当前完整结构，不做旧表升级、删列、历史回填。
+- 运行时配置只从 `system_settings` 读取，首次写入出厂默认值；YAML 只读 `mysql.*`。
+- 经典声纹匹配必须使用 Rust；总索引仅支持当前 v3 / 算法 v5，单曲缓存必须包含和声尾段。
+- 旧数据不自动迁移。保留当前版本正常的错误处理、事务恢复、媒体格式解析和现行客户端契约。
+
 ## 测试
 
 - 后端：`cd backend && mvn test`（现有用例在 `backend/src/test/java/...`，覆盖 handler、util、service）。
@@ -96,14 +103,14 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
   其余配置项一律登记到后端 `config/SystemSettingRegistry.java`，值存在主库 `system_settings` 表，
   由 `GET/PUT /api/admin/settings`（管理员及以上）在后台「系统设置」页维护，**禁止**再往
   `config.yml` 加节或加键。该接口属于后台管理接口，**不写入 API 文档**（见「API 文档脱敏」）。
-- 首次启动若 `system_settings` 表为空，会把 `config.yml` 的现值（缺省则取出厂默认值）灌一次，
-  保证老部署升级后行为不变；此后以表里的值为准，`config.yml` 里的同项不再生效。
+- 首次启动若 `system_settings` 表为空，仅写入登记的出厂默认值；运行时值以表里为准，
+  不再读取或迁移 `config.yml` 中的非 `mysql.*` 配置。
 - 新增配置项时必须同时：登记到 `SystemSettingRegistry`（含出厂默认值、类型、范围与是否需重启）、
   在读取端复用 `ConfigManager` 的解析分支（按点分路径合并进配置树，不要另写 setter）。
 - 敏感项（`secret`）只写不读：接口只回「是否已配置」，不回明文；数据库与日志中同样不得出现明文。
 - **不在清单里的键 = 后台既看不到也改不了**：`SystemSettingRegistry` 是「后台可见可改键」的唯一
   清单，不在其中的键（如 `video_render.non_vip_max_duration_sec`、`netease_search_fill.language|
-  upload_user_id` 这类写死的策略项）由 `ConfigManager` 的字段默认值 / `config.yml` 决定，
+  upload_user_id` 这类写死的策略项）由 `ConfigManager` 的字段默认值决定，
   既不进 `system_settings` 表、也不出现在后台；`SystemSettingsDatabaseManager.pruneUnregistered()`
   会在启动时清掉表里遗留的非清单键。改动清单时要同步更新 `SystemSettingRegistryTest` 的名单用例。
 - 启动期绑定的项（端口、线程池、连接池、Redis 地址等）用 `.restart()` 标注，后台保存后回提示
@@ -134,7 +141,7 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
 - 浏览器登录遵循 NekoAuth 的 OpenID Connect 授权码流程：从发现文档读取端点，使用 PKCE S256、
   一次性 state 与 nonce，并通过 JWKS 校验 ID Token 的签名、issuer、audience、azp、nonce、at_hash
   和 subject。
-- 规范回调地址为 `/sso/nekocore/callback`；旧 `/oauth/nekocore/callback` 只作兼容别名。
+- 回调地址为 `/sso/nekocore/callback`，原生客户端完成页为 `/sso/native-complete`。
 - 原生客户端回跳先经过站内 HTTPS 页面 `/sso/native-complete`，再由页面打开
   `nekomusic://sso/complete?handoff=...`；禁止服务端直接 302 到自定义协议，避免 CDN 拒绝非 HTTP
   Location。页面必须保留手动按钮，处理浏览器阻止自动跳转的情况。
@@ -143,7 +150,7 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
 - NekoAuth 客户端密钥只能保存在服务端，不得下发到浏览器、Android 或 PC 客户端。
 - Web、Android 与 PC 新界面不得再提供邮箱密码、注册验证码或原生改密/改昵称表单；注册与账号资料
   修改统一打开 NekoAuth 页面。Android 使用应用内 WebView，Web 使用当前浏览器，PC 使用系统浏览器。
-- 用户头像以 NekoAuth 为唯一权威源。NekoMusic 的 `/api/user/avatar/*` 只作兼容代理，后端的
+- 用户头像以 NekoAuth 为唯一权威源。NekoMusic 的 `/api/user/avatar/*` 作为当前客户端代理，后端的
   `/api/user/avatar/upload` 也只转发到 Auth，不得再写本地头像路径或新增本地头像文件。
 - Web 无感登录使用 Auth 写入的父域 HttpOnly `nekoauth_sso_session` 会话句柄，由子域后端通过
   `account:bridge` 内部接口直接兑换登录态，不得让浏览器跳转 Auth 做静默 OIDC。刷新令牌 Cookie
@@ -153,6 +160,7 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
 
 ### API 文档脱敏
 
+- 官方客户端更新、安装包分发与 QQ 歌单详情属于内部接口，不得写入公开 API 文档的端点、目录、字段或示例。
 - **铁律：后台管理类接口不写入 API 文档。** 管理端（`/api/admin/*` 等）只面向官方管理后台与
   运维，其存在与取值都属于内部信息；新增这类接口时不要往文档里加端点、字段或示例。
 - API 文档只描述**客户端可见契约**：端点、请求头 / 参数、请求体、响应结构、状态码，以及客户端

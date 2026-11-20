@@ -38,13 +38,13 @@ const favoriteMusicIds = ref(new Set())
 const tab = ref('tracks')
 
 /**
- * 查询词来源：优先 ?q= 查询串，兼容历史 /search/{query} 路径。
+ * 查询词来源：?q= 查询串。
  *  - 走查询串的原因：路径形式下 encodeURIComponent 会把查询词里的 / 编成 %2F，
  *    Jetty 视为「歧义路径分隔符」直接返回 400，请求根本到不了前端。
  *  - vue-router 已对参数解码，这里不能再 decodeURIComponent（查询词含 % 会抛错）。
  */
 const routeQuery = computed(() => {
-  const raw = route.query.q ?? route.params.query
+  const raw = route.query.q
   const value = Array.isArray(raw) ? raw[0] : raw
   return typeof value === 'string' ? value.trim() : ''
 })

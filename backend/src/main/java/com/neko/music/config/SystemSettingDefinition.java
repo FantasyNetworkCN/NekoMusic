@@ -3,12 +3,12 @@ package com.neko.music.config;
 /**
  * 一条可在后台「系统设置」中编辑的配置项。
  *
- * <p>{@code key} 就是 config.yml 里的点分路径（如 {@code video_render.worker_threads}）。
+ * <p>{@code key} 是配置树中的点分路径（如 {@code video_render.worker_threads}）。
  * 之所以沿用路径而不是另起一套键名：数据库里的覆盖值可以按路径直接合并进配置树，
  * 由 {@link ConfigManager} 现有的解析逻辑读到，不必为每个配置项再写一遍 setter，
  * 也就不存在「注册表加了配置项但忘了接上读取端」的漏配。</p>
  *
- * <p>{@code defaultValue} 与 {@code src/main/resources/config.yml} 中的出厂值保持一致：
+ * <p>{@code defaultValue} 是运行时设置的唯一出厂值：
  * 首次启动、或某个键在配置树里缺省时，用它兜底。</p>
  *
  * @param key             点分配置路径，也是数据库主键
@@ -49,9 +49,7 @@ public record SystemSettingDefinition(
     public enum Group {
         SERVER("服务器"),
         REDIS("Redis"),
-        JWT("登录令牌"),
         MAIL("邮件"),
-        REGISTER("注册与验证"),
         RATE_LIMIT("访问频率限制"),
         NETWORK("网络与安全"),
         NOTIFY("消息通知"),

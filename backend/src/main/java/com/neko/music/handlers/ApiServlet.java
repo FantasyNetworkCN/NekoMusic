@@ -193,19 +193,4 @@ public abstract class ApiServlet extends HttpServlet {
         return true;
     }
 
-    /** 兼容旧接口的 {@code {"error":"..."}} 错误体，带状态码。 */
-    protected void sendErrorObject(HttpServletResponse resp, int status, String message) throws IOException {
-        JsonObject body = new JsonObject();
-        body.addProperty("error", ApiMessages.translate(message));
-        writeJson(resp, status, GSON.toJson(body));
-    }
-
-    /** 兼容旧接口的 {@code {"success":false,"message":"...","data":null}} 错误体。 */
-    protected void sendErrorData(HttpServletResponse resp, int status, String message) throws IOException {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", false);
-        body.put("message", ApiMessages.translate(message));
-        body.put("data", null);
-        writeJson(resp, status, MAPPER.writeValueAsString(body));
-    }
 }

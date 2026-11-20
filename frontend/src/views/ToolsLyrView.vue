@@ -435,7 +435,6 @@ function parseLyrics(raw) {
         translation: '',
         romanization: '',
         words: [],
-        timingVersion: 2,
       }))
       lastTimedIndex = result.length - 1
       continue
@@ -455,7 +454,6 @@ function parseLyrics(raw) {
       translation: '',
       romanization: '',
       words: [],
-      timingVersion: 2,
     }))
     lastTimedIndex = result.length - 1
   }

@@ -86,19 +86,18 @@ class MusicRecognitionPersistenceTest {
         MusicRecognitionService.IndexSnapshot snapshot = new MusicRecognitionService.IndexSnapshot(
                 AudioFingerprintEngine.Index.build(Map.of(1, fingerprint)),
                 tonalBuilder.build(), Map.of(1, track), Map.of(1, tonal),
-                catalog, System.currentTimeMillis(), true);
+                catalog, System.currentTimeMillis());
 
         MusicRecognitionService.FullIndexDiskCache cache = cache();
         cache.save(snapshot);
         MusicRecognitionService.IndexSnapshot restored = cache.load(catalog).orElseThrow();
 
-        assertTrue(restored.tonalReady());
         assertEquals(tonal, restored.tonalFingerprints().get(1));
         assertTrue(restored.tonalIndex().findBest(tonal, restored.tonalFingerprints()).isPresent());
     }
 
     @Test
-    void loadsLegacyFingerprintCacheWithoutTonalTrailer() throws Exception {
+    void rejectsFingerprintCacheWithoutCurrentTonalTrailer() throws Exception {
         Path audio = Files.write(tempDirectory.resolve("legacy.mp3"), new byte[]{1, 2, 3, 4});
         Path directory = tempDirectory.resolve(".fingerprints");
         Files.createDirectories(directory);
@@ -120,15 +119,11 @@ class MusicRecognitionPersistenceTest {
             }
         }
 
-        AudioFingerprintEngine.Fingerprint restored = new MusicRecognitionService.FingerprintDiskCache(directory)
-                .load(1, audio).orElseThrow();
-
-        assertEquals(3, restored.landmarks().size());
-        assertEquals(0, restored.tonal().frameCount());
+        assertTrue(new MusicRecognitionService.FingerprintDiskCache(directory).load(1, audio).isEmpty());
     }
 
     @Test
-    void loadsLegacyFullIndexWithoutTonalIndex() throws Exception {
+    void rejectsObsoleteFullIndexFormat() throws Exception {
         MusicRecognitionService.Track track = track(1, "First");
         MusicRecognitionService.CatalogEntry entry = entry(track, "1.mp3", 101L, 1_000L);
         Path file = tempDirectory.resolve("legacy.nfi");
@@ -149,12 +144,7 @@ class MusicRecognitionPersistenceTest {
             output.writeLong(((long) 1 << 32) | 410);
         }
 
-        MusicRecognitionService.IndexSnapshot restored = new MusicRecognitionService.FullIndexDiskCache(file)
-                .load(List.of(entry)).orElseThrow();
-
-        assertFalse(restored.tonalReady());
-        assertEquals(1, restored.index().musicCount());
-        assertTrue(restored.tonalFingerprints().isEmpty());
+        assertTrue(new MusicRecognitionService.FullIndexDiskCache(file).load().isEmpty());
     }
 
     @Test
@@ -181,7 +171,7 @@ class MusicRecognitionPersistenceTest {
 
         MusicRecognitionService.IndexSnapshot snapshot = new MusicRecognitionService.IndexSnapshot(
                 exactBuilder.build(), tonalBuilder.build(), Map.of(1, first, 2, second),
-                Map.of(1, firstTonal, 2, secondTonal), catalog, System.currentTimeMillis(), true);
+                Map.of(1, firstTonal, 2, secondTonal), catalog, System.currentTimeMillis());
         MusicRecognitionService.FullIndexDiskCache cache = cache();
         cache.save(snapshot);
         MusicRecognitionService.IndexSnapshot restored = cache.load(catalog).orElseThrow();

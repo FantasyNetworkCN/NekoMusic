@@ -8,7 +8,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,36 +15,6 @@ class UploadStorageRecoveryTest {
 
     @TempDir
     Path tempDir;
-
-    @Test
-    void restoreLegacyTempFileMovesItBackWhenSourceIsMissing() throws Exception {
-        Path source = tempDir.resolve("user_upload").resolve("music_1.mp3");
-        Path legacyTemp = tempDir.resolve("Music").resolve("temp_7.mp3");
-        byte[] content = new byte[]{4, 5, 6};
-        Files.createDirectories(legacyTemp.getParent());
-        Files.write(legacyTemp, content);
-
-        UploadStorageRecovery.restoreLegacyTempFile(source, legacyTemp);
-
-        assertArrayEquals(content, Files.readAllBytes(source));
-        assertFalse(Files.exists(legacyTemp));
-    }
-
-    @Test
-    void restoreLegacyTempFileKeepsSourceAndRemovesDuplicate() throws Exception {
-        Path source = tempDir.resolve("user_upload").resolve("music_1.mp3");
-        Path legacyTemp = tempDir.resolve("Music").resolve("temp_7.mp3");
-        byte[] content = new byte[]{7, 8, 9};
-        Files.createDirectories(source.getParent());
-        Files.createDirectories(legacyTemp.getParent());
-        Files.write(source, content);
-        Files.write(legacyTemp, new byte[]{1});
-
-        UploadStorageRecovery.restoreLegacyTempFile(source, legacyTemp);
-
-        assertArrayEquals(content, Files.readAllBytes(source));
-        assertFalse(Files.exists(legacyTemp));
-    }
 
     @Test
     void deleteUnreferencedUploadFilesOnlyKeepsPendingFiles() throws Exception {
@@ -73,12 +42,10 @@ class UploadStorageRecoveryTest {
         Path known = mediaDir.resolve("7.mp3");
         Path orphan = mediaDir.resolve("8.mp3");
         Path staging = mediaDir.resolve(".neko-staging-123.part");
-        Path legacyTemp = mediaDir.resolve("temp_9.mp3");
         Files.createDirectories(mediaDir);
         Files.write(known, new byte[]{1});
         Files.write(orphan, new byte[]{2});
         Files.write(staging, new byte[]{3});
-        Files.write(legacyTemp, new byte[]{4});
         makeOld(orphan, staging);
 
         UploadStorageRecovery.cleanupMediaDir(mediaDir, Set.of(7), System.currentTimeMillis());
@@ -86,7 +53,6 @@ class UploadStorageRecoveryTest {
         assertTrue(Files.exists(known));
         assertFalse(Files.exists(orphan));
         assertFalse(Files.exists(staging));
-        assertTrue(Files.exists(legacyTemp));
     }
 
     @Test
