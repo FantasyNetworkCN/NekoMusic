@@ -207,9 +207,10 @@ public final class SearchIndexBuilder implements AutoCloseable {
             if (full) {
                 // 必须在原子替换之前丢弃旧只读会话：否则旧会话持有旧 WAL，
                 // 替换后新库会回放旧 WAL（删掉的歌复现 / SQLITE_CORRUPT）。
-                SearchSession.closeCached();
+                SearchSession.publishFullIndex(store);
+            } else {
+                store.seal();
             }
-            store.seal();
 
             // seal 之后本实例的连接已失效（全量会关闭连接），置空让单曲路径重新打开；
             // 否则 refreshOne / removeOne 会持有已关闭的连接抛 IllegalStateException。

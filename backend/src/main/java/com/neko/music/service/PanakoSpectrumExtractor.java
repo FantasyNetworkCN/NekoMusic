@@ -9,14 +9,11 @@ import be.tarsos.dsp.AudioEvent;
 import be.tarsos.dsp.io.TarsosDSPAudioFormat;
 import be.ugent.jgaborator.JGaborator;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -134,44 +131,35 @@ final class PanakoSpectrumExtractor {
     }
 
     private List<EventPoint> findEventPoints(List<float[]> coefficients, int bandCount) {
-        Map<Integer, float[]> previousMagnitudes = new HashMap<>();
-        Map<Integer, float[]> previousMaxMagnitudes = new HashMap<>();
+        // 每段音频复用固定时间窗，避免逐帧分配数组和装箱的 Map / 队列索引。
+        float[][] previousMagnitudes = new float[TIME_MAX_FILTER_SIZE][bandCount];
+        float[][] previousMaxMagnitudes = new float[TIME_MAX_FILTER_SIZE][bandCount];
+        float[] padded = new float[bandCount + FREQ_MAX_FILTER_SIZE - 1];
+        int[] deque = new int[padded.length];
         List<EventPoint> eventPoints = new ArrayList<>();
-        float[] maxHorizontal = new float[bandCount];
         int analysisFrameIndex = 0;
 
         for (float[] currentMagnitudes : coefficients) {
             int currentBandCount = Math.min(bandCount, currentMagnitudes.length);
-            float[] magnitudes = Arrays.copyOf(currentMagnitudes, bandCount);
-            float[] maxMagnitudes = new float[bandCount];
-            maxFilterClamped(magnitudes, maxMagnitudes, FREQ_MAX_FILTER_SIZE);
+            int slot = analysisFrameIndex % TIME_MAX_FILTER_SIZE;
+            float[] magnitudes = previousMagnitudes[slot];
+            float[] maxMagnitudes = previousMaxMagnitudes[slot];
+            System.arraycopy(currentMagnitudes, 0, magnitudes, 0, currentBandCount);
+            Arrays.fill(magnitudes, currentBandCount, bandCount, 0f);
+            maxFilterClamped(magnitudes, maxMagnitudes, FREQ_MAX_FILTER_SIZE, padded, deque);
 
-            previousMagnitudes.put(analysisFrameIndex, magnitudes);
-            previousMaxMagnitudes.put(analysisFrameIndex, maxMagnitudes);
-
-            if (previousMaxMagnitudes.size() == TIME_MAX_FILTER_SIZE) {
+            if (analysisFrameIndex >= TIME_MAX_FILTER_SIZE - 1) {
                 int centerFrame = analysisFrameIndex - TIME_MAX_FILTER_SIZE / 2;
-                float[] maxFrame = previousMaxMagnitudes.get(centerFrame);
-                float[] frameMagnitudes = previousMagnitudes.get(centerFrame);
-                if (maxFrame == null || frameMagnitudes == null) {
-                    analysisFrameIndex++;
-                    continue;
-                }
+                float[] maxFrame = previousMaxMagnitudes[centerFrame % TIME_MAX_FILTER_SIZE];
+                float[] frameMagnitudes = previousMagnitudes[centerFrame % TIME_MAX_FILTER_SIZE];
 
                 for (int frequency = 2; frequency < currentBandCount - 1; frequency++) {
                     float current = frameMagnitudes[frequency];
                     if (current != 0f && maxFrame[frequency] == current) {
-                        horizontalFilter(
-                                frequency,
-                                centerFrame,
-                                previousMaxMagnitudes,
-                                maxHorizontal);
-                        if (current == maxHorizontal[frequency]) {
-                            float[] previous = previousMagnitudes.get(centerFrame - 1);
-                            float[] next = previousMagnitudes.get(centerFrame + 1);
-                            if (previous == null || next == null) {
-                                continue;
-                            }
+                        float maximum = horizontalFilter(frequency, centerFrame, previousMaxMagnitudes);
+                        if (current == maximum) {
+                            float[] previous = previousMagnitudes[(centerFrame - 1) % TIME_MAX_FILTER_SIZE];
+                            float[] next = previousMagnitudes[(centerFrame + 1) % TIME_MAX_FILTER_SIZE];
                             float totalMagnitude =
                                     sum9(
                                             frameMagnitudes, previous, next,
@@ -180,31 +168,23 @@ final class PanakoSpectrumExtractor {
                         }
                     }
                 }
-
-                previousMaxMagnitudes.remove(
-                        analysisFrameIndex - TIME_MAX_FILTER_SIZE + 1);
-                previousMagnitudes.remove(
-                        analysisFrameIndex - TIME_MAX_FILTER_SIZE + 1);
             }
             analysisFrameIndex++;
         }
         return eventPoints;
     }
 
-    private static void horizontalFilter(
+    private static float horizontalFilter(
             int frequency,
             int centerFrame,
-            Map<Integer, float[]> previousMaxMagnitudes,
-            float[] maxHorizontal) {
-        maxHorizontal[frequency] = -1000f;
+            float[][] previousMaxMagnitudes) {
+        float maximum = -1000f;
         int half = TIME_MAX_FILTER_SIZE / 2;
         for (int frame = centerFrame - half; frame < centerFrame + half; frame++) {
-            float[] values = previousMaxMagnitudes.get(frame);
-            if (values != null && frequency < values.length) {
-                maxHorizontal[frequency] = Math.max(
-                        maxHorizontal[frequency], values[frequency]);
-            }
+            float[] values = previousMaxMagnitudes[frame % TIME_MAX_FILTER_SIZE];
+            maximum = Math.max(maximum, values[frequency]);
         }
+        return maximum;
     }
 
     private static float sum9(
@@ -325,9 +305,8 @@ final class PanakoSpectrumExtractor {
     }
 
     private static void maxFilterClamped(
-            float[] input, float[] output, int windowSize) {
+            float[] input, float[] output, int windowSize, float[] padded, int[] deque) {
         int half = windowSize / 2;
-        float[] padded = new float[input.length + windowSize - 1];
         Arrays.fill(padded, 0, half, input[0]);
         System.arraycopy(input, 0, padded, half, input.length);
         Arrays.fill(
@@ -336,20 +315,20 @@ final class PanakoSpectrumExtractor {
                 padded.length,
                 input[input.length - 1]);
 
-        ArrayDeque<Integer> deque = new ArrayDeque<>(windowSize);
+        int head = 0;
+        int tail = 0;
         for (int i = 0; i < padded.length; i++) {
-            while (!deque.isEmpty()
-                    && padded[deque.peekLast()] <= padded[i]) {
-                deque.removeLast();
+            while (head < tail && padded[deque[tail - 1]] <= padded[i]) {
+                tail--;
             }
-            deque.addLast(i);
-            if (deque.peekFirst() <= i - windowSize) {
-                deque.removeFirst();
+            deque[tail++] = i;
+            if (deque[head] <= i - windowSize) {
+                head++;
             }
             if (i >= windowSize - 1) {
                 int outputIndex = i - windowSize + 1;
                 if (outputIndex < output.length) {
-                    output[outputIndex] = padded[deque.peekFirst()];
+                    output[outputIndex] = padded[deque[head]];
                 }
             }
         }
