@@ -5,7 +5,7 @@
  *
  * Portions derived from ArchoeraMusic, Copyright (C) 2026 Archoera && BetaStudio2,
  * AGPL-3.0-or-later. 修改说明：Microsoft.Data.Sqlite → sqlite-jdbc；接口收敛为单个 Java 类，
- * 所有公开方法串行化（单实例索引，读写共用一条连接）。
+ * 所有公开方法按实例串行化，每个实例独占一条 JDBC 连接。
  */
 
 package com.neko.music.search;
@@ -47,8 +47,8 @@ import java.util.Properties;
  *   <li>bm25 必须在含 {@code MATCH} 的同一查询块内求值，否则静默返回 0。</li>
  * </ul>
  *
- * <p>线程模型：单实例、读写共用一个连接。所有公开方法 {@code synchronized}，
- * 避免 JDBC 连接的并发使用；查询与写入不会同时进行（首期可接受，后续如需并发再拆只读连接）。
+ * <p>线程模型：每个实例独占一个连接，公开方法 {@code synchronized} 避免同一 JDBC 连接
+ * 被并发使用。索引器持写连接，查询池按需创建少量独立只读实例，读取与增量写入由 WAL 协调。
  */
 public final class FtsStore implements AutoCloseable {
 

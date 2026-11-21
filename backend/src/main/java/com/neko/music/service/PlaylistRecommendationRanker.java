@@ -47,7 +47,6 @@ public final class PlaylistRecommendationRanker {
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.35, 0.55, 0.55, 0.0, 0.0
     };
     private static final Pattern NON_WORD = Pattern.compile("[^\\p{L}\\p{N}]+");
-    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private PlaylistRecommendationRanker() {
     }
@@ -352,9 +351,30 @@ public final class PlaylistRecommendationRanker {
         return new ArrayList<>(tokens);
     }
 
-    private static String normalizeText(String text) {
-        String words = NON_WORD.matcher(text.toLowerCase(Locale.ROOT)).replaceAll(" ");
-        return WHITESPACE.matcher(words).replaceAll(" ").trim();
+    static String normalizeText(String text) {
+        // 保留 Java 的 Locale.ROOT 小写与 Unicode L / N 分类，单次扫描替代正则的中间文本。
+        String lower = text.toLowerCase(Locale.ROOT);
+        StringBuilder normalized = new StringBuilder(lower.length());
+        boolean separated = false;
+        for (int i = 0; i < lower.length(); ) {
+            int cp = lower.codePointAt(i);
+            int type = Character.getType(cp);
+            boolean word = Character.isLetter(cp)
+                    || type == Character.DECIMAL_DIGIT_NUMBER
+                    || type == Character.LETTER_NUMBER
+                    || type == Character.OTHER_NUMBER;
+            if (word) {
+                if (separated && !normalized.isEmpty()) {
+                    normalized.append(' ');
+                }
+                normalized.appendCodePoint(cp);
+                separated = false;
+            } else {
+                separated = true;
+            }
+            i += Character.charCount(cp);
+        }
+        return normalized.toString();
     }
 
     private static double trackOverlap(PlaylistFeature feature, Set<Integer> favoriteTrackIds) {
