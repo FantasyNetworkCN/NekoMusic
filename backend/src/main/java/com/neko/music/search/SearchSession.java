@@ -28,7 +28,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * 只读查询会话：按 {@code search.db} 路径复用少量独立连接，执行
- * 「主趟 → 拼音宽松 → 日文读音 → 跨语言 → 模糊 → 中文容错」六段渐进查询。
+ * 「主趟 → 拼音宽松 → 日文读音 → 跨语言 → 模糊 → 中文容错」渐进查询；
+ * 歌词范围跳过跨语言释义扩展，避免无关歌词被当作正文命中。
  *
  * <p>结果按 trip（趟）合并去重，首次出现顺序即更高优先级趟。查询结果 LRU 128 条；
  * 单次结果超过 500 条不缓存。连接间共享结果缓存和模糊词典，不随连接数复制；
@@ -391,7 +392,10 @@ public final class SearchSession implements AutoCloseable {
         }
         boolean mixedIndexedAndOtherScripts = tokens.hasCjk()
                 && tokens.hasNonIndexedLetterOrDigit();
-        if (result.items().size() < request.minExact() && !mixedIndexedAndOtherScripts) {
+        // 单词释义不能证明歌词正文命中；否则 layer →「层」之类的单字召回
+        // 不仅会返回无关歌词，还会占满 minExact、阻止后续拼写容错。
+        if (request.scope() != SearchScope.LYRICS
+                && result.items().size() < request.minExact() && !mixedIndexedAndOtherScripts) {
             List<String> candidates = filterCrossLingual(tokens.crossLingual(), profile);
             if (!candidates.isEmpty()) {
                 tokens.crossLingual().clear();
