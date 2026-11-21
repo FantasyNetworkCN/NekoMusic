@@ -75,6 +75,9 @@ public class ConfigManager {
 
     /** 横屏短视频渲染：见 config.yml video_render */
     private boolean videoRenderEnabled = true;
+    /** 人声伴奏分离同时运行的 GPU 工作进程数（system_settings audio_separation.*） */
+    private int audioSeparationWorkerThreads = 3;
+    private boolean audioSeparationFp16 = true;
     /** auto / ffmpeg / 绝对路径，见 {@link #getVideoRenderFfmpegPath()} */
     private String videoRenderFfmpegPath = "auto";
     /** true 时优先 JAR 内嵌 linux-x86_64 FFmpeg（BtbN 构建，含 NVENC/CUDA） */
@@ -364,6 +367,13 @@ public class ConfigManager {
                 }
 
                 JsonNode videoRenderNode = configNode.get("video_render");
+                JsonNode audioSeparationNode = configNode.get("audio_separation");
+                if (audioSeparationNode != null && audioSeparationNode.has("worker_threads")) {
+                    audioSeparationWorkerThreads = audioSeparationNode.get("worker_threads").asInt();
+                }
+                if (audioSeparationNode != null && audioSeparationNode.has("fp16")) {
+                    audioSeparationFp16 = audioSeparationNode.get("fp16").asBoolean();
+                }
                 if (videoRenderNode != null) {
                     if (videoRenderNode.has("enabled")) {
                         videoRenderEnabled = videoRenderNode.get("enabled").asBoolean();
@@ -703,6 +713,7 @@ public class ConfigManager {
         hikariMaximumPoolSize = Math.max(2, Math.min(256, hikariMaximumPoolSize));
         hikariMinimumIdle = Math.max(0, Math.min(hikariMinimumIdle, hikariMaximumPoolSize));
         redisPoolMaxTotal = Math.max(4, Math.min(256, redisPoolMaxTotal));
+        audioSeparationWorkerThreads = Math.max(1, Math.min(4, audioSeparationWorkerThreads));
         videoRenderNonVipMaxDurationSec = Math.max(5, Math.min(120, videoRenderNonVipMaxDurationSec));
         videoRenderNonVipDailyLimit = Math.max(1, Math.min(1000, videoRenderNonVipDailyLimit));
         videoRenderWorkerThreads = Math.max(1, Math.min(16, videoRenderWorkerThreads));
@@ -1026,6 +1037,14 @@ public class ConfigManager {
 
     public int getVideoRenderWorkerThreads() {
         return videoRenderWorkerThreads;
+    }
+
+    public int getAudioSeparationWorkerThreads() {
+        return audioSeparationWorkerThreads;
+    }
+
+    public boolean isAudioSeparationFp16() {
+        return audioSeparationFp16;
     }
 
     public int getVideoRenderArtifactRetentionHours() {

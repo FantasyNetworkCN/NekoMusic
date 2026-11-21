@@ -101,6 +101,12 @@ public final class SystemSettingRegistry {
             number("storage.min_free_gb", Group.STORAGE, "最低可用空间（GB）", "3", 0, 100000,
                     "运行目录所在分区剩余空间低于该值时，禁止音乐上传与网易云补全"),
 
+            // ---------- 音频处理 ----------
+            number("audio_separation.worker_threads", Group.AUDIO, "人声伴奏分离工作进程数", "3", 1, 4,
+                    "同时运行的 GPU 分离任务数；每个任务约需 3GB 系统内存，8GB 显存建议 2～3").restart(),
+            flag("audio_separation.fp16", Group.AUDIO, "CUDA 半精度推理", true,
+                    "CUDA 可用时使用 FP16 混合精度；若出现分离爆音或模型兼容问题可关闭").restart(),
+
             // ---------- 视频渲染 ----------
             flag("video_render.enabled", Group.VIDEO_RENDER, "启用视频渲染", true, "关闭后不再受理成片生成请求"),
             text("video_render.pipeline", Group.VIDEO_RENDER, "渲染管线", "cuda_native",

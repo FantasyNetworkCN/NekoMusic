@@ -20,7 +20,8 @@ class IPRateLimitFilterExemptionTest {
             "/loser/qq/pull",
             "/loser/kugou/pull",
             "/loser/qishui/pull",
-            "/loser/lxmc/pull"};
+            "/loser/lxmc/pull",
+            "/api/music/file/123/stream"};
 
     @Test
     void sseStreamsAreExempt() {
@@ -53,6 +54,8 @@ class IPRateLimitFilterExemptionTest {
                 "/api/music/latest",
                 "/api/user/notifications",
                 "/api/user/notifications/streamX",
+                "/api/music/file/123/streamX",
+                "/api/music/file/abc/stream",
                 "/loser/qq/getSongListDetail",
                 "/loser/qq/pullx",
                 ""}) {

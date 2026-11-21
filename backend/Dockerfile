@@ -87,11 +87,27 @@ FROM debian:13-slim
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
+    && apt-get install -y --no-install-recommends ca-certificates ffmpeg libstdc++6 python3 python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=jdk /opt/java /opt/java
 COPY --from=builder /build/target/backend-1.0-SNAPSHOT.jar /app/backend.jar
+
+# 人声 / 伴奏分离运行时：CUDA 版 PyTorch 在容器获得 GPU 时优先使用 GPU，
+# 无可用 CUDA 时 Demucs 自动回退 CPU。
+RUN python3 -m venv /opt/demucs \
+    && /opt/demucs/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/demucs/bin/pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cu130 torch torchaudio \
+    && /opt/demucs/bin/pip install --no-cache-dir demucs==4.1.0 soundfile==0.14.0
+
+ENV PATH="/opt/demucs/bin:${PATH}" \
+    HF_HOME=/opt/demucs-cache \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# 模型预取到镜像内，避免首次 VIP 请求还承担模型下载时间。
+RUN /opt/demucs/bin/python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
+ENV HF_HUB_OFFLINE=1
 
 EXPOSE 65535
 

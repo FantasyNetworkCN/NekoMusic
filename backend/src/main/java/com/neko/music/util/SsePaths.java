@@ -1,6 +1,7 @@
 package com.neko.music.util;
 
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * SSE（Server-Sent Events）长连接端点清单：供按请求计数的门禁过滤器共享，避免各处清单漂移。
@@ -15,6 +16,8 @@ import java.util.Set;
  * 豁免面必须收敛到长连接本身，否则会把同前缀下的普通动态接口一并放过。</p>
  */
 public final class SsePaths {
+    private static final Pattern MUSIC_SEPARATION_STREAM =
+            Pattern.compile("^/api/music/file/[0-9]+/stream$");
 
     /** 所有 SSE 长连接端点（精确路径）。 */
     private static final Set<String> STREAM_PATHS = Set.of(
@@ -41,6 +44,6 @@ public final class SsePaths {
         if (path.length() > 1 && path.endsWith("/")) {
             path = path.substring(0, path.length() - 1);
         }
-        return STREAM_PATHS.contains(path);
+        return STREAM_PATHS.contains(path) || MUSIC_SEPARATION_STREAM.matcher(path).matches();
     }
 }

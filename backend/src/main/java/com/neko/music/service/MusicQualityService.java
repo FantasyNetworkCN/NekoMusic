@@ -267,7 +267,8 @@ public final class MusicQualityService {
                 .resolve(quality + (SQ.equals(quality) ? ".flac" : ".mp3"));
     }
 
-    private static String resolveFfmpeg() throws IOException {
+    /** 当前运行环境可用的 FFmpeg；同包内的人声/伴奏分离服务也复用同一套解析规则。 */
+    static String resolveFfmpeg() throws IOException {
         String configured = System.getProperty("neko.ffmpeg");
         if (configured != null && !configured.isBlank()) {
             return configured;

@@ -54,6 +54,7 @@ public record SystemSettingDefinition(
         NETWORK("网络与安全"),
         NOTIFY("消息通知"),
         STORAGE("存储"),
+        AUDIO("音频处理"),
         VIDEO_RENDER("视频渲染"),
         AUTH("NekoAuth 登录"),
         EXTERNAL("外站补全"),

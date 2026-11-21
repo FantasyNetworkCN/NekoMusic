@@ -32,12 +32,21 @@ public final class MediaMusicHandler extends HttpServlet {
             return;
         }
 
-        Path requested = parts.length > 1 ? MusicAssetLocator.derivedDir(musicId).resolve(parts[1]).normalize() : null;
-        Optional<Path> source = MusicAssetLocator.findAudioFile(musicId);
-        Path file = requested != null && MusicAssetLocator.isUnderDirectory(requested, MusicAssetLocator.derivedDir(musicId))
-                && requested.getParent().equals(MusicAssetLocator.derivedDir(musicId).toAbsolutePath().normalize())
-                && requested.getFileName().toString().contains(".") && Files.isRegularFile(requested)
-                ? requested : source.orElse(null);
+        Path derivedDir = MusicAssetLocator.derivedDir(musicId);
+        Path requested = parts.length > 1 ? derivedDir.resolve(parts[1]).normalize() : null;
+        Path file;
+        if (parts.length > 1) {
+            // 带派生文件名的 URL 只能命中该文件；不能回退成原始音频，否则尚未生成或已被清理的
+            // 人声音轨 URL 会静默播放整首原曲。
+            file = requested != null
+                    && MusicAssetLocator.isUnderDirectory(requested, derivedDir)
+                    && requested.getParent().equals(derivedDir.toAbsolutePath().normalize())
+                    && requested.getFileName().toString().contains(".")
+                    && Files.isRegularFile(requested)
+                    ? requested : null;
+        } else {
+            file = MusicAssetLocator.findAudioFile(musicId).orElse(null);
+        }
         if (file == null || !Files.isRegularFile(file) || !MusicAssetLocator.isUnderDirectory(file, MusicAssetLocator.audioDir())) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
