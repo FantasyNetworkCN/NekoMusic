@@ -58,6 +58,21 @@ class UserProfileHandlersTest {
         assertTrue(capture.body().contains("用户不存在") || capture.body().contains("user.not_exists"));
     }
 
+    @Test
+    void phoneOnlyUserInfoSucceedsWithEmptyEmail() throws Exception {
+        FakeStore store = new FakeStore();
+        store.email = "";
+        UserInfoHandler handler = new UserInfoHandler(
+                new UserManagementService(store), request -> 7);
+        CapturingResponse capture = new CapturingResponse();
+        handler.doGet(request(null), responseProxy(capture));
+        assertEquals(200, capture.status);
+        assertEquals("private, no-store", capture.headers.get("Cache-Control"));
+        assertTrue(capture.body().contains("\"success\":true"));
+        assertTrue(capture.body().contains("\"email\":\"\""));
+        assertTrue(capture.body().contains("\"id\":7"));
+    }
+
     private static HttpServletRequest request(String body) {
         return proxy(HttpServletRequest.class, (ignored, method, args) -> switch (method.getName()) {
             case "getReader" -> new BufferedReader(new StringReader(body == null ? "" : body));
@@ -95,6 +110,7 @@ class UserProfileHandlersTest {
 
     private static final class FakeStore implements UserAccountStore {
         private String nickname = "listener";
+        private String email = "listener@example.com";
         private Timestamp vipExpiresAt;
 
         @Override
@@ -104,7 +120,7 @@ class UserProfileHandlersTest {
 
          @Override
         public Optional<UserProfile> findUserProfile(int id) {
-            return id == 7 ? Optional.of(new UserProfile(7, nickname, "listener@example.com",
+            return id == 7 ? Optional.of(new UserProfile(7, nickname, email,
                     "2026-01-01", vipExpiresAt)) : Optional.empty();
         }
 

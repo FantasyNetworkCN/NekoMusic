@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class NekoAuthAccountServiceTest {
 
@@ -57,6 +59,30 @@ class NekoAuthAccountServiceTest {
 
         assertThrows(NekoAuthAccountService.NekoAuthServiceException.class,
                 service::resolveServerBaseUrl);
+    }
+
+    @Test
+    void sharedSessionAcceptsAccountsWithoutEmail() throws Exception {
+        for (String email : new String[]{"", ",\"email\":null", ",\"email\":\"\""}) {
+            var account = NekoAuthAccountService.parseSharedAccount(MAPPER.readTree(
+                    "{\"id\":10001,\"username\":\"mobile-user\",\"enabled\":true" + email + "}"));
+            assertEquals(10001L, account.id());
+            assertEquals("", account.email());
+            assertEquals("mobile-user", account.nickname());
+            assertTrue(account.enabled());
+        }
+    }
+
+    @Test
+    void sharedSessionStillRejectsInvalidIdentityAndPreservesDisabledState() throws Exception {
+        for (String json : new String[]{"null", "{}", "{\"id\":0}", "{\"id\":-1}"}) {
+            JsonNode node = MAPPER.readTree(json);
+            assertThrows(NekoAuthAccountService.NekoAuthServiceException.class,
+                    () -> NekoAuthAccountService.parseSharedAccount(node));
+        }
+        var disabled = NekoAuthAccountService.parseSharedAccount(
+                MAPPER.readTree("{\"id\":10001,\"enabled\":false}"));
+        assertFalse(disabled.enabled());
     }
 
     private static long parse(String json) throws Exception {

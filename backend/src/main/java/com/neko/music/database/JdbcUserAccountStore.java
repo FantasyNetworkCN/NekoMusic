@@ -4,6 +4,7 @@ import com.neko.music.model.UserAccount;
 import com.neko.music.model.UserProfile;
 import com.neko.music.util.DbTimeUtil;
 import com.neko.music.util.VipUtil;
+import com.neko.music.util.UserEmail;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -41,7 +42,7 @@ public final class JdbcUserAccountStore implements UserAccountStore {
                 users.add(new UserAccount(
                         rs.getInt("id"),
                         null,
-                        rs.getString("email"),
+                        UserEmail.visible(rs.getString("email")),
                         rs.getTimestamp("created_at").toString(),
                         hasVip && VipUtil.isVipActiveNow(vip),
                         hasVip ? vip.toInstant().toString() : null,
@@ -68,7 +69,7 @@ public final class JdbcUserAccountStore implements UserAccountStore {
                 return Optional.of(new UserProfile(
                         rs.getInt("id"),
                         null,
-                        rs.getString("email"),
+                        UserEmail.visible(rs.getString("email")),
                         DbTimeUtil.formatStoredWallClock(rs.getString("created_at")),
                         hasVip ? vip : null,
                         nullableLong(rs, "auth_user_id")));
