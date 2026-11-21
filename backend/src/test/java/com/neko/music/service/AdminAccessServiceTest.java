@@ -27,6 +27,18 @@ class AdminAccessServiceTest {
     }
 
     @Test
+    void nekoAuthSuperAdminRoleGetsAllBackendAccess() {
+        AdminAccessService service = new AdminAccessService(new StubUserAuth("SUPER_ADMIN"));
+
+        AdminAccessService.AccessResult result = service.authorize("token");
+
+        assertTrue(result.allowedAccess());
+        assertEquals(AdminAccessService.AccessStatus.ALLOWED, result.status());
+        assertNotNull(result.principal());
+        assertEquals("ADMIN", result.principal().role());
+    }
+
+    @Test
     void ordinaryUserIsForbiddenNotUnauthorized() {
         AdminAccessService service = new AdminAccessService(new StubUserAuth("USER"));
 
