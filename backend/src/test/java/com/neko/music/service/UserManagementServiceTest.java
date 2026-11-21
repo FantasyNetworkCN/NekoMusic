@@ -61,11 +61,12 @@ class UserManagementServiceTest {
     }
 
     @Test
-    void adminIdentityIsCaseInsensitiveButStillOnlyAdmin() {
+    void adminIdentityAcceptsAdminAndSuperAdminCaseInsensitively() {
         assertTrue(AdminAccessService.isAdminRole("ADMIN"));
         assertTrue(AdminAccessService.isAdminRole("admin"));
+        assertTrue(AdminAccessService.isAdminRole("SUPER_ADMIN"));
+        assertTrue(AdminAccessService.isAdminRole("super_admin"));
         assertFalse(AdminAccessService.isAdminRole("USER"));
-        assertFalse(AdminAccessService.isAdminRole("super_admin"));
     }
 
     private static AuthPrincipal principal(String role) {

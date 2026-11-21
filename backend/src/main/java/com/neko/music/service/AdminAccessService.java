@@ -74,9 +74,14 @@ public final class AdminAccessService {
                 normalizeRole(identity.role())));
     }
 
-    /** NekoAuth 当前角色只有 ADMIN / USER；大小写兼容，其它值一律不是管理员。 */
+    /** NekoAuth 的 ADMIN 与 SUPER_ADMIN 均可进入后台；大小写兼容，其它值一律不是管理员。 */
     public static boolean isAdminRole(String role) {
-        return role != null && "ADMIN".equalsIgnoreCase(role.trim());
+        if (role == null) {
+            return false;
+        }
+        String normalized = role.trim();
+        return "ADMIN".equalsIgnoreCase(normalized)
+                || "SUPER_ADMIN".equalsIgnoreCase(normalized);
     }
 
     private static String normalizeRole(String role) {
