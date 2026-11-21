@@ -5,6 +5,7 @@ import com.neko.music.model.User;
 import com.neko.music.util.DbTimeUtil;
 import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.RequestScope;
+import com.neko.music.util.UserEmail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,16 +51,14 @@ public class UserAuthService {
         if (authUserId <= 0) {
             throw new IllegalStateException("NekoAuth 用户 ID 无效");
         }
-        String normalizedEmail = email == null ? "" : email.trim().toLowerCase();
-        if (normalizedEmail.isEmpty()) {
-            throw new IllegalStateException("NekoAuth 未返回邮箱");
-        }
+        String normalizedEmail = UserEmail.normalize(email);
+        String storedEmail = UserEmail.forStorage(authUserId, normalizedEmail);
 
         User byAuthId = findUserByAuthId(authUserId, authNickname);
         if (byAuthId != null) {
             if (!normalizedEmail.equalsIgnoreCase(byAuthId.email())) {
-                updateLocalAccountBinding(byAuthId.id(), authUserId, normalizedEmail);
-                byAuthId = findUserById(byAuthId.id()).orElse(byAuthId);
+                updateLocalAccountBinding(byAuthId.id(), authUserId, storedEmail);
+                byAuthId = withNickname(findUserById(byAuthId.id()).orElse(byAuthId), authNickname);
             }
             return byAuthId;
         }
@@ -68,7 +67,7 @@ public class UserAuthService {
                 + DbTimeUtil.SQL_NOW_SHANGHAI + ")";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setString(1, normalizedEmail);
+            stmt.setString(1, storedEmail);
             stmt.setLong(2, authUserId);
             stmt.executeUpdate();
             try (ResultSet keys = stmt.getGeneratedKeys()) {
@@ -169,7 +168,7 @@ public class UserAuthService {
     private User mapUser(ResultSet rs, String nicknameOverride) throws SQLException {
         java.sql.Timestamp vipTs = rs.getTimestamp("vip_expires_at");
         boolean hasVip = !rs.wasNull();
-        String email = rs.getString("email");
+        String email = UserEmail.visible(rs.getString("email"));
         long rawAuthUserId = rs.getLong("auth_user_id");
         Long authUserId = rs.wasNull() ? null : rawAuthUserId;
         String nickname = nicknameOverride == null || nicknameOverride.isBlank()
@@ -198,8 +197,8 @@ public class UserAuthService {
             stmt.setInt(1, userId);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    String email = rs.getString("email");
-                    if (email != null && !email.isBlank()) {
+                    String email = UserEmail.visible(rs.getString("email"));
+                    if (!email.isBlank()) {
                         return Optional.of(email.trim());
                     }
                 }

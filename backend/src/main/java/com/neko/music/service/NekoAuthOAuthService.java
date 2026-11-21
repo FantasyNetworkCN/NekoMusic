@@ -44,7 +44,7 @@ import java.util.Set;
  * <p>Web 不使用本服务，而是通过 NekoAuth 父域共享会话恢复登录态。</p>
  *
  * <p><b>昵称边界：</b>NekoAuth 是昵称唯一权威源。本服务读取 UserInfo 的
- * {@code sub}/{@code email} 匹配本地资料；{@code name} 只用于本次响应，不写入本地数据库。</p>
+ * {@code sub} 匹配本地资料，邮箱允许为空；{@code name} 只用于本次响应，不写入本地数据库。</p>
  */
 public final class NekoAuthOAuthService {
 
@@ -343,11 +343,8 @@ public final class NekoAuthOAuthService {
             throw new OAuthLoginException("invalid_subject", "NekoAuth 用户标识无效");
         }
 
-        // email_verified 属于 NekoAuth 的账号状态，不作为 NekoMusic 登录门槛。
+        // 邮箱及其验证状态属于可选资料，手机号账号可以没有 email claim。
         String email = textOrEmpty(userInfo, "email");
-        if (email.isBlank()) {
-            throw new OAuthLoginException("email_missing", "NekoAuth 未返回邮箱");
-        }
         String nickname = textOrEmpty(userInfo, "name");
         if (nickname.isBlank()) {
             nickname = textOrEmpty(userInfo, "preferred_username");

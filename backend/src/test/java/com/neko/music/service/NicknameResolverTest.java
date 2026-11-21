@@ -33,6 +33,8 @@ class NicknameResolverTest {
 
         assertEquals("cat", resolver.resolveByAuthId(9L, "cat@example.com"));
         assertEquals("听众", resolver.resolveByAuthId(null, null));
+        assertEquals("听众", resolver.resolveByAuthId(9L,
+                com.neko.music.util.UserEmail.forStorage(9L, null)));
     }
 
     @Test

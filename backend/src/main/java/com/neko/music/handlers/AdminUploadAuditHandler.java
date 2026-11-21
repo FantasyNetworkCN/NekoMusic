@@ -623,7 +623,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             stmt.setInt(1, userId);
             try (java.sql.ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getString("email");
+                    return com.neko.music.util.UserEmail.visible(rs.getString("email"));
                 }
             }
         } catch (java.sql.SQLException e) {

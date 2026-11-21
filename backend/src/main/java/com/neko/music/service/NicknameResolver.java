@@ -2,6 +2,7 @@ package com.neko.music.service;
 
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.util.DbTimeUtil;
+import com.neko.music.util.UserEmail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -101,7 +102,7 @@ public final class NicknameResolver {
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     int localId = rs.getInt("id");
-                    emails.put(localId, rs.getString("email"));
+                    emails.put(localId, UserEmail.visible(rs.getString("email")));
                     long authId = rs.getLong("auth_user_id");
                     if (!rs.wasNull()) {
                         authIds.put(localId, authId);
@@ -166,7 +167,7 @@ public final class NicknameResolver {
                     if (!rs.wasNull()) {
                         localByAuthId.put(authId, new LocalUser(
                                 rs.getInt("id"),
-                                rs.getString("email"),
+                                UserEmail.visible(rs.getString("email")),
                                 DbTimeUtil.formatStoredWallClock(rs.getString("created_at"))));
                     }
                 }
@@ -186,23 +187,29 @@ public final class NicknameResolver {
             if (nickname == null || nickname.isBlank()) {
                 nickname = emailFallback(local.email());
             }
-            results.add(new SearchUser(local.id(), nickname, local.email(), local.createdAt()));
+            results.add(new SearchUser(local.id(),
+                    nickname == null || nickname.isBlank() ? "听众" : nickname, local.email(), local.createdAt()));
         }
         return results;
     }
 
     private List<SearchUser> searchLocalUsersByEmail(String query) {
         String sql = "SELECT id, auth_user_id, email, created_at FROM users "
-                + "WHERE email LIKE ? ORDER BY created_at DESC, id DESC LIMIT 20";
+                + "WHERE email LIKE ? AND email NOT LIKE ? ORDER BY created_at DESC, id DESC LIMIT 20";
         List<LocalUser> locals = new ArrayList<>();
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, "%" + query + "%");
+            stmt.setString(2, UserEmail.UNBOUND_PREFIX + "%");
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
+                    String email = UserEmail.visible(rs.getString("email"));
+                    if (email.isBlank()) {
+                        continue;
+                    }
                     locals.add(new LocalUser(
                             rs.getInt("id"),
-                            rs.getString("email"),
+                            email,
                             DbTimeUtil.formatStoredWallClock(rs.getString("created_at"))));
                 }
             }
@@ -235,7 +242,8 @@ public final class NicknameResolver {
     }
 
     private static String emailFallback(String email) {
-        if (email == null || email.isBlank()) {
+        email = UserEmail.visible(email);
+        if (email.isBlank()) {
             return null;
         }
         int separator = email.indexOf('@');

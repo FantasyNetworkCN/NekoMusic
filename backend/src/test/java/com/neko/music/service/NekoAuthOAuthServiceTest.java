@@ -30,16 +30,28 @@ class NekoAuthOAuthServiceTest {
     }
 
     @Test
-    @DisplayName("UserInfo 缺少邮箱时仍然拒绝登录")
-    void missingEmailIsRejected() throws Exception {
-        JsonNode userInfo = OBJECT_MAPPER.readTree("""
-                {"sub":"10001","email_verified":false}
-                """);
+    @DisplayName("仅绑定手机号的账号允许缺少邮箱")
+    void missingEmailIsAccepted() throws Exception {
+        for (String email : new String[]{"", ",\"email\":null", ",\"email\":\"\""}) {
+            JsonNode userInfo = OBJECT_MAPPER.readTree(
+                    "{\"sub\":\"10001\",\"preferred_username\":\"手机用户\","
+                            + "\"phone_number\":\"+8613900000451\",\"phone_number_verified\":true" + email + "}");
+            var identity = NekoAuthOAuthService.parseOAuthIdentity(userInfo);
+            assertEquals(10001L, identity.authUserId());
+            assertEquals("", identity.email());
+            assertEquals("手机用户", identity.nickname());
+        }
+    }
 
-        NekoAuthOAuthService.OAuthLoginException exception = assertThrows(
-                NekoAuthOAuthService.OAuthLoginException.class,
-                () -> NekoAuthOAuthService.parseOAuthIdentity(userInfo));
-        assertEquals("email_missing", exception.code());
+    @Test
+    @DisplayName("无邮箱账号仍必须提供有效用户标识")
+    void missingEmailDoesNotRelaxSubjectValidation() throws Exception {
+        for (String json : new String[]{"{}", "{\"sub\":\"0\"}", "{\"sub\":\"invalid\"}"}) {
+            JsonNode userInfo = OBJECT_MAPPER.readTree(json);
+            var exception = assertThrows(NekoAuthOAuthService.OAuthLoginException.class,
+                    () -> NekoAuthOAuthService.parseOAuthIdentity(userInfo));
+            assertEquals("invalid_subject", exception.code());
+        }
     }
 
     @Test

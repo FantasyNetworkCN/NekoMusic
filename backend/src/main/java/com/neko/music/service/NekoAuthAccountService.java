@@ -59,10 +59,13 @@ public class NekoAuthAccountService {
                 .POST(HttpRequest.BodyPublishers.noBody())
                 .build();
         HttpResponse<String> response = sendChecked(request, "解析共享登录会话", "/api/auth/shared-session");
-        JsonNode json = parseJson(response.body());
+        return parseSharedAccount(parseJson(response.body()));
+    }
+
+    static SharedAccount parseSharedAccount(JsonNode json) {
         JsonNode id = json == null ? null : json.get("id");
         String email = text(json, "email");
-        if (id == null || !id.canConvertToLong() || id.asLong() <= 0 || email.isBlank()) {
+        if (id == null || !id.canConvertToLong() || id.asLong() <= 0) {
             throw new NekoAuthServiceException(502, "NEKO_AUTH_BAD_RESPONSE",
                     "NekoAuth 共享会话响应格式不正确", 0);
         }
