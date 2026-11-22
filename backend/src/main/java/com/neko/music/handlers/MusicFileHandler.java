@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.i18n.ApiMessages;
 import com.neko.music.service.MusicQualityService;
+import com.neko.music.service.MusicPlayabilityService;
 import com.neko.music.service.MusicSeparationService;
 import com.neko.music.service.PlayCountService;
 import com.neko.music.service.UserAuthService;
@@ -44,6 +45,8 @@ public class MusicFileHandler extends ApiServlet {
             RequestAuthUtil::authenticate,
             MusicFileHandler::isVip,
             MusicLookup::musicRowExists,
+            id -> Main.getMusicPlayabilityService() != null
+                    && Main.getMusicPlayabilityService().isPlayable(id),
             MusicQualityService::resolveAudio,
             MusicSeparationService::separate,
             MusicSeparationService::submit,
@@ -71,6 +74,10 @@ public class MusicFileHandler extends ApiServlet {
         int musicId = target.musicId();
         if (!dependencies.musicExists().test(musicId)) {
             sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "music.file_missing");
+            return;
+        }
+        if (!dependencies.playableChecker().test(musicId)) {
+            sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, "music.not_playable");
             return;
         }
 
@@ -334,6 +341,7 @@ public class MusicFileHandler extends ApiServlet {
             Function<HttpServletRequest, Integer> authenticator,
             IntPredicate vipChecker,
             IntPredicate musicExists,
+            IntPredicate playableChecker,
             AudioResolver audioResolver,
             SeparationProvider separationProvider,
             SeparationJobSubmitter separationJobSubmitter,

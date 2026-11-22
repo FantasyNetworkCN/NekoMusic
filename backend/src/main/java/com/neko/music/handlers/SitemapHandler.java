@@ -61,7 +61,9 @@ public class SitemapHandler extends HttpServlet {
     private List<MusicEntry> loadMusicEntries() {
         List<MusicEntry> list = new ArrayList<>();
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, updated_at FROM music ORDER BY updated_at DESC LIMIT ?";
+            String sql = "SELECT m.id, m.title, m.artist, m.updated_at FROM music m WHERE "
+                    + com.neko.music.service.MusicPlayabilityService.playableCondition("m")
+                    + " ORDER BY m.updated_at DESC LIMIT ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, MAX_URLS_PER_SITEMAP);
                 ResultSet rs = stmt.executeQuery();

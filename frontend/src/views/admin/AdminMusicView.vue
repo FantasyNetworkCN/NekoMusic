@@ -207,6 +207,7 @@
               <th>艺术家</th>
               <th>专辑</th>
               <th>时长</th>
+              <th>播放</th>
               <th>上传时间</th>
               <th aria-label="操作" />
             </tr>
@@ -227,6 +228,14 @@
               <td>{{ music.artist }}</td>
               <td class="cell-dim">{{ music.album }}</td>
               <td class="cell-dim">{{ formatDuration(music.duration) }}</td>
+              <td>
+                <NSwitch
+                  :model-value="music.playable !== false"
+                  :disabled="music.playableSaving"
+                  :label="music.playable !== false ? '允许' : '禁止'"
+                  @change="setMusicPlayable(music, $event)"
+                />
+              </td>
               <td class="cell-dim">{{ formatDate(music.createdAt) }}</td>
               <td class="cell-actions">
                 <NButton
@@ -300,7 +309,7 @@ import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
-import { NButton, NCard, NInput, NModal, NSpinner, NTag } from '@/ui'
+import { NButton, NCard, NInput, NModal, NSpinner, NSwitch, NTag } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 
 const toast = useToast()
@@ -1099,6 +1108,7 @@ const fetchMusicList = async () => {
       // 将API返回的音乐数据转换为前端可用的格式
       musicList.value = data.data.map(music => ({
         ...music,
+        playable: music.playable !== false,
         uploadTime: new Date(music.createdAt) // 转换日期格式
       }))
       updateSearchResults()
@@ -1365,6 +1375,33 @@ const deleteMusic = async (id) => {
       console.error('删除音乐时出错:', error)
       toast.error('删除音乐时出错')
     }
+  }
+}
+
+const setMusicPlayable = async (music, playable) => {
+  const previous = music.playable !== false
+  music.playable = playable
+  music.playableSaving = true
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/playable/${music.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`
+      },
+      body: JSON.stringify({ playable })
+    })
+    const data = await response.json()
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || '更新播放状态失败')
+    }
+    music.playable = data.data?.playable === true
+    toast.success(playable ? '已允许播放' : '已禁止播放，并从所有收藏和歌单中移除')
+  } catch (error) {
+    music.playable = previous
+    toast.error(error.message || '更新播放状态失败')
+  } finally {
+    music.playableSaving = false
   }
 }
 

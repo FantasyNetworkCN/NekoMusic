@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.service.AdminMusicIngestService;
 import com.neko.music.service.ExternalFillQuotaService;
 import com.neko.music.service.MusicSearchRanker;
+import com.neko.music.service.MusicPlayabilityService;
 import com.neko.music.service.NeteaseSearchFillService;
 import com.neko.music.service.SearchIndexService;
 import com.neko.music.search.SearchSession;
@@ -430,6 +431,7 @@ public class MusicSearchHandler extends ApiServlet {
             }
             sql.append("(SELECT ").append(MUSIC_SEARCH_COLUMNS)
                     .append("FROM music WHERE (").append(String.join(" OR ", conditions))
+                    .append(") AND ").append(MusicPlayabilityService.playableCondition("music"))
                     .append(") ORDER BY created_at DESC LIMIT ?)");
         }
         return sql.toString();
@@ -577,7 +579,8 @@ public class MusicSearchHandler extends ApiServlet {
             placeholders.append('?');
         }
 
-        String sql = "SELECT " + MUSIC_SEARCH_COLUMNS + " FROM music WHERE id IN (" + placeholders + ")";
+        String sql = "SELECT " + MUSIC_SEARCH_COLUMNS + " FROM music WHERE id IN (" + placeholders + ")"
+                + " AND " + MusicPlayabilityService.playableCondition("music");
         Map<Integer, Music> byId = new HashMap<>();
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < ids.size(); i++) {
@@ -773,7 +776,8 @@ public class MusicSearchHandler extends ApiServlet {
 
     /** 按 ID 取一首曲目；不存在返回 null。列与模糊搜索一致，保证返回结构（含 maxQuality）同形。 */
     private static Music findMusicById(Connection conn, int musicId) throws SQLException {
-        String sql = "SELECT " + MUSIC_BASE_COLUMNS + " FROM music WHERE id = ?";
+        String sql = "SELECT " + MUSIC_BASE_COLUMNS + " FROM music WHERE id = ?"
+                + " AND " + MusicPlayabilityService.playableCondition("music");
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, musicId);
             try (ResultSet rs = stmt.executeQuery()) {

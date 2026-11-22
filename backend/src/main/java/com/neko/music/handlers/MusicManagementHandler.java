@@ -8,8 +8,10 @@ import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
 import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.MusicIngestSupport;
+import com.neko.music.service.MusicPlayabilityService;
 import com.neko.music.service.SearchIndexService;
 import com.neko.music.util.CoverArtCache;
+import com.neko.music.util.JsonResponseCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -31,6 +33,13 @@ import com.neko.music.i18n.ApiMessages;
 
 public class MusicManagementHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicManagementHandler.class);
+    private static final String MUSIC_COLUMNS = """
+            m.id, m.title, m.artist, m.album, m.duration, m.language, m.tags,
+            m.upload_user_id, m.created_at, m.updated_at, m.max_quality,
+            COALESCE(mp.playable, TRUE) AS playable
+            """;
+    private static final String MUSIC_SELECT = "SELECT " + MUSIC_COLUMNS
+            + " FROM music m LEFT JOIN music_playability mp ON mp.music_id = m.id";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -86,8 +95,11 @@ public class MusicManagementHandler extends HttpServlet {
             return;
         }
         
-        // 对于PUT请求，总是执行编辑操作，不严格区分路径
-        // 因为PUT方法的语义就是更新资源
+        String pathInfo = request.getPathInfo();
+        if (pathInfo != null && pathInfo.startsWith("/playable/")) {
+            updatePlayability(pathInfo.substring("/playable/".length()), request, response);
+            return;
+        }
         editMusic(request, response);
     }
 
@@ -166,7 +178,7 @@ public class MusicManagementHandler extends HttpServlet {
         List<Music> musicList = new ArrayList<>();
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music ORDER BY created_at DESC";
+            String sql = MUSIC_SELECT + " ORDER BY m.created_at DESC";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 ResultSet rs = stmt.executeQuery();
                 
@@ -197,7 +209,7 @@ public class MusicManagementHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
+            String sql = MUSIC_SELECT + " WHERE m.id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
                 
@@ -271,7 +283,7 @@ public class MusicManagementHandler extends HttpServlet {
             // 获取新添加的音乐信息
             Music newMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
+                String sql = MUSIC_SELECT + " WHERE m.id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, id);
                     
@@ -309,7 +321,7 @@ public class MusicManagementHandler extends HttpServlet {
 
             Music currentMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
+                String sql = MUSIC_SELECT + " WHERE m.id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, editRequest.id());
                     try (ResultSet rs = stmt.executeQuery()) {
@@ -377,28 +389,14 @@ public class MusicManagementHandler extends HttpServlet {
             // 获取更新后的音乐信息
             Music updatedMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, language, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
+                String sql = MUSIC_SELECT + " WHERE m.id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, editRequest.id());
                     
                     ResultSet rs = stmt.executeQuery();
                     
                     if (rs.next()) {
-                        updatedMusic = new Music(
-                                rs.getInt("id"),
-                                rs.getString("title"),
-                                rs.getString("artist"),
-                                rs.getString("album"),
-                                rs.getInt("duration"),
-                                MusicAssetLocator.fileApiUrl(rs.getInt("id")),
-                                MusicAssetLocator.coverApiUrl(rs.getInt("id")),
-                                rs.getString("language"),
-                                null,
-                                rs.getInt("upload_user_id"),
-                                rs.getTimestamp("created_at").toString(),
-                                rs.getTimestamp("updated_at").toString(),
-                                MusicAssetLocator.coverApiUrl(rs.getInt("id")),
-                                rs.getString("max_quality"));
+                        updatedMusic = mapMusic(rs);
                     }
                 }
             }
@@ -411,6 +409,50 @@ public class MusicManagementHandler extends HttpServlet {
             // JSON 解析异常的消息含内部类名与字段清单，只能落日志，响应只回泛化提示
             logger.warn("编辑音乐请求处理失败", e);
             HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("auth.bad_request"));
+        }
+    }
+
+    private void updatePlayability(String idStr, HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        response.setHeader("Cache-Control", "private, no-store");
+        int musicId;
+        try {
+            musicId = Integer.parseInt(idStr);
+        } catch (NumberFormatException e) {
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400,
+                    new ErrorResponse("music.id_invalid"));
+            return;
+        }
+
+        SetPlayabilityRequest body;
+        try {
+            body = Main.getObjectMapper().readValue(request.getInputStream(), SetPlayabilityRequest.class);
+        } catch (Exception e) {
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400,
+                    new ErrorResponse("auth.bad_request"));
+            return;
+        }
+        if (body == null || body.playable() == null) {
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400,
+                    new ErrorResponse("music.playable_required"));
+            return;
+        }
+
+        try {
+            MusicPlayabilityService.ChangeResult result =
+                    Main.getMusicPlayabilityService().setPlayable(musicId, body.playable());
+            JsonResponseCache.invalidate(LatestMusicHandler.CACHE_KEY);
+            JsonResponseCache.invalidate(MusicRankingHandler.CACHE_KEY);
+            SearchIndexService.notifyMusicChanged(musicId);
+            HandlerResponses.writeJson(response, HttpStatus.OK_200,
+                    new PlayabilityResponse(true, ApiMessages.translate("music.playable.ok"), result));
+        } catch (IllegalArgumentException e) {
+            HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404,
+                    new ErrorResponse("music.not_found"));
+        } catch (Exception e) {
+            logger.error("更新曲目播放状态失败 musicId={} playable={}", musicId, body.playable(), e);
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                    new ErrorResponse("music.playable.failed"));
         }
     }
 
@@ -442,7 +484,8 @@ public class MusicManagementHandler extends HttpServlet {
                 rs.getTimestamp("created_at").toString(),
                 rs.getTimestamp("updated_at").toString(),
                 MusicAssetLocator.coverApiUrl(id),
-                rs.getString("max_quality"));
+                rs.getString("max_quality"),
+                rs.getBoolean("playable"));
     }
 
     // 内部类用于表示音乐对象
@@ -451,7 +494,10 @@ public class MusicManagementHandler extends HttpServlet {
             int id, String title, String artist, String album, int duration,
             String filePath, String coverFilePath, String language, String tags,
             int uploadUserId, String createdAt, String updatedAt, String coverUrl,
-            String maxQuality) {
+            String maxQuality, boolean playable) {
+    }
+
+    private record SetPlayabilityRequest(Boolean playable) {
     }
     
     // 内部类用于表示添加音乐请求
@@ -476,6 +522,10 @@ public class MusicManagementHandler extends HttpServlet {
     
     // 内部类用于表示单个音乐响应
     private record MusicResponse(boolean success, String message, Music data) {
+    }
+
+    private record PlayabilityResponse(
+            boolean success, String message, MusicPlayabilityService.ChangeResult data) {
     }
     
     // 保存歌词到数据库（失败时抛异常，由调用方返回明确错误）

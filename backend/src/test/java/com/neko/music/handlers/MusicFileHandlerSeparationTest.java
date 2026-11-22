@@ -83,12 +83,28 @@ class MusicFileHandlerSeparationTest {
         assertTrue(result.body().contains("请先登录"));
     }
 
+    @Test
+    void unplayableTrackIsRejectedBeforeResolvingAudio() throws Exception {
+        Response result = request(Map.of(), "quality", "hq",
+                dependencies(42, true, new AtomicBoolean(), false));
+
+        assertEquals(403, result.status());
+        assertTrue(result.body().contains("禁止播放"));
+    }
+
     private static MusicFileHandler.Dependencies dependencies(Integer userId, boolean vip,
                                                                AtomicBoolean separationCalled) {
+        return dependencies(userId, vip, separationCalled, true);
+    }
+
+    private static MusicFileHandler.Dependencies dependencies(Integer userId, boolean vip,
+                                                               AtomicBoolean separationCalled,
+                                                               boolean playable) {
         return new MusicFileHandler.Dependencies(
                 request -> userId,
                 id -> vip,
                 id -> true,
+                id -> playable,
                 (id, quality) -> "/tmp/7.mp3",
                 id -> {
                     separationCalled.set(true);

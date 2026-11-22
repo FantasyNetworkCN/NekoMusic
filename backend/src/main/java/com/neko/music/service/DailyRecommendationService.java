@@ -79,7 +79,8 @@ public class DailyRecommendationService {
     private static final String CANDIDATE_COLUMNS =
             "SELECT m.id, m.title, m.artist, m.album, m.language, m.tags, m.play_count, m.created_at FROM music m";
     private static final String CANDIDATE_NOT_FAVORITED =
-            " WHERE NOT EXISTS (SELECT 1 FROM user_favorites uf WHERE uf.user_id = ? AND uf.music_id = m.id)";
+            " WHERE NOT EXISTS (SELECT 1 FROM user_favorites uf WHERE uf.user_id = ? AND uf.music_id = m.id)"
+                    + " AND " + MusicPlayabilityService.playableCondition("m");
 
     /**
      * 成品响应体的缓存时长。

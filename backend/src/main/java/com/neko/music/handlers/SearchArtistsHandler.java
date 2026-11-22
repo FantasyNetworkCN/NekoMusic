@@ -4,6 +4,7 @@ import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
+import com.neko.music.service.MusicPlayabilityService;
 import com.neko.music.database.DatabaseManager;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -85,10 +86,12 @@ public class SearchArtistsHandler extends ApiServlet {
         List<JsonObject> musicList = new ArrayList<>();
 
         String musicSql = """
-            SELECT id, title, artist, album, duration, file_format, language, max_quality
-            FROM music
-            WHERE artist = ?
-            ORDER BY id
+            SELECT m.id, m.title, m.artist, m.album, m.duration, m.file_format,
+                   m.language, m.max_quality
+            FROM music m
+            WHERE m.artist = ? AND """ + MusicPlayabilityService.playableCondition("m") + """
+
+            ORDER BY m.id
             """;
 
         try (Connection conn = databaseManager.getConnection()) {
@@ -96,9 +99,12 @@ public class SearchArtistsHandler extends ApiServlet {
 
             if (isPinyin) {
                 String aggSql = """
-                    SELECT artist, COUNT(*) AS music_count FROM music
-                    WHERE (artist LIKE ? OR artist_pinyin LIKE ? OR artist_pinyin_initials LIKE ? OR artist_word_initials LIKE ?)
-                    GROUP BY artist ORDER BY music_count DESC LIMIT 1
+                    SELECT m.artist, COUNT(*) AS music_count FROM music m
+                    WHERE (m.artist LIKE ? OR m.artist_pinyin LIKE ? OR m.artist_pinyin_initials LIKE ?
+                           OR m.artist_word_initials LIKE ?)
+                      AND """ + MusicPlayabilityService.playableCondition("m") + """
+
+                    GROUP BY m.artist ORDER BY music_count DESC LIMIT 1
                     """;
                 try (PreparedStatement stmt = conn.prepareStatement(aggSql)) {
                     String likeQuery = "%" + queryLower + "%";
@@ -118,13 +124,14 @@ public class SearchArtistsHandler extends ApiServlet {
                 logger.debug("searchArtists variants: {}", variants);
 
                 StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("SELECT artist, COUNT(*) AS music_count FROM music WHERE (");
+                sqlBuilder.append("SELECT m.artist, COUNT(*) AS music_count FROM music m WHERE (");
                 List<String> conditions = new ArrayList<>();
                 for (int i = 0; i < variants.size(); i++) {
                     conditions.add("artist LIKE ?");
                 }
                 sqlBuilder.append(String.join(" OR ", conditions));
-                sqlBuilder.append(") GROUP BY artist ORDER BY music_count DESC LIMIT 1");
+                sqlBuilder.append(") AND ").append(MusicPlayabilityService.playableCondition("m"))
+                        .append(" GROUP BY m.artist ORDER BY music_count DESC LIMIT 1");
 
                 try (PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
                     int paramIndex = 1;

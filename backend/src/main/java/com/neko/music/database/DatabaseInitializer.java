@@ -32,6 +32,18 @@ public class DatabaseInitializer {
             
             executeTableDdl(stmt, createFavoritesTable,
                     "user_favorites 表创建成功", "创建 user_favorites 表失败（可能是表已存在）");
+
+            String createMusicPlayabilityTable = """
+                CREATE TABLE IF NOT EXISTS music_playability (
+                    music_id INT NOT NULL PRIMARY KEY,
+                    playable BOOLEAN NOT NULL DEFAULT TRUE,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+
+            executeTableDdl(stmt, createMusicPlayabilityTable,
+                    "music_playability 表创建成功", "创建 music_playability 表失败（可能是表已存在）");
             
             // 创建用户收藏歌单表
             String createFavoritePlaylistsTable = """

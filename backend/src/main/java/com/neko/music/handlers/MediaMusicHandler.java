@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.Main;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
 import jakarta.servlet.http.HttpServlet;
@@ -28,6 +29,11 @@ public final class MediaMusicHandler extends HttpServlet {
         try {
             musicId = Integer.parseInt(parts[0]);
         } catch (NumberFormatException e) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        if (Main.getMusicPlayabilityService() != null
+                && !Main.getMusicPlayabilityService().isPlayable(musicId)) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }

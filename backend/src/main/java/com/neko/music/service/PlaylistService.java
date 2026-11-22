@@ -212,6 +212,11 @@ public class PlaylistService {
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
 
+            if (!MusicPlayabilityService.isPlayable(conn, musicId)) {
+                logger.warn("音乐不可播放，拒绝加入歌单: playlistId={}, musicId={}", playlistId, musicId);
+                return false;
+            }
+
             checkStmt.setInt(1, playlistId);
             checkStmt.setInt(2, musicId);
             ResultSet rs = checkStmt.executeQuery();
@@ -298,6 +303,11 @@ public class PlaylistService {
                     conn.rollback();
                     logger.warn("目标歌单不存在，停止追加: playlistId={}, musicId={}", playlistId, musicId);
                     return AppendMusicResult.PLAYLIST_MISSING;
+                }
+                if (!MusicPlayabilityService.isPlayable(conn, musicId)) {
+                    conn.rollback();
+                    logger.warn("音乐不可播放，停止追加: playlistId={}, musicId={}", playlistId, musicId);
+                    return AppendMusicResult.FAILED;
                 }
                 if (playlistMusicExists(conn, playlistId, musicId)) {
                     logger.warn("音乐已存在于歌单中: playlistId={}, musicId={}", playlistId, musicId);

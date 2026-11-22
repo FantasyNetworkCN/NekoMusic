@@ -112,6 +112,7 @@ public class RequestAuditFilter implements Filter {
             // 音乐：/api/music 同时承载公开接口，这里只登记写方法；听歌识曲 /api/music/recognize 不在其列
             new OperationRule("/api/music/upload", Set.of("POST"), "音乐管理", "上传音乐"),
             new OperationRule("/api/music/upload", Set.of("PUT"), "音乐管理", "修改音乐"),
+            new OperationRule("/api/music/playable", Set.of("PUT"), "音乐管理", "修改播放权限"),
             new OperationRule("/api/music", Set.of("POST"), "音乐管理", "新增音乐"),
             new OperationRule("/api/music", Set.of("PUT"), "音乐管理", "修改音乐"),
             new OperationRule("/api/music", Set.of("DELETE"), "音乐管理", "删除音乐"),

@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.service.MusicPlayabilityService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -229,6 +230,10 @@ public class UserFavoriteHandler extends ApiServlet {
 
         try (Connection conn = Main.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            if (!MusicPlayabilityService.isPlayable(conn, musicId)) {
+                return false;
+            }
 
             stmt.setInt(1, userId);
             stmt.setInt(2, musicId);

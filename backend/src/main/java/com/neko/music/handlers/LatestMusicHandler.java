@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.service.MusicPlayabilityService;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.JsonResponseCache;
 import com.neko.music.util.MusicAssetLocator;
@@ -33,7 +34,7 @@ public class LatestMusicHandler extends HttpServlet {
      * 同一份成品不会比客户端已经接受的口径更旧；TTL 取 10 秒只是为了让「刚上传的歌」尽快出现，
      * 同时把每次请求一次的全表排序查询 + 序列化彻底移出关键路径。</p>
      */
-    private static final String CACHE_KEY = "music.latest";
+    static final String CACHE_KEY = "music.latest";
 
     /** 进程内成品缓存时长（毫秒）。 */
     private static final long CACHE_TTL_MILLIS = 10_000L;
@@ -75,11 +76,13 @@ public class LatestMusicHandler extends HttpServlet {
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = """
-                SELECT id, title, artist, album, duration, language, tags, file_format, created_at, max_quality
-                FROM music
-                ORDER BY created_at DESC
+                SELECT m.id, m.title, m.artist, m.album, m.duration, m.language, m.tags,
+                       m.file_format, m.created_at, m.max_quality
+                FROM music m
+                WHERE %s
+                ORDER BY m.created_at DESC
                 LIMIT ?
-                """;
+                """.formatted(MusicPlayabilityService.playableCondition("m"));
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, LATEST_LIMIT);
 

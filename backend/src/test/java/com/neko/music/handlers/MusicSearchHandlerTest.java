@@ -124,7 +124,9 @@ class MusicSearchHandlerTest {
         Object music = findMusicById.invoke(null, stubConnection(columns, true, sql, boundId), 148);
 
         assertEquals("SELECT id, title, artist, album, duration, upload_user_id, created_at, max_quality"
-                + " FROM music WHERE id = ?", sql.get());
+                + " FROM music WHERE id = ?"
+                + " AND NOT EXISTS (SELECT 1 FROM music_playability mp_filter"
+                + " WHERE mp_filter.music_id = music.id AND mp_filter.playable = FALSE)", sql.get());
         assertEquals(148, boundId.get());
         String json = new ObjectMapper().writeValueAsString(music);
         assertEquals(148, new ObjectMapper().readTree(json).path("id").asInt());

@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.service.MusicPlayabilityService;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.JsonResponseCache;
 import com.neko.music.util.MusicAssetLocator;
@@ -27,7 +28,7 @@ public class MusicRankingHandler extends HttpServlet {
     private static final int RANKING_LIMIT = 200;
 
     /** 成品响应体缓存键与 TTL（理由同 {@link LatestMusicHandler}：公开缓存接口，与请求头无关）。 */
-    private static final String CACHE_KEY = "music.ranking";
+    static final String CACHE_KEY = "music.ranking";
 
     /** 进程内成品缓存时长（毫秒）。 */
     private static final long CACHE_TTL_MILLIS = 10_000L;
@@ -68,12 +69,13 @@ public class MusicRankingHandler extends HttpServlet {
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = """
-                SELECT id, title, artist, album, duration, language, tags, play_count, max_quality
-                FROM music
-                WHERE play_count > 0
-                ORDER BY play_count DESC
+                SELECT m.id, m.title, m.artist, m.album, m.duration, m.language, m.tags,
+                       m.play_count, m.max_quality
+                FROM music m
+                WHERE m.play_count > 0 AND %s
+                ORDER BY m.play_count DESC
                 LIMIT ?
-                """;
+                """.formatted(MusicPlayabilityService.playableCondition("m"));
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, RANKING_LIMIT);
 

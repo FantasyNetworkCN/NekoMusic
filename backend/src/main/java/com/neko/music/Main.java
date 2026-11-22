@@ -121,6 +121,7 @@ public class Main {
     private static DailyRecommendationService dailyRecommendationService;
     private static SearchIndexService searchIndexService;
     private static LyricsDatabaseManager lyricsDatabaseManager;
+    private static MusicPlayabilityService musicPlayabilityService;
     private static MusicRecognitionService musicRecognitionService;
     private static ScheduledExecutorService dailyRecommendationScheduler;
     private static LogDatabaseManager logDatabaseManager;
@@ -267,6 +268,7 @@ public class Main {
         searchIndexService.start();
         Runtime.getRuntime().addShutdownHook(new Thread(searchIndexService::close, "search-index-shutdown"));
 
+        musicPlayabilityService = new MusicPlayabilityService(databaseManager);
         musicRecognitionService = new MusicRecognitionService(databaseManager, configManager);
         musicRecognitionService.warmUp();
         Runtime.getRuntime().addShutdownHook(new Thread(musicRecognitionService::close, "music-recognition-shutdown"));
@@ -604,6 +606,10 @@ public class Main {
 
     public static LyricsDatabaseManager getLyricsDatabaseManager() {
         return lyricsDatabaseManager;
+    }
+
+    public static MusicPlayabilityService getMusicPlayabilityService() {
+        return musicPlayabilityService;
     }
 
     public static MusicRecognitionService getMusicRecognitionService() {
