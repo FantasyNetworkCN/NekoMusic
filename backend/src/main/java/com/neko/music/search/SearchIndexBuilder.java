@@ -3,7 +3,7 @@
  * Copyright (C) 2026 NekoMusic contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Portions derived from ArchoeraMusic, Copyright (C) 2026 Archoera && BetaStudio2,
+ * Portions derived from ArchoeraMusic, Copyright (C) 2026 ArchoeraMusic contributors,
  * AGPL-3.0-or-later. 修改说明：去掉 library.db / mtime / 世代水位线，改用
  * 「元数据 + 歌词 content_hash」指纹做增量判定；歌词按批读取，全量不常驻内存。
  */

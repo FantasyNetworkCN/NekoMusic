@@ -3,7 +3,7 @@
  * Copyright (C) 2026 NekoMusic contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Portions derived from ArchoeraMusic, Copyright (C) 2026 Archoera && BetaStudio2,
+ * Portions derived from ArchoeraMusic, Copyright (C) 2026 ArchoeraMusic contributors,
  * AGPL-3.0-or-later. 修改说明：繁转简复用 Neko 既有的 opencc4j，
  * 拼音改为离线导出词库的最长匹配（详见 PinyinFacade）。
  */

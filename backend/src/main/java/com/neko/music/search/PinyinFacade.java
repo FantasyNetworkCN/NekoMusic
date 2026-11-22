@@ -3,7 +3,7 @@
  * Copyright (C) 2026 NekoMusic contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Portions derived from ArchoeraMusic, Copyright (C) 2026 Archoera && BetaStudio2,
+ * Portions derived from ArchoeraMusic, Copyright (C) 2026 ArchoeraMusic contributors,
  * AGPL-3.0-or-later. 修改说明：ToolGood.Words 的词库离线导出为
  * resources/search/pinyin_words.tsv、pinyin_chars.tsv，Java 侧做最长匹配 + 单字回退。
  */
