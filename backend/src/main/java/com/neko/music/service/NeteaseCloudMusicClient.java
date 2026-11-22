@@ -532,8 +532,10 @@ public class NeteaseCloudMusicClient {
     public void downloadToFile(String url, Path destination, DownloadProgressListener listener) throws IOException {
         // 地址来自上游响应，只放行网易云官方接口 / CDN 域名，顺带挡掉内网与元数据地址
         URI targetUri = OutboundUrlGuard.requireAllowedHttpUrl(url, ALLOWED_HOSTS);
+        // 媒体文件可能很大（母带 FLAC 可达数百 MB）：请求总超时放宽到 15 分钟，
+        // 避免用 45s 的接口超时把大文件下载中途掐断（连接超时仍由 httpClient 控制）。
         HttpRequest request = HttpRequest.newBuilder().uri(targetUri)
-                .timeout(Duration.ofSeconds(config.getNeteaseHttpTimeoutSeconds())).header("User-Agent", userAgent()).GET().build();
+                .timeout(Duration.ofMinutes(15)).header("User-Agent", userAgent()).GET().build();
         try {
             HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() != 200) throw new IOException("下载失败 HTTP " + response.statusCode());

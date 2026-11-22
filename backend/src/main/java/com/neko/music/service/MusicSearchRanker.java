@@ -1,5 +1,6 @@
 package com.neko.music.service;
 
+import com.neko.music.search.ScriptRanges;
 import com.neko.music.util.ChineseConverter;
 
 import java.util.ArrayList;
@@ -656,7 +657,7 @@ public final class MusicSearchRanker {
     }
 
     private static boolean isCjkCodePoint(int codePoint) {
-        return isCjk(codePoint);
+        return ScriptRanges.isCjk(codePoint) || ScriptRanges.isSubstringScript(codePoint);
     }
 
     private static int layeredScore(int titleScore, int artistScore, int albumScore) {
@@ -730,29 +731,6 @@ public final class MusicSearchRanker {
     }
 
     private static boolean isCjk(int codePoint) {
-        return isIdeograph(codePoint) || isKana(codePoint) || isHangul(codePoint);
-    }
-
-    private static boolean isIdeograph(int codePoint) {
-        return codePoint == 0x3007
-                || (codePoint >= 0x3400 && codePoint <= 0x4DBF)
-                || (codePoint >= 0x4E00 && codePoint <= 0x9FFF)
-                || (codePoint >= 0xF900 && codePoint <= 0xFAFF)
-                || (codePoint >= 0x20000 && codePoint <= 0x2EE5F)
-                || (codePoint >= 0x2F800 && codePoint <= 0x2FA1F)
-                || (codePoint >= 0x30000 && codePoint <= 0x323AF);
-    }
-
-    private static boolean isKana(int codePoint) {
-        return (codePoint >= 0x3040 && codePoint <= 0x30FF)
-                || (codePoint >= 0x31F0 && codePoint <= 0x31FF)
-                || (codePoint >= 0xFF66 && codePoint <= 0xFF9D)
-                || (codePoint >= 0x1AFF0 && codePoint <= 0x1B16F);
-    }
-
-    private static boolean isHangul(int codePoint) {
-        return (codePoint >= 0xAC00 && codePoint <= 0xD7AF)
-                || (codePoint >= 0x1100 && codePoint <= 0x11FF)
-                || (codePoint >= 0x3130 && codePoint <= 0x318F);
+        return ScriptRanges.isCjk(codePoint) || ScriptRanges.isSubstringScript(codePoint);
     }
 }

@@ -5,16 +5,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
-import java.io.BufferedOutputStream;
-import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -23,10 +23,41 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MusicRecognitionIndexRefreshTest {
     @TempDir
     Path tempDirectory;
+
+    @Test
+    void streamingRecognitionOnlyReadsTheValidBufferPrefix() throws Exception {
+        short[] samples = new short[8 * AudioFingerprintEngine.SAMPLE_RATE];
+        byte[] padded = new byte[samples.length * 2 + 257];
+        Random random = new Random(20261120);
+        random.nextBytes(padded);
+        for (int i = 0; i < samples.length; i++) {
+            samples[i] = (short) ((padded[i * 2] & 0xff) | (padded[i * 2 + 1] << 8));
+        }
+        MutableCatalog catalog = new MutableCatalog(List.of(track(1)), false);
+        FakeDecoder decoder = new FakeDecoder();
+        decoder.put("1.mp3", new AudioFingerprintEngine().fingerprint(samples));
+        MusicRecognitionService service = service(catalog, decoder, Map.of(1, audioFile("1.mp3")));
+        try {
+            service.warmUp();
+            awaitIndexed(service, 1, 10);
+            var prefix = service.recognizePcm16k(padded, samples.length * 2);
+            assertTrue(prefix.isPresent());
+            assertEquals(service.recognizePcm16k(Arrays.copyOf(padded, samples.length * 2)), prefix);
+            assertThrows(MusicRecognitionService.InvalidAudioException.class,
+                    () -> service.recognizePcm16k(padded));
+            for (int invalid : new int[]{-1, 0, 1, padded.length + 1}) {
+                assertThrows(MusicRecognitionService.InvalidAudioException.class,
+                        () -> service.recognizePcm16k(padded, invalid));
+            }
+        } finally {
+            service.close();
+        }
+    }
 
     @Test
     void publishesFirstBuildEvenIfCatalogChangesDuringBuildAndKeepsServingIt() throws Exception {
@@ -153,148 +184,45 @@ class MusicRecognitionIndexRefreshTest {
     }
 
     @Test
-    void servesLegacyPanakoIndexWhileTonalIndexAndAppendedTracksAreBuilt() throws Exception {
+    void metadataOnlyCatalogChangesReuseIndexWithoutRewriteOrDecode() throws Exception {
         MusicRecognitionService.Track track = track(1);
-        MusicRecognitionService.Track appendedTrack = track(2);
         Path audio = audioFile("1.mp3");
-        Path appendedAudio = audioFile("2.mp3");
-        MusicRecognitionService.Track legacyTrack = new MusicRecognitionService.Track(
-                1, "Legacy title", "Legacy artist", "Legacy album",
-                240, "", "", "2026-10-01T00:00:00Z");
-        MusicRecognitionService.CatalogEntry catalogEntry = new MusicRecognitionService.CatalogEntry(
-                legacyTrack,
-                new MusicRecognitionService.AudioAsset(
-                        audio.getFileName().toString(),
-                        Files.size(audio),
-                        Files.getLastModifiedTime(audio).toMillis()));
-        MusicRecognitionService.FullIndexDiskCache fullIndexCache =
-                new MusicRecognitionService.FullIndexDiskCache(tempDirectory.resolve("legacy-library.nfi"));
-        writeLegacyIndex(fullIndexCache, catalogEntry);
-
+        Path indexFile = tempDirectory.resolve("metadata-library.nfi");
         FakeDecoder decoder = new FakeDecoder();
-        decoder.put("1.mp3", tonalFingerprint());
-        decoder.put("2.mp3", fingerprint(200_000));
-        decoder.put("query-exact.wav", fingerprint(100_000));
-        decoder.put("query-appended.wav", fingerprint(200_000));
-        decoder.put("query-tonal.wav", tonalOnlyFingerprint());
-        decoder.blockOnce("1.mp3");
-        MusicRecognitionService service = new MusicRecognitionService(
-                new ConfigManager(),
-                new MutableCatalog(List.of(track, appendedTrack), false),
-                decoder,
-                decoder,
-                new MusicRecognitionService.FingerprintDiskCache(tempDirectory.resolve("legacy-cache")),
-                fullIndexCache,
-                ids -> Map.of(1, audio, 2, appendedAudio));
+        decoder.put("1.mp3", fingerprint(100_000));
+        decoder.put("query.wav", fingerprint(100_000));
+        MusicRecognitionService.FullIndexDiskCache fullIndexCache =
+                new MusicRecognitionService.FullIndexDiskCache(indexFile);
+        MutableCatalog catalog = new MutableCatalog(List.of(track), false);
+        MusicRecognitionService service = service(catalog, decoder, Map.of(1, audio), fullIndexCache);
         try {
             service.warmUp();
-            assertTrue(decoder.awaitBlocked(5), "legacy index migration should decode the tonal cache");
+            awaitIndexed(service, 1, 5);
+            int decodesAfterFirstBuild = decoder.decodeCount();
+            long persistedAt = Files.getLastModifiedTime(indexFile).toMillis();
+            int hashes = service.status().uniqueHashes();
 
-            Optional<MusicRecognitionService.RecognitionResult> legacyResult =
-                    service.recognize(tempDirectory.resolve("query-exact.wav"));
-            assertTrue(legacyResult.isPresent(), "the legacy Panako snapshot must remain queryable");
-            assertEquals(1, legacyResult.orElseThrow().track().id());
+            // 播放计数 / 标题更新只改 updated_at 与元数据，不应重建 posting 或重写索引文件。
+            catalog.rename(1, "Renamed after play count");
+            service.invalidateIndex();
+            assertTrue(catalog.awaitLoadCount(2, 5), "the refresh should re-read the catalog");
+            awaitIndexed(service, 1, 5);
 
-            decoder.release();
-            awaitIndexed(service, 2, 10);
-            assertTrue(fullIndexCache.load().orElseThrow().tonalReady(),
-                    "the replacement snapshot should persist the completed tonal index");
+            assertEquals(decodesAfterFirstBuild, decoder.decodeCount(),
+                    "metadata-only changes must not decode audio again");
+            assertTrue(service.status().ready(), "the reused index must stay ready");
+            assertEquals(hashes, service.status().uniqueHashes(), "postings must be reused");
+            assertEquals(persistedAt, Files.getLastModifiedTime(indexFile).toMillis(),
+                    "metadata-only changes must not rewrite the persisted index");
 
-            Optional<MusicRecognitionService.RecognitionResult> tonalResult =
-                    service.recognize(tempDirectory.resolve("query-tonal.wav"));
-            assertTrue(tonalResult.isPresent(), "the supplemented tonal index should be queryable");
-            assertEquals(1, tonalResult.orElseThrow().track().id());
-            assertEquals(track.title(), tonalResult.orElseThrow().track().title(),
-                    "the replacement snapshot should refresh catalog metadata");
-
-            Optional<MusicRecognitionService.RecognitionResult> appendedResult =
-                    service.recognize(tempDirectory.resolve("query-appended.wav"));
-            assertTrue(appendedResult.isPresent(), "new catalog tracks should be added to the exact index");
-            assertEquals(2, appendedResult.orElseThrow().track().id());
+            Optional<MusicRecognitionService.RecognitionResult> result =
+                    service.recognize(tempDirectory.resolve("query.wav"));
+            assertTrue(result.isPresent(), "reused index must keep serving recognition");
+            assertEquals("Renamed after play count", result.orElseThrow().track().title(),
+                    "catalog metadata should be refreshed without rebuilding postings");
         } finally {
-            decoder.release();
             service.close();
         }
-    }
-
-    private void writeLegacyIndex(
-            MusicRecognitionService.FullIndexDiskCache cache,
-            MusicRecognitionService.CatalogEntry entry) throws IOException {
-        Path file = tempDirectory.resolve("legacy-library.nfi");
-        try (DataOutputStream output = new DataOutputStream(
-                new BufferedOutputStream(Files.newOutputStream(file)))) {
-            output.writeInt(0x4e464931);
-            output.writeInt(2);
-            output.writeInt(AudioFingerprintEngine.ALGORITHM_VERSION);
-            output.writeInt(1);
-            output.writeInt(entry.track().id());
-            writeString(output, entry.track().title());
-            writeString(output, entry.track().artist());
-            writeString(output, entry.track().album());
-            output.writeInt(entry.track().duration());
-            writeString(output, entry.track().language());
-            writeString(output, entry.track().tags());
-            writeString(output, entry.track().updatedAt());
-            output.writeBoolean(true);
-            writeString(output, entry.audio().fileName());
-            output.writeLong(entry.audio().size());
-            output.writeLong(entry.audio().modifiedAtMillis());
-            output.writeInt(1);
-            output.writeInt(1);
-            output.writeInt(6);
-            for (int i = 0; i < 6; i++) {
-                output.writeLong(100_000L + i * 10_000L);
-                output.writeInt(1);
-                output.writeLong(((long) 1 << 32) | (100L + i * 60L));
-            }
-        }
-    }
-
-    private static void writeString(DataOutputStream output, String value) throws IOException {
-        byte[] bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        output.writeInt(bytes.length);
-        output.write(bytes);
-    }
-
-    private static AudioFingerprintEngine.Fingerprint tonalFingerprint() {
-        int[] roots = {0, 5, 7, 3, 8, 0, 10, 5, 7, 0, 3, 8, 5, 7, 0, 3, 10, 5};
-        int[] qualities = {0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0};
-        int[] pitches = {0, 4, 7, 5, 9, 2, 7, 2, 11, 4, 7, 2, 5, 9, 0, 7, 2, 5};
-        int frames = roots.length;
-        byte[] chroma = new byte[frames * 12];
-        byte[] chords = new byte[frames];
-        byte[] pitchClasses = new byte[frames];
-        for (int frame = 0; frame < frames; frame++) {
-            int root = roots[frame];
-            int third = (root + ((qualities[frame] & 1) == 0 ? 4 : 3)) % 12;
-            int fifth = (root + 7) % 12;
-            for (int pitch = 0; pitch < 12; pitch++) {
-                int value = 18 + Math.floorMod(pitch * 13 + frame * 7, 48);
-                if (pitch == root) {
-                    value = 248;
-                } else if (pitch == third) {
-                    value = 205;
-                } else if (pitch == fifth) {
-                    value = 178;
-                } else if (pitch == pitches[frame]) {
-                    value = 226;
-                }
-                chroma[frame * 12 + pitch] = (byte) value;
-            }
-            chords[frame] = (byte) ((root << 1) | qualities[frame]);
-            pitchClasses[frame] = (byte) pitches[frame];
-        }
-        return new AudioFingerprintEngine.Fingerprint(
-                landmarks(100_000), (long) frames * TonalFingerprintEngine.FRAME_SAMPLES,
-                new TonalFingerprintEngine.TonalFingerprint(
-                        chroma, chords, pitchClasses, frames,
-                        (long) frames * TonalFingerprintEngine.FRAME_SAMPLES));
-    }
-
-    private static AudioFingerprintEngine.Fingerprint tonalOnlyFingerprint() {
-        AudioFingerprintEngine.Fingerprint fingerprint = tonalFingerprint();
-        return new AudioFingerprintEngine.Fingerprint(
-                List.of(), fingerprint.sampleCount(), fingerprint.tonal());
     }
 
     private static List<AudioFingerprintEngine.Landmark> landmarks(long baseHash) {
@@ -309,13 +237,22 @@ class MusicRecognitionIndexRefreshTest {
             MutableCatalog catalog,
             FakeDecoder decoder,
             Map<Integer, Path> audioFiles) {
+        return service(catalog, decoder, audioFiles,
+                new MusicRecognitionService.FullIndexDiskCache(tempDirectory.resolve("library.nfi")));
+    }
+
+    private MusicRecognitionService service(
+            MutableCatalog catalog,
+            FakeDecoder decoder,
+            Map<Integer, Path> audioFiles,
+            MusicRecognitionService.FullIndexDiskCache fullIndexCache) {
         return new MusicRecognitionService(
                 new ConfigManager(),
                 catalog,
                 decoder,
                 decoder,
                 new MusicRecognitionService.FingerprintDiskCache(tempDirectory.resolve("cache")),
-                new MusicRecognitionService.FullIndexDiskCache(tempDirectory.resolve("library.nfi")),
+                fullIndexCache,
                 ids -> audioFiles.entrySet().stream()
                         .filter(entry -> ids.contains(entry.getKey()))
                         .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue)));
@@ -372,9 +309,34 @@ class MusicRecognitionIndexRefreshTest {
             tracks.set(List.copyOf(updated));
         }
 
+        /** 模拟播放计数写入：保持曲目与音频不变，只改标题与 updated_at。 */
+        private void rename(int id, String title) {
+            List<MusicRecognitionService.Track> updated = new ArrayList<>(tracks.get().size());
+            for (MusicRecognitionService.Track track : tracks.get()) {
+                updated.add(track.id() == id
+                        ? new MusicRecognitionService.Track(track.id(), title, track.artist(),
+                                track.album(), track.duration(), track.language(), track.tags(),
+                                "2026-11-18T01:00:00Z")
+                        : track);
+            }
+            tracks.set(List.copyOf(updated));
+        }
+
+        private boolean awaitLoadCount(int expected, int timeoutSeconds) throws InterruptedException {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+            while (System.nanoTime() < deadline) {
+                if (loadCount.get() >= expected) {
+                    return true;
+                }
+                Thread.sleep(20);
+            }
+            return loadCount.get() >= expected;
+        }
+
         @Override
         public List<MusicRecognitionService.Track> loadTracks() throws Exception {
-            if (pauseSecondLoad && loadCount.incrementAndGet() == 2) {
+            int loads = loadCount.incrementAndGet();
+            if (pauseSecondLoad && loads == 2) {
                 secondLoadStarted.countDown();
                 if (!secondLoadRelease.await(10, TimeUnit.SECONDS)) {
                     throw new IOException("second build was not released");
@@ -395,6 +357,7 @@ class MusicRecognitionIndexRefreshTest {
     private static final class FakeDecoder implements MusicRecognitionService.FingerprintDecoder {
         private final Map<String, AudioFingerprintEngine.Fingerprint> fingerprints = new ConcurrentHashMap<>();
         private final Set<String> blockOnce = ConcurrentHashMap.newKeySet();
+        private final AtomicInteger decodeCount = new AtomicInteger();
         private final CountDownLatch blocked = new CountDownLatch(1);
         private final CountDownLatch released = new CountDownLatch(1);
 
@@ -410,6 +373,10 @@ class MusicRecognitionIndexRefreshTest {
             return blocked.await(timeoutSeconds, TimeUnit.SECONDS);
         }
 
+        private int decodeCount() {
+            return decodeCount.get();
+        }
+
         private void release() {
             released.countDown();
         }
@@ -417,6 +384,7 @@ class MusicRecognitionIndexRefreshTest {
         @Override
         public AudioFingerprintEngine.Fingerprint decode(
                 Path audio, int maxDurationSeconds, Duration timeout) throws IOException {
+            decodeCount.incrementAndGet();
             String fileName = audio.getFileName().toString();
             if (blockOnce.remove(fileName)) {
                 blocked.countDown();

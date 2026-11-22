@@ -4,6 +4,7 @@ import com.neko.music.Main;
 import com.neko.music.database.LyricsReportDatabaseManager;
 import com.neko.music.model.AuthPrincipal;
 import com.neko.music.service.EmbeddedMetadataSyncService;
+import com.neko.music.service.SearchIndexService;
 import com.neko.music.util.DbTimeUtil;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.NekoLyrics;
@@ -203,9 +204,7 @@ public final class AdminLyricsReportHandler extends ApiServlet {
 
     private void rebuildLyricsSideEffects(int musicId) {
         try {
-            if (Main.getLyricsSearchIndex() != null) {
-                Main.getLyricsSearchIndex().rebuildOne(musicId);
-            }
+            SearchIndexService.notifyMusicChanged(musicId);
         } catch (Exception e) {
             // 索引失败不影响审核结果，下次启动会重建。
         }

@@ -3,6 +3,7 @@ package com.neko.music.service;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.model.User;
 import com.neko.music.util.DbTimeUtil;
+import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.RequestScope;
 import com.neko.music.util.UserEmail;
 import org.slf4j.Logger;
@@ -307,7 +308,11 @@ public class UserAuthService {
         if (token == null || token.isBlank() || nekoAuthAccountService == null) {
             return Optional.empty();
         }
-        String normalized = token.trim();
+        // 兼容两种 Authorization 写法：`<token>` 与 `Bearer <token>`。
+        // 迁移到 NekoAuth introspection 后若只 trim，则所有直接把原始
+        // Authorization 头传进来的处理器（UserFavoriteHandler
+        // 等）会带着 "Bearer " 去 introspect，导致「登录成功但受保护接口一律 401」。
+        String normalized = RequestAuthUtil.normalizeBearerToken(token);
         if (sharedWebSessionService != null
                 && sharedWebSessionService.isSharedSessionToken(normalized)) {
             try {
