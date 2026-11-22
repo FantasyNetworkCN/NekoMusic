@@ -8,7 +8,6 @@ import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
 import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.MusicIngestSupport;
-import com.neko.music.service.SearchIndexService;
 import com.neko.music.util.CoverArtCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
@@ -154,7 +153,9 @@ public class MusicManagementHandler extends HttpServlet {
         MusicAssetLocator.deleteAudioVariants(id);
 
         Main.getLyricsDatabaseManager().delete(id);
-        SearchIndexService.notifyMusicChanged(id);
+        if (Main.getLyricsSearchIndex() != null) {
+            Main.getLyricsSearchIndex().rebuildOne(id);
+        }
         MusicIngestSupport.invalidateRecognitionIndex();
 
         HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, ApiMessages.translate("music.delete.ok")));
