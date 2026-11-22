@@ -305,7 +305,7 @@ public class NeteaseSearchFillService {
             if (ingested.isPresent()) {
                 return new ExactIngest(songId, title, artist, album, ingested, false, FillReason.NONE);
             }
-            boolean loggedIn = probeLoginStateAndReport();
+            boolean loggedIn = neteaseClient.isLoggedIn();
             return new ExactIngest(songId, title, artist, album, Optional.empty(), false, failReason(loggedIn).reason());
         } catch (Exception e) {
             logger.error("网易云歌曲下载入库失败 songId={} title={}", songId, title, e);
@@ -331,7 +331,7 @@ public class NeteaseSearchFillService {
     }
 
     private FillAttempt doFillFromNetease(String reqTitle, String reqArtist) {
-        boolean loggedIn = probeLoginStateAndReport();
+        boolean loggedIn = neteaseClient.isLoggedIn();
         if (!loggedIn) {
             logger.warn("网易云 API 未登录或 Cookie 已失效（/login/status profile 为空），"
                     + "Hi-Res/无损可能不可用，将尝试降档或跳过");
@@ -1031,22 +1031,6 @@ public class NeteaseSearchFillService {
     }
 
     /**
-     * 探测一次登录态并把结果上报给 {@link NeteaseLoginMonitor}（事件驱动掉线告警，替代定时巡检）。
-     *
-     * <p>复用补全失败时本就要做的登录态探测，不额外增加请求；查询失败（网络异常）不判为掉线。</p>
-     */
-    private boolean probeLoginStateAndReport() {
-        Optional<Boolean> probed = neteaseClient.probeLoginState();
-        probed.ifPresent(state -> {
-            NeteaseLoginMonitor monitor = Main.getNeteaseLoginMonitor();
-            if (monitor != null) {
-                monitor.reportLoginState(state);
-            }
-        });
-        return probed.orElse(false);
-    }
-
-    /**
      * 探测一次 QQ 登录态并上报给 {@link QQLoginMonitor}（事件驱动掉线告警，与网易云同构）。
      *
      * <p>仅在 QQ 补全「有候选但全部未能入库」时调用：Cookie 失效会让付费曲退化为游客态、
@@ -1061,7 +1045,6 @@ public class NeteaseSearchFillService {
             }
         });
     }
-
     private static boolean prefersHighQuality(String quality) {
         if (quality == null || quality.isBlank()) {
             return true;

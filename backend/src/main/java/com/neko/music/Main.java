@@ -288,11 +288,15 @@ public class Main {
         // 初始化通知服务
         notificationService = new NotificationService(configManager);
 
-        // 网易云登录掉线告警（事件驱动，无定时巡检）：Cookie 失效时由真实请求结果触发一次 hook
+        // 网易云登录掉线巡检：Cookie 失效时推送一次 hook，提醒管理员重新扫码登录
         neteaseLoginMonitor = new NeteaseLoginMonitor(configManager, neteaseCloudMusicClient, notificationService);
+        neteaseLoginMonitor.start();
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(neteaseLoginMonitor::shutdown, "netease-login-monitor-shutdown"));
+
         // QQ 音乐登录掉线告警（同样事件驱动，由 QQ 补全失败时探测上报）
         qqLoginMonitor = new QQLoginMonitor(configManager, qqMusicClient, notificationService);
-        
+
         QueuedThreadPool threadPool = new QueuedThreadPool();
         threadPool.setName("jetty-worker");
         threadPool.setMinThreads(configManager.getJettyMinThreads());
@@ -557,14 +561,9 @@ public class Main {
         return neteaseCloudMusicClient;
     }
 
-    public static NeteaseLoginMonitor getNeteaseLoginMonitor() {
-        return neteaseLoginMonitor;
-    }
-
     public static QQLoginMonitor getQqLoginMonitor() {
         return qqLoginMonitor;
     }
-
     public static AppReleaseService getAppReleaseService() {
         return appReleaseService;
     }
