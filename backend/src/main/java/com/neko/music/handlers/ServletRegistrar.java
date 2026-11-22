@@ -233,10 +233,6 @@ public final class ServletRegistrar {
         ServletHolder adminLogHolder = new ServletHolder(new AdminLogHandler());
         context.addServlet(adminLogHolder, "/api/admin/logs/*");
 
-        // 网易云补全扫码登录（管理员及以上）：/api/admin/netease/*
-        ServletHolder adminNeteaseLoginHolder = new ServletHolder(new AdminNeteaseLoginHandler());
-        context.addServlet(adminNeteaseLoginHolder, "/api/admin/netease/*");
-
         // QQ 音乐补全扫码登录（管理员及以上）：/api/admin/qq/*
         ServletHolder adminQqLoginHolder = new ServletHolder(new AdminQQLoginHandler());
         context.addServlet(adminQqLoginHolder, "/api/admin/qq/*");
