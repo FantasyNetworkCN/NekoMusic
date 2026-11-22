@@ -86,8 +86,16 @@ public final class MusicQualityService {
             if (Files.isRegularFile(derived) && Files.size(derived) > 0) {
                 return derived.toString();
             }
-            Files.createDirectories(derived.getParent());
-            Path temporary = Files.createTempFile(derived.getParent(), musicId + "-" + actual + "-", ".tmp");
+            Path temporary;
+            try {
+                Files.createDirectories(derived.getParent());
+                temporary = Files.createTempFile(derived.getParent(), musicId + "-" + actual + "-", ".tmp");
+            } catch (IOException e) {
+                // 派生缓存目录不可用不应阻断普通播放：直接回退到原始音源。
+                logger.warn("派生音频目录不可用，降级返回原始音源 id={} quality={} dir={}: {}",
+                        musicId, actual, derived.getParent(), e.getMessage());
+                return source.toString();
+            }
             try {
                 int bitrate = SQ.equals(actual) ? 0 : (STANDARD.equals(actual) ? STANDARD_KBPS : HQ_KBPS);
                 int code = NativeAudioQuality.transcode(resolveFfmpeg(), source.toString(), temporary.toString(), bitrate);
