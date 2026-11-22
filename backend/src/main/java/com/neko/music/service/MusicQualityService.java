@@ -30,6 +30,7 @@ public final class MusicQualityService {
     public static final String HQ = "hq";
     public static final String SQ = "sq";
     public static final String HIRES = "hires";
+    public static final String DOLBY = "dolby";
 
     private static final Logger logger = LoggerFactory.getLogger(MusicQualityService.class);
     private static final ConcurrentMap<String, ReentrantLock> TRANSCODE_LOCKS = new ConcurrentHashMap<>();
@@ -207,9 +208,7 @@ public final class MusicQualityService {
             return null;
         }
 
-        String quality = isLosslessCodec(codec)
-                ? ((sampleRate >= 96000 || bits >= 24) ? HIRES : SQ)
-                : qualityFromBitrate((int) bitrate);
+        String quality = qualityForCodec(codec, sampleRate, bits, (int) bitrate);
         return new Probe(quality, (int) Math.min(bitrate, Integer.MAX_VALUE), sampleRate, bits, channels);
     }
 
@@ -246,6 +245,27 @@ public final class MusicQualityService {
                     case "flac", "alac", "wavpack", "ape", "tta", "tak", "shorten", "mlp", "truehd", "dst" -> true;
                     default -> codec.startsWith("dsd_");
                 };
+    }
+
+    /**
+     * 杜比音频源统一作为最高音质档位；AC-3 / E-AC-3 虽然可能有损，也不降级成普通 MP3 档位。
+     * Dolby Atmos 可能位于 E-AC-3 的 JOC 扩展或 TrueHD 对象音轨中，客户端需自行决定是否可解码或直通。
+     */
+    private static boolean isDolbyCodec(String codec) {
+        return switch (codec) {
+            case "ac3", "eac3", "truehd", "mlp" -> true;
+            default -> false;
+        };
+    }
+
+    static String qualityForCodec(String codec, int sampleRate, int bits, int bitrate) {
+        String normalized = codec == null ? "" : codec.trim().toLowerCase(Locale.ROOT);
+        if (isDolbyCodec(normalized)) {
+            return DOLBY;
+        }
+        return isLosslessCodec(normalized)
+                ? ((sampleRate >= 96000 || bits >= 24) ? HIRES : SQ)
+                : qualityFromBitrate(bitrate);
     }
 
     private static String qualityFromBitrate(int bps) {
@@ -296,6 +316,7 @@ public final class MusicQualityService {
             case HQ, "mq", "320" -> HQ;
             case SQ, "lossless", "无损" -> SQ;
             case HIRES, "hi-res", "hi_res" -> HIRES;
+            case DOLBY, "dolby atmos", "atmos", "杜比" -> DOLBY;
             default -> HQ;
         };
     }
@@ -306,6 +327,7 @@ public final class MusicQualityService {
             case HQ -> 1;
             case SQ -> 2;
             case HIRES -> 3;
+            case DOLBY -> 4;
             default -> 1;
         };
     }

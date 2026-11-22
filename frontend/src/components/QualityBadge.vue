@@ -14,7 +14,7 @@ import { computed } from 'vue'
 import { t } from '@/i18n'
 
 const props = defineProps({
-  /** 后端 maxQuality：standard / hq / sq / hires，空值不展示 */
+  /** 后端 maxQuality：standard / hq / sq / hires / dolby，空值不展示 */
   quality: {
     type: String,
     default: ''
@@ -25,7 +25,8 @@ const TIERS = {
   standard: { tier: 'standard', label: t('quality.standard') },
   hq: { tier: 'hq', label: t('quality.high') },
   sq: { tier: 'sq', label: t('quality.lossless') },
-  hires: { tier: 'hires', label: 'Hi-Res' }
+  hires: { tier: 'hires', label: 'Hi-Res' },
+  dolby: { tier: 'dolby', label: t('quality.dolby') }
 }
 
 const matched = computed(() => TIERS[String(props.quality || '').trim().toLowerCase()] || null)
@@ -65,5 +66,9 @@ const label = computed(() => matched.value?.label || '')
 
 .quality-badge--hires {
   color: #e0567a;
+}
+
+.quality-badge--dolby {
+  color: #2f6fed;
 }
 </style>

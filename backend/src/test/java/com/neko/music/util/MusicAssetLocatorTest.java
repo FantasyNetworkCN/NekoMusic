@@ -19,7 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class MusicAssetLocatorTest {
 
-    private static final List<String> AUDIO_EXT = List.of("flac", "wav", "mp3", "m4a", "aac", "ogg");
+    private static final List<String> AUDIO_EXT = List.of(
+            "flac", "wav", "eac3", "ec3", "ac3", "thd", "truehd", "mlp", "mp3", "m4a", "aac", "ogg");
 
     @TempDir
     Path dir;
@@ -41,6 +42,12 @@ class MusicAssetLocatorTest {
     void picksLowerPriorityWhenHigherMissing() throws IOException {
         Path mp3 = touch("7.mp3");
         assertEquals(mp3, MusicAssetLocator.findIdNamedFile(dir, 7, AUDIO_EXT).orElseThrow());
+    }
+
+    @Test
+    void locatesDolbyAudioSources() throws IOException {
+        Path eac3 = touch("7.eac3");
+        assertEquals(eac3, MusicAssetLocator.findIdNamedFile(dir, 7, AUDIO_EXT).orElseThrow());
     }
 
     @Test

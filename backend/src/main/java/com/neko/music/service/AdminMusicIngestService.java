@@ -55,7 +55,7 @@ public class AdminMusicIngestService {
             int duration,
             int uploadUserId,
             String createdAt,
-            /** 该曲最高音质（standard/hq/sq/hires）；未探测过为 null。 */
+            /** 该曲最高音质（standard/hq/sq/hires/dolby）；未探测过为 null。 */
             String maxQuality
     ) {}
 

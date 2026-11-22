@@ -282,6 +282,7 @@ export default {
     standard: 'Standard',
     high: 'High',
     lossless: 'Lossless',
+    dolby: 'Dolby',
   },
   nowPlaying: {
     label: 'Now playing',

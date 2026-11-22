@@ -19,7 +19,7 @@ public final class MusicAssetLocator {
     public static final String AUDIO_REL_DIR = "Music";
 
     private static final List<String> AUDIO_EXT_PRIORITY = List.of(
-            "flac", "wav", "mp3", "m4a", "aac", "ogg");
+            "flac", "wav", "eac3", "ec3", "ac3", "thd", "truehd", "mlp", "mp3", "m4a", "aac", "ogg");
 
     private MusicAssetLocator() {
     }

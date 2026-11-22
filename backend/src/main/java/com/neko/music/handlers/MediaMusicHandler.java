@@ -119,6 +119,9 @@ public final class MediaMusicHandler extends HttpServlet {
         if (name.endsWith(".flac")) return "audio/flac";
         if (name.endsWith(".wav")) return "audio/wav";
         if (name.endsWith(".m4a")) return "audio/mp4";
+        if (name.endsWith(".eac3") || name.endsWith(".ec3")) return "audio/eac3";
+        if (name.endsWith(".ac3")) return "audio/ac3";
+        if (name.endsWith(".thd") || name.endsWith(".truehd") || name.endsWith(".mlp")) return "audio/truehd";
         return "audio/mpeg";
     }
 }

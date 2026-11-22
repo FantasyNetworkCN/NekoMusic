@@ -302,6 +302,7 @@ export default {
     standard: '标准',
     high: '极高',
     lossless: '无损',
+    dolby: '杜比',
   },
   nowPlaying: {
     label: '正在播放',

@@ -36,7 +36,7 @@ public final class MusicLookup {
         }
     }
 
-    /** 查询曲目最高音质（standard/hq/sq/hires）；不存在或未探测过返回 null。 */
+    /** 查询曲目最高音质（standard/hq/sq/hires/dolby）；不存在或未探测过返回 null。 */
     public static String findMaxQuality(int musicId) {
         try (Connection conn = Main.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement("SELECT max_quality FROM music WHERE id = ?")) {

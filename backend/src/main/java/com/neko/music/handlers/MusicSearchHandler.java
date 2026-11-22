@@ -846,7 +846,7 @@ public class MusicSearchHandler extends ApiServlet {
         private int duration;
         private int uploadUserId;
         private String createdAt;
-        /** 该曲最高音质（standard/hq/sq/hires），与 /api/music/info 的 maxQuality 同义；未探测过为 null。 */
+        /** 该曲最高音质（standard/hq/sq/hires/dolby），与 /api/music/info 的 maxQuality 同义；未探测过为 null。 */
         private String maxQuality;
         // 预计算拼音列
         private String titlePinyin;

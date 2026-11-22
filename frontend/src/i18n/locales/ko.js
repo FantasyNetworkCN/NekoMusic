@@ -233,6 +233,7 @@ export default {
     standard: '표준',
     high: '고음질',
     lossless: '무손실',
+    dolby: 'Dolby',
   },
   nowPlaying: {
     label: '재생 중',
