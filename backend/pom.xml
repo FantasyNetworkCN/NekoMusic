@@ -297,7 +297,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <version>3.6.4</version>
+                <version>3.7.0</version>
 
                 <executions>
                     <!-- 构建 Rust 经典声纹引擎；无外部 Cargo 依赖，制品随 JAR 打入。 -->
