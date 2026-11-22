@@ -6,7 +6,6 @@ import com.neko.music.Main;
 import com.neko.music.service.AppReleaseService;
 import com.neko.music.util.ApkUploadValidator;
 import com.neko.music.util.ClientReleaseStorage;
-import com.neko.music.util.JsonResponseCache;
 import com.neko.music.util.PermissionHelper;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
@@ -103,9 +102,6 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
             temp = null;
             cleanupObsoletePlatformPackages(platform, expectedFileName);
-
-            // 安装包体积变了，/version 里展示的 size 必须立刻跟上（成品缓存按需失效）
-            JsonResponseCache.invalidate(AppReleaseService.VERSION_JSON_CACHE_KEY);
 
             long size = Files.size(target);
             String downloadUrl = ClientReleaseStorage.publicDownloadUrl(
