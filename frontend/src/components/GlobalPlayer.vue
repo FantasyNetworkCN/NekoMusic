@@ -145,6 +145,18 @@
 
         <button
           type="button"
+          class="gp-icon gp-icon--lg gp-stem-button"
+          :class="{ 'is-on': stemEnabled }"
+          :title="$t('player.stemMixer')"
+          :aria-label="$t('player.stemMixer')"
+          :aria-expanded="showStemMixer"
+          @click="toggleStemMixer"
+        >
+          <NIcon name="sliders" :size="18" />
+        </button>
+
+        <button
+          type="button"
           class="gp-icon gp-icon--lg gp-mode"
           :title="getPlaybackModeTitle()"
           :aria-label="getPlaybackModeTitle()"
@@ -175,6 +187,14 @@
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
       @error="onAudioError"
+    />
+    <audio
+      v-if="currentMusic"
+      ref="stemAccompanimentPlayer"
+      :src="stemAccompanimentSrc"
+      crossorigin="anonymous"
+      preload="auto"
+      aria-hidden="true"
     />
 
     <!-- 播放列表弹层 -->
@@ -233,6 +253,68 @@
         </div>
       </div>
     </Transition>
+
+    <Transition name="gp-pop">
+      <div v-if="showStemMixer" class="gp-pop gp-stem-pop">
+        <header class="gp-pop__head">
+          <h3 class="gp-pop__title">{{ $t('player.stemMixer') }}</h3>
+          <button
+            type="button"
+            class="gp-icon gp-icon--sm"
+            :aria-label="$t('common.close')"
+            @click="showStemMixer = false"
+          >
+            <NIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="gp-stem-pop__body">
+          <button
+            type="button"
+            class="gp-stem-pop__enable"
+            :class="{ 'is-on': stemEnabled }"
+            :aria-pressed="stemEnabled"
+            @click="toggleStemEnabled"
+          >
+            <NIcon name="sparkles" :size="16" />
+            <span>{{ stemPhase === 'preparing' ? $t('player.stemPreparing') : $t('player.stemEnable') }}</span>
+          </button>
+          <p v-if="stemStatusText" class="gp-stem-pop__status" :class="{ 'is-error': stemPhase === 'error' }">
+            {{ stemStatusText }}
+          </p>
+          <template v-if="stemEnabled">
+            <label class="gp-stem-pop__control">
+              <span>{{ $t('player.stemVocals') }}</span>
+              <input
+                v-model.number="stemVocals"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                :aria-label="$t('player.stemVocals')"
+                @input="applyStemGains"
+              />
+              <b>{{ Math.round(stemVocals * 100) }}%</b>
+            </label>
+            <label class="gp-stem-pop__control">
+              <span>{{ $t('player.stemInstrumental') }}</span>
+              <input
+                v-model.number="stemInstrumental"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                :aria-label="$t('player.stemInstrumental')"
+                @input="applyStemGains"
+              />
+              <b>{{ Math.round(stemInstrumental * 100) }}%</b>
+            </label>
+            <button type="button" class="gp-stem-pop__reset" @click="resetStemGains">
+              {{ $t('player.stemReset') }}
+            </button>
+          </template>
+        </div>
+      </div>
+    </Transition>
   </div>
 
   <!-- 清空播放列表确认 -->
@@ -250,6 +332,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { resolveMediaUrl } from '@/utils/mediaUrl.js'
+import { requestStemSeparation } from '@/api/stemSeparation.js'
 import { useToast } from 'vue-toastification'
 import { attachAudioElement, unlockAudioAnalyser } from '@/composables/useAudioAnalyser'
 import { clearUrlHash } from '@/utils/routerHistory'
@@ -275,8 +358,30 @@ const router = useRouter()
 // 从localStorage获取当前播放的音乐信息
 const currentMusic = ref(JSON.parse(localStorage.getItem('currentPlayingMusic')) || null)
 const audioPlayer = ref(null)
+const stemAccompanimentPlayer = ref(null)
 // 播放地址由媒体解析接口返回，音频元素只消费最终地址。
 const audioSrc = ref('')
+const stemAccompanimentSrc = ref('')
+const showStemMixer = ref(false)
+const stemActive = ref(false)
+const stemPhase = ref('idle')
+const stemStatusMessage = ref('')
+const savedStemSettings = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('stemMixerSettings') || '{}')
+  } catch {
+    return {}
+  }
+})()
+const stemEnabled = ref(savedStemSettings.enabled === true)
+const stemVocals = ref(Number.isFinite(savedStemSettings.vocals)
+  ? Math.max(0, Math.min(1, savedStemSettings.vocals))
+  : 1)
+const stemInstrumental = ref(Number.isFinite(savedStemSettings.instrumental)
+  ? Math.max(0, Math.min(1, savedStemSettings.instrumental))
+  : 1)
+let stemAbortController = null
+let stemJobSeq = 0
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
@@ -401,6 +506,205 @@ const checkFavoriteStatus = async () => {
   }
 }
 
+const stemStatusText = computed(() => {
+  if (stemStatusMessage.value) return stemStatusMessage.value
+  if (stemPhase.value === 'preparing') return t('player.stemPreparing')
+  if (stemPhase.value === 'active') return t('player.stemActive')
+  if (stemPhase.value === 'error') return t('player.stemFailed')
+  return t('player.stemHint')
+})
+
+const persistStemSettings = () => {
+  localStorage.setItem('stemMixerSettings', JSON.stringify({
+    enabled: stemEnabled.value,
+    vocals: stemVocals.value,
+    instrumental: stemInstrumental.value,
+  }))
+}
+
+const applyStemGains = () => {
+  if (audioPlayer.value) {
+    audioPlayer.value.volume = stemActive.value ? stemVocals.value : (isPlaying.value ? 1 : 0)
+  }
+  if (stemAccompanimentPlayer.value) {
+    stemAccompanimentPlayer.value.volume = stemInstrumental.value
+  }
+  persistStemSettings()
+}
+
+const resetStemGains = () => {
+  stemVocals.value = 1
+  stemInstrumental.value = 1
+  applyStemGains()
+}
+
+const toggleStemMixer = () => {
+  showStemMixer.value = !showStemMixer.value
+  if (showStemMixer.value) showPlaylist.value = false
+}
+
+const playStemAccompaniment = () => {
+  const accompaniment = stemAccompanimentPlayer.value
+  if (!stemActive.value || !accompaniment) return
+  accompaniment.volume = stemInstrumental.value
+  const result = accompaniment.play()
+  result?.catch?.((error) => {
+    if (error?.name !== 'AbortError') console.warn('[player] 伴奏轨播放失败', error)
+  })
+}
+
+const pauseStemPlayback = () => {
+  if (stemAccompanimentPlayer.value) {
+    stemAccompanimentPlayer.value.volume = 0
+    stemAccompanimentPlayer.value.pause()
+  }
+}
+
+const syncStemAccompaniment = () => {
+  if (!stemActive.value) return
+  const main = audioPlayer.value
+  const accompaniment = stemAccompanimentPlayer.value
+  if (!main || !accompaniment || accompaniment.readyState < 1) return
+  const drift = Math.abs(accompaniment.currentTime - main.currentTime)
+  if (drift > 0.12) {
+    try {
+      accompaniment.currentTime = main.currentTime
+    } catch {
+      /* 元数据尚未就绪时忽略 */
+    }
+  }
+  if (!main.paused && accompaniment.paused) playStemAccompaniment()
+  if (main.paused && !accompaniment.paused) accompaniment.pause()
+}
+
+const abortStemJob = () => {
+  stemJobSeq += 1
+  if (stemAbortController) stemAbortController.abort()
+  stemAbortController = null
+}
+
+const activateStemPlayback = async (result, musicId) => {
+  if (!result.vocalsUrl || !result.accompanimentUrl) throw new Error('separation_url_missing')
+  if (String(currentMusic.value?.id) !== String(musicId)) return
+  const main = audioPlayer.value
+  const resumeAt = main?.currentTime || currentTime.value || 0.1
+  const shouldPlay = isPlaying.value && !main?.paused
+
+  stemActive.value = true
+  stemPhase.value = 'active'
+  stemStatusMessage.value = ''
+  stemAccompanimentSrc.value = result.accompanimentUrl
+  audioSrc.value = result.vocalsUrl
+  await nextTick()
+
+  const apply = () => {
+    const primary = audioPlayer.value
+    const accompaniment = stemAccompanimentPlayer.value
+    if (!primary || !accompaniment) return
+    try {
+      primary.currentTime = resumeAt
+      accompaniment.currentTime = resumeAt
+    } catch {
+      /* loadedmetadata 后还会再同步一次 */
+    }
+    primary.volume = stemVocals.value
+    accompaniment.volume = stemInstrumental.value
+    if (shouldPlay) {
+      safePlay(primary)
+      playStemAccompaniment()
+    }
+  }
+  apply()
+  if (audioPlayer.value?.readyState < 1) {
+    audioPlayer.value?.addEventListener('loadedmetadata', apply, { once: true })
+  }
+}
+
+const prepareStemSeparation = async (track = currentMusic.value) => {
+  if (!stemEnabled.value || !track?.id) return
+  abortStemJob()
+  const seq = stemJobSeq
+  const controller = new AbortController()
+  stemAbortController = controller
+  stemPhase.value = 'preparing'
+  stemStatusMessage.value = ''
+  try {
+    const result = await requestStemSeparation(track.id, {
+      signal: controller.signal,
+      onProgress: (event, data) => {
+        if (seq !== stemJobSeq || String(currentMusic.value?.id) !== String(track.id)) return
+        if (event === 'queued') {
+          stemStatusMessage.value = t('player.stemQueued', { position: data?.queuePosition ?? '-' })
+        } else if (event === 'chunk') {
+          stemStatusMessage.value = t('player.stemProgress', {
+            current: (Number(data?.index) || 0) + 1,
+            total: Number(data?.totalChunks) || 0,
+          })
+        }
+      },
+    })
+    if (seq !== stemJobSeq || controller.signal.aborted) return
+    await activateStemPlayback(result, track.id)
+  } catch (error) {
+    if (error?.name === 'AbortError' || seq !== stemJobSeq) return
+    stemEnabled.value = false
+    stemPhase.value = 'error'
+    stemStatusMessage.value = error?.message || t('player.stemFailed')
+    persistStemSettings()
+    toast.error(stemStatusMessage.value)
+  } finally {
+    if (stemAbortController === controller) stemAbortController = null
+  }
+}
+
+const restoreOriginalAfterStem = async () => {
+  const track = currentMusic.value
+  if (!track) return
+  const position = audioPlayer.value?.currentTime || currentTime.value || 0.1
+  const shouldPlay = isPlaying.value
+  stemActive.value = false
+  stemAccompanimentSrc.value = ''
+  pauseStemPlayback()
+  if (!audioSrc.value || audioSrc.value.includes('/media/music/')) {
+    await refreshAudioSrc(track)
+    await nextTick()
+  }
+  const apply = () => {
+    const el = audioPlayer.value
+    if (!el) return
+    try {
+      el.currentTime = position
+    } catch {
+      /* ignore */
+    }
+    el.volume = shouldPlay ? 1 : 0
+    if (shouldPlay) safePlay(el)
+  }
+  apply()
+  if (audioPlayer.value?.readyState < 1) {
+    audioPlayer.value?.addEventListener('loadedmetadata', apply, { once: true })
+  }
+}
+
+const toggleStemEnabled = async () => {
+  if (stemEnabled.value) {
+    stemEnabled.value = false
+    abortStemJob()
+    stemPhase.value = 'idle'
+    stemStatusMessage.value = ''
+    persistStemSettings()
+    if (stemActive.value) await restoreOriginalAfterStem()
+    return
+  }
+  if (!currentMusic.value) {
+    toast.warning(t('player.stemSelectTrack'))
+    return
+  }
+  stemEnabled.value = true
+  persistStemSettings()
+  await prepareStemSeparation(currentMusic.value)
+}
+
 // 播放/暂停控制
 const togglePlayPause = () => {
   // 播放是明确的手势路径：在此解锁音频分析（建立 AudioContext 并 resume）
@@ -438,7 +742,10 @@ const togglePlayPause = () => {
  * 一旦停在中间值就会出现「几乎没声音」的问题（上游 issue #115）。
  */
 const resumeAudio = (audioElement = audioPlayer.value) => {
-  if (audioElement) audioElement.volume = 1
+  if (audioElement) {
+    audioElement.volume = stemActive.value ? stemVocals.value : 1
+  }
+  if (stemActive.value) playStemAccompaniment()
 }
 
 /** 暂停并静音，避免暂停瞬间的重音。 */
@@ -446,6 +753,7 @@ const pauseAudio = (audioElement = audioPlayer.value) => {
   if (!audioElement) return
   audioElement.volume = 0
   audioElement.pause()
+  pauseStemPlayback()
 }
 
 /**
@@ -487,7 +795,9 @@ const onAudioEnded = () => {
     // 单曲循环：重新播放当前歌曲
     if (audioPlayer.value && currentMusic.value) {
       audioPlayer.value.currentTime = 0.2
+      if (stemAccompanimentPlayer.value) stemAccompanimentPlayer.value.currentTime = 0.2
       safePlay(audioPlayer.value)
+      playStemAccompaniment()
       // 更新媒体会话播放状态
       updateMediaSessionPlaybackState()
     }
@@ -515,6 +825,7 @@ const onTimeUpdate = () => {
     updateMediaSessionPositionState()
     
     // 歌词高亮由 activeLyricIndex / barLyric 两个 computed 派生，此处无需处理
+    syncStemAccompaniment()
   }
 }
 
@@ -534,6 +845,7 @@ const onLoadedMetadata = () => {
     
     // 更新媒体会话播放位置
     updateMediaSessionPositionState()
+    syncStemAccompaniment()
   }
 }
 
@@ -553,6 +865,13 @@ const seekTo = (seconds) => {
   const target = Math.max(0, Math.min(Number(seconds) || 0, total || Number(seconds) || 0))
 
   audioPlayer.value.currentTime = target
+  if (stemAccompanimentPlayer.value) {
+    try {
+      stemAccompanimentPlayer.value.currentTime = target
+    } catch {
+      /* 伴奏元数据尚未就绪 */
+    }
+  }
   currentTime.value = target
   progress.value = target
   updateGlobalPlayerState()
@@ -851,6 +1170,7 @@ const showPlaylist = ref(false)
 // 切换播放列表显示
 const togglePlaylist = () => {
   showPlaylist.value = !showPlaylist.value
+  if (showPlaylist.value) showStemMixer.value = false
 }
 
 // 从播放列表播放
@@ -1098,7 +1418,18 @@ const refreshAudioSrc = async (track) => {
 
 const onAudioError = async () => {
   const track = currentMusic.value
-  if (!track || audioSrcRetry >= 2) return
+  if (!track) return
+  if (stemActive.value) {
+    stemEnabled.value = false
+    stemActive.value = false
+    abortStemJob()
+    stemAccompanimentSrc.value = ''
+    pauseStemPlayback()
+    stemPhase.value = 'error'
+    stemStatusMessage.value = t('player.stemFailed')
+    persistStemSettings()
+  }
+  if (audioSrcRetry >= 2) return
   audioSrcRetry += 1
 
   const el = audioPlayer.value
@@ -1345,6 +1676,19 @@ onMounted(() => {
   // 把音频元素注册给频谱分析（Web Audio AnalyserNode 需挂在同一元素上）
   if (audioPlayer.value) attachAudioElement(audioPlayer.value)
 
+  watch(() => currentMusic.value?.id, (id, previousId) => {
+    if (id === previousId) return
+    abortStemJob()
+    stemActive.value = false
+    stemAccompanimentSrc.value = ''
+    pauseStemPlayback()
+    stemPhase.value = 'idle'
+    stemStatusMessage.value = ''
+    if (id != null && stemEnabled.value) {
+      prepareStemSeparation(currentMusic.value)
+    }
+  })
+
   // audio 是 v-if="currentMusic" 渲染的：首次挂载时通常还不存在，
   // 因此监听 ref，等元素出现后再注册（元素被重建时也会重新注册）
   watch(audioPlayer, (el) => {
@@ -1420,6 +1764,11 @@ onMounted(() => {
   
   // 加载播放模式
   loadPlaybackMode()
+
+  // 刷新页面后恢复已启用的服务端分离。
+  if (currentMusic.value && stemEnabled.value) {
+    prepareStemSeparation(currentMusic.value)
+  }
   
   // 初始化媒体会话API
   initializeMediaSession()
@@ -1598,6 +1947,8 @@ const updateMediaSessionPositionState = () => {
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
+  abortStemJob()
+  pauseStemPlayback()
   window.removeEventListener('storage', handleStorageChange)
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
   window.removeEventListener('forcePlay', handleForcePlay)
@@ -2029,6 +2380,91 @@ onUnmounted(() => {
   border-radius: var(--n-radius-lg);
   box-shadow: var(--n-shadow);
   overflow: hidden;
+}
+
+.gp-stem-button.is-on {
+  color: var(--n-accent);
+  border-color: var(--n-accent);
+  background: var(--n-accent-soft);
+}
+
+.gp-stem-pop {
+  width: min(340px, calc(100vw - 32px));
+  max-height: none;
+}
+
+.gp-stem-pop__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-3);
+  padding: var(--n-space-4);
+}
+
+.gp-stem-pop__enable,
+.gp-stem-pop__reset {
+  min-height: 40px;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-sm);
+  background: transparent;
+  color: var(--n-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gp-stem-pop__enable {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n-space-2);
+}
+
+.gp-stem-pop__enable.is-on {
+  color: var(--n-accent);
+  border-color: var(--n-accent);
+  background: var(--n-accent-soft);
+}
+
+.gp-stem-pop__enable:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.gp-stem-pop__status {
+  margin: 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: 1.5;
+}
+
+.gp-stem-pop__status.is-error {
+  color: var(--n-danger);
+}
+
+.gp-stem-pop__control {
+  display: grid;
+  grid-template-columns: 70px 1fr 42px;
+  align-items: center;
+  gap: var(--n-space-2);
+  min-height: 36px;
+  font-size: var(--n-text-sm);
+  color: var(--n-text-muted);
+}
+
+.gp-stem-pop__control input {
+  width: 100%;
+  accent-color: var(--n-accent);
+}
+
+.gp-stem-pop__control b {
+  text-align: right;
+  color: var(--n-text);
+  font-size: var(--n-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.gp-stem-pop__reset {
+  min-height: 34px;
+  color: var(--n-text-faint);
 }
 
 .gp-pop__head {
