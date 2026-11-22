@@ -34,24 +34,36 @@ public final class MediaMusicHandler extends HttpServlet {
 
         Path derivedDir = MusicAssetLocator.derivedDir(musicId);
         Path requested = parts.length > 1 ? derivedDir.resolve(parts[1]).normalize() : null;
-        Path file;
-        if (parts.length > 1) {
-            // 带派生文件名的 URL 只能命中该文件；不能回退成原始音频，否则尚未生成或已被清理的
-            // 人声音轨 URL 会静默播放整首原曲。
-            file = requested != null
-                    && MusicAssetLocator.isUnderDirectory(requested, derivedDir)
-                    && requested.getParent().equals(derivedDir.toAbsolutePath().normalize())
-                    && requested.getFileName().toString().contains(".")
-                    && Files.isRegularFile(requested)
-                    ? requested : null;
-        } else {
-            file = MusicAssetLocator.findAudioFile(musicId).orElse(null);
-        }
+        Path source = MusicAssetLocator.findAudioFile(musicId).orElse(null);
+        Path file = resolveFile(derivedDir, requested, source);
         if (file == null || !Files.isRegularFile(file) || !MusicAssetLocator.isUnderDirectory(file, MusicAssetLocator.audioDir())) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }
         send(file, request, response);
+    }
+
+    /**
+     * 兼容旧客户端使用 {@code /media/music/{id}/{原文件名}} 播放原曲，同时确保不存在的派生文件
+     * 不会误回退成原曲。只有请求文件名与当前原曲文件名完全一致时才允许回退。
+     */
+    static Path resolveFile(Path derivedDir, Path requested, Path source) {
+        if (requested == null) {
+            return source;
+        }
+        Path normalizedDerived = derivedDir.toAbsolutePath().normalize();
+        Path normalizedRequested = requested.toAbsolutePath().normalize();
+        if (MusicAssetLocator.isUnderDirectory(normalizedRequested, normalizedDerived)
+                && normalizedRequested.getParent().equals(normalizedDerived)
+                && normalizedRequested.getFileName().toString().contains(".")
+                && Files.isRegularFile(normalizedRequested)) {
+            return normalizedRequested;
+        }
+        if (source != null
+                && source.getFileName().equals(normalizedRequested.getFileName())) {
+            return source;
+        }
+        return null;
     }
 
     private void send(Path file, HttpServletRequest request, HttpServletResponse response) throws IOException {
