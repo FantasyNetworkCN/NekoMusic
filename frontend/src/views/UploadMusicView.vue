@@ -107,7 +107,7 @@
             @dragleave.prevent="isDragging = false"
             @drop.prevent="handleDrop"
           >
-            <input ref="musicFileInput" type="file" accept="audio/*" class="dropzone__input" @change="handleMusicFileChange" />
+            <input ref="musicFileInput" type="file" :accept="AUDIO_FILE_ACCEPT" class="dropzone__input" @change="handleMusicFileChange" />
             <button type="button" class="dropzone__hit" @click="selectMusicFile">
               <span class="n-visually-hidden">{{ $t('upload.selectAudioAria') }}</span>
               <template v-if="!musicFile">
@@ -214,6 +214,9 @@ import { t } from '@/i18n'
 const toast = useToast()
 const router = useRouter()
 
+const AUDIO_FILE_ACCEPT = '.mp3,.flac,.wav,.m4a,.m4b,.mp4,.aac,.ogg,.oga,.opus,.ape,.wma,.aiff,.aif,.ac3,.eac3,.ec3,.thd,.truehd,.mlp,.mka,.mkv,.webm,.dts,.wv,.caf'
+const AUDIO_FILE_PATTERN = /\.(mp3|flac|wav|m4a|m4b|mp4|aac|ogg|oga|opus|ape|wma|aiff|aif|ac3|eac3|ec3|thd|truehd|mlp|mka|mkv|webm|dts|wv|caf)$/i
+
 const musicFileInput = ref(null)
 const coverFileInput = ref(null)
 const lyricsFileInput = ref(null)
@@ -249,6 +252,8 @@ const isLyricsDragging = ref(false)
 const selectMusicFile = () => {
   musicFileInput.value.click()
 }
+
+const isSupportedAudioFile = (file) => AUDIO_FILE_PATTERN.test(file?.name || '')
 
 const selectCoverFile = () => {
   coverFileInput.value.click()
@@ -363,17 +368,13 @@ const checkAndSaveDurationManual = (audio, objectUrl) => {
 const handleMusicFileChange = async (event) => {
   const file = event.target.files[0]
   if (file) {
-    // 检查文件格式
-    const fileName = file.name.toLowerCase()
-    const fileExtension = fileName.split('.').pop()
-    const isValidFormat = ['.mp3', '.flac', '.wav'].includes('.' + fileExtension)
-
-    if (!isValidFormat) {
+    if (!isSupportedAudioFile(file)) {
       toast.error(t('upload.invalidAudioFormat'))
       event.target.value = ''
       return
     }
 
+    const fileExtension = file.name.toLowerCase().split('.').pop()
     musicFile.value = file
 
 
@@ -680,7 +681,7 @@ const handleDrop = async (event) => {
   const files = event.dataTransfer.files
   if (files.length > 0) {
     const file = files[0]
-    if (file.type.startsWith('audio/')) {
+    if (isSupportedAudioFile(file)) {
       musicFile.value = file
       
       // 读取音频时长

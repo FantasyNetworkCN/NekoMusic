@@ -2,9 +2,8 @@ package com.neko.music.handlers;
 
 import com.neko.music.i18n.ApiMessages;
 import com.neko.music.Main;
-import com.neko.music.util.AudioFileValidator;
+import com.neko.music.util.AudioMediaProbe;
 import com.neko.music.util.RuntimeDiskGuard;
-import com.neko.music.util.AudioIntegrityValidator;
 import com.neko.music.util.TempAudioSpool;
 import com.neko.music.util.LyricsFileValidator;
 import com.neko.music.util.ImageUploadValidator;
@@ -136,37 +135,21 @@ public class UserUploadHandler extends ApiServlet {
             boolean deleteTempIfPresent = true;
             String musicFilePath;
             String fileFormat;
-            AudioFileValidator.AudioFormat detectedFormat;
             try {
                 Files.copy(musicFilePart.getInputStream(), musicTemp, StandardCopyOption.REPLACE_EXISTING);
-                AudioFileValidator.FormatDetectionResult detectionResult =
-                        AudioFileValidator.detectAndValidatePath(musicTemp, musicFileExtension);
-                if (!detectionResult.isValid()) {
-                    sendErrorResponse(response, 400, ApiMessages.translate("upload.audio_format_invalid", detectionResult.getErrorMessage()));
+                AudioMediaProbe.Result detectionResult =
+                        AudioMediaProbe.detectAndValidate(musicTemp, musicFileExtension);
+                if (!detectionResult.valid()) {
+                    String detail = ApiMessages.translate(detectionResult.errorMessage());
+                    sendErrorResponse(response, 400, ApiMessages.translate("upload.audio_format_invalid", detail));
                     return;
                 }
-                detectedFormat = detectionResult.getFormat();
-                switch (detectedFormat) {
-                    case MP3:
-                        fileFormat = "mp3";
-                        break;
-                    case FLAC:
-                        fileFormat = "flac";
-                        break;
-                    case WAV:
-                        fileFormat = "wav";
-                        break;
-                    default:
-                        sendErrorResponse(response, 400, "upload.unsupported_audio");
-                        return;
+                AudioMediaProbe.MediaInfo media = detectionResult.media();
+                fileFormat = media.format();
+                if (duration <= 0) {
+                    duration = media.durationSeconds();
                 }
-                logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
-
-                String audioProblem = AudioIntegrityValidator.validateSavedFile(musicTemp, detectedFormat);
-                if (audioProblem != null) {
-                    sendErrorResponse(response, 400, audioProblem);
-                    return;
-                }
+                logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, media.description());
 
                 String duplicateType = isDuplicateMusic(title, artist, album);
                 if (duplicateType != null) {

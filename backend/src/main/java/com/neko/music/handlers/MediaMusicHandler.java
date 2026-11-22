@@ -118,10 +118,20 @@ public final class MediaMusicHandler extends HttpServlet {
         String name = file.getFileName().toString().toLowerCase();
         if (name.endsWith(".flac")) return "audio/flac";
         if (name.endsWith(".wav")) return "audio/wav";
-        if (name.endsWith(".m4a")) return "audio/mp4";
+        if (name.endsWith(".m4a") || name.endsWith(".mp4")) return "audio/mp4";
+        if (name.endsWith(".aac")) return "audio/aac";
+        if (name.endsWith(".ogg") || name.endsWith(".oga") || name.endsWith(".opus")) return "audio/ogg";
+        if (name.endsWith(".ape")) return "audio/x-ape";
+        if (name.endsWith(".wma")) return "audio/x-ms-wma";
+        if (name.endsWith(".aiff") || name.endsWith(".aif")) return "audio/aiff";
         if (name.endsWith(".eac3") || name.endsWith(".ec3")) return "audio/eac3";
         if (name.endsWith(".ac3")) return "audio/ac3";
         if (name.endsWith(".thd") || name.endsWith(".truehd") || name.endsWith(".mlp")) return "audio/truehd";
+        if (name.endsWith(".mka")) return "audio/x-matroska";
+        if (name.endsWith(".webm")) return "audio/webm";
+        if (name.endsWith(".dts")) return "audio/vnd.dts";
+        if (name.endsWith(".wv")) return "audio/wavpack";
+        if (name.endsWith(".caf")) return "audio/x-caf";
         return "audio/mpeg";
     }
 }

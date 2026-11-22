@@ -7,8 +7,10 @@ import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.MusicIngestSupport;
 import com.neko.music.service.SearchIndexService;
 import com.neko.music.util.AtomicFiles;
+import com.neko.music.util.AudioMediaProbe;
 import com.neko.music.util.LyricsFileValidator;
 import com.neko.music.util.MusicAdMetadataPatcher;
+import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.MusicPinyinColumns;
 import com.neko.music.util.NekoLyrics;
 import jakarta.servlet.ServletException;
@@ -202,6 +204,13 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 sendErrorResponse(response, 500, "admin.upload_audit.cover_missing");
                 return;
             }
+            AudioMediaProbe.Result sourceMedia = AudioMediaProbe.detectAndValidate(
+                    sourceMusicPath, getFileExtensionWithoutDot(upload.getMusicFilePath()));
+            if (!sourceMedia.valid()) {
+                sendErrorResponse(response, 400, ApiMessages.translate(sourceMedia.errorMessage()));
+                return;
+            }
+            String approvedFileFormat = sourceMedia.media().format();
 
             // 创建曲库音频目录
             File audioDir = new File(MUSIC_AUDIO_DIR);
@@ -233,7 +242,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 pstmt.setString(2, artist);
                 pstmt.setString(3, albumVal);
                 pstmt.setInt(4, upload.getDuration());
-                pstmt.setString(5, getFileExtensionWithoutDot(upload.getMusicFilePath()));
+                pstmt.setString(5, approvedFileFormat);
                 pstmt.setString(6, upload.getLanguage());
                 pstmt.setString(7, upload.getTags());
                 pstmt.setInt(8, upload.getUserId());
@@ -260,7 +269,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             }
 
             // 使用音乐ID生成最终的文件名
-            String newMusicFileName = musicId + getFileExtension(upload.getMusicFilePath());
+            String newMusicFileName = musicId + "." + approvedFileFormat;
 
             // 从仍保留的源文件生成正式文件；数据库提交前绝不删除源文件，因此重启后仍可重试。
             String newMusicPath = Paths.get(MUSIC_AUDIO_DIR, newMusicFileName).toString();
@@ -270,7 +279,18 @@ public class AdminUploadAuditHandler extends ApiServlet {
 
             // 在事务提交和删除待审源图前先把封面写入正式音频；失败时保留上传记录供重试。
             if (sourceCoverPath != null) {
-                MusicAdMetadataPatcher.embedCoverOnly(Paths.get(newMusicPath), sourceCoverPath);
+                try {
+                    int coverMusicId = musicId;
+                    MusicAssetLocator.replaceCoverSidecar(coverMusicId, sourceCoverPath);
+                    fileUndoLog.push(() -> MusicAssetLocator.deleteCoverSidecar(coverMusicId));
+                } catch (Exception e) {
+                    logger.warn("保存独立封面失败 musicId={}: {}", musicId, e.toString());
+                }
+                try {
+                    MusicAdMetadataPatcher.embedCoverOnly(Paths.get(newMusicPath), sourceCoverPath);
+                } catch (Exception e) {
+                    logger.warn("容器不支持写入内嵌封面，保留独立封面 musicId={}: {}", musicId, e.toString());
+                }
             }
 
             if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()
@@ -294,6 +314,8 @@ public class AdminUploadAuditHandler extends ApiServlet {
             committed = true;
             fileUndoLog.clear();
             int approvedMusicId = musicId;
+            MusicIngestSupport.refreshQualityAfterIngest(
+                    approvedMusicId, Paths.get(newMusicPath), logger);
 
             // 事务已提交，正式文件已独立存在，再清理审核目录中的源文件。
             deleteUploadFiles(upload);

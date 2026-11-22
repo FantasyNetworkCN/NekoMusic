@@ -59,7 +59,9 @@ public class KugouMusicClient {
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     private static final Set<String> AUDIO_EXTS = Set.of(
-            "mp3", "flac", "m4a", "aac", "ogg", "ape", "wav", "wma", "ac3", "aiff", "alac", "opus");
+            "mp3", "flac", "m4a", "mp4", "aac", "ogg", "oga", "ape", "wav",
+            "wma", "ac3", "eac3", "ec3", "thd", "truehd", "mlp",
+            "aiff", "aif", "alac", "opus", "mka", "webm", "dts", "wv", "caf");
 
     private static final Pattern GID_PATTERN = Pattern.compile("^collection_[A-Za-z0-9_]+$");
     private static final Pattern SPECIAL_LINK_PATTERN =

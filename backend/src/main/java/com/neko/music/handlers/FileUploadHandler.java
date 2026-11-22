@@ -8,11 +8,10 @@ import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.MusicIngestSupport;
 import com.neko.music.util.CoverArtCache;
 import com.neko.music.util.EmbeddedCoverReader;
+import com.neko.music.util.AudioMediaProbe;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.MusicPinyinColumns;
 import com.neko.music.util.RuntimeDiskGuard;
-import com.neko.music.util.AudioFileValidator;
-import com.neko.music.util.AudioIntegrityValidator;
 import com.neko.music.util.ImageUploadValidator;
 import com.neko.music.util.LyricsFileValidator;
 import com.neko.music.util.MusicAdMetadataPatcher;
@@ -26,12 +25,6 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
-import org.jaudiotagger.audio.AudioFile;
-import org.jaudiotagger.audio.AudioFileIO;
-import org.jaudiotagger.audio.exceptions.CannotReadException;
-import org.jaudiotagger.audio.exceptions.InvalidAudioFrameException;
-import org.jaudiotagger.audio.exceptions.ReadOnlyFileException;
-import org.jaudiotagger.tag.TagException;
 
 import java.io.File;
 import java.io.IOException;
@@ -432,34 +425,22 @@ public class FileUploadHandler extends HttpServlet {
      * 成功返回 fileFormat（mp3/flac/wav）与可能更新后的 duration；失败返回 errorMessage。
      */
     private AudioValidation validateAudioFile(Path musicTemp, String fileExtension, int duration) {
-        AudioFileValidator.FormatDetectionResult detectionResult =
-                AudioFileValidator.detectAndValidatePath(musicTemp, fileExtension);
-        if (!detectionResult.isValid()) {
-            return new AudioValidation(false, ApiMessages.translate("upload.audio_format_invalid", detectionResult.getErrorMessage()), null, duration);
+        AudioMediaProbe.Result detectionResult =
+                AudioMediaProbe.detectAndValidate(musicTemp, fileExtension);
+        if (!detectionResult.valid()) {
+            String detail = ApiMessages.translate(detectionResult.errorMessage());
+            return new AudioValidation(false,
+                    ApiMessages.translate("upload.audio_format_invalid", detail),
+                    null, duration);
         }
-        String fileFormat;
-        switch (detectionResult.getFormat()) {
-            case MP3 -> fileFormat = "mp3";
-            case FLAC -> fileFormat = "flac";
-            case WAV -> fileFormat = "wav";
-            default -> {
-                return new AudioValidation(false, "upload.unsupported_audio", null, duration);
-            }
-        }
-        logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
+        AudioMediaProbe.MediaInfo media = detectionResult.media();
+        String fileFormat = media.format();
+        logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, media.description());
 
         if (duration == 0) {
-            duration = readAudioDurationFromPath(musicTemp.toString());
-        }
-
-        AudioFileValidator.AudioFormat integrityFormat = switch (fileFormat) {
-            case "flac" -> AudioFileValidator.AudioFormat.FLAC;
-            case "wav" -> AudioFileValidator.AudioFormat.WAV;
-            default -> AudioFileValidator.AudioFormat.MP3;
-        };
-        String audioIntegrityError = AudioIntegrityValidator.validateSavedFile(musicTemp, integrityFormat);
-        if (audioIntegrityError != null) {
-            return new AudioValidation(false, audioIntegrityError, null, duration);
+            duration = media.durationSeconds() > 0
+                    ? media.durationSeconds()
+                    : readAudioDurationFromPath(musicTemp.toString());
         }
         return new AudioValidation(true, null, fileFormat, duration);
     }
@@ -552,14 +533,7 @@ public class FileUploadHandler extends HttpServlet {
     
     // 读取音频时长 - 从已保存的文件读取，避免额外临时文件
     private int readAudioDurationFromPath(String filePath) {
-        try {
-            File audioFile = new File(filePath);
-            AudioFile af = AudioFileIO.read(audioFile);
-            return af.getAudioHeader().getTrackLength();
-        } catch (CannotReadException | IOException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
-            logger.error("读取音频时长失败", e);
-            return 0;
-        }
+        return AudioMediaProbe.probeDurationSeconds(Path.of(filePath));
     }
 
     // 读取音频时长 - 旧方法保留用于doPut中文件已存在的场景

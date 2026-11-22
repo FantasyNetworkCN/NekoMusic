@@ -1,16 +1,13 @@
 package com.neko.music.service;
 
 import com.neko.music.Main;
-import com.neko.music.util.AudioFileValidator;
-import com.neko.music.util.AudioIntegrityValidator;
+import com.neko.music.util.AudioMediaProbe;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.MusicAdMetadataPatcher;
 import com.neko.music.util.BatchMusicMatchUtil;
 import com.neko.music.util.ChineseConverter;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.TempAudioSpool;
-import org.jaudiotagger.audio.AudioFile;
-import org.jaudiotagger.audio.AudioFileIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,18 +107,12 @@ public class AdminMusicIngestService {
         }
 
         String ext = extensionFromPath(musicTemp);
-        AudioFileValidator.FormatDetectionResult detection =
-                AudioFileValidator.detectAndValidatePath(musicTemp, ext);
-        if (!detection.isValid()) {
-            throw new IOException("音频校验失败: " + detection.getErrorMessage());
+        AudioMediaProbe.Result detection = AudioMediaProbe.detectAndValidate(musicTemp, ext);
+        if (!detection.valid()) {
+            throw new IOException("音频校验失败: " + detection.errorMessage());
         }
-
-        String fileFormat = switch (detection.getFormat()) {
-            case MP3 -> "mp3";
-            case FLAC -> "flac";
-            case WAV -> "wav";
-            default -> throw new IOException("upload.unsupported_audio");
-        };
+        AudioMediaProbe.MediaInfo media = detection.media();
+        String fileFormat = media.format();
 
         try (InputStream lrcIn = Files.newInputStream(lyricsTemp)) {
             long lrcSize = Files.size(lyricsTemp);
@@ -133,17 +124,7 @@ public class AdminMusicIngestService {
 
         int duration = durationSec;
         if (duration <= 0) {
-            duration = readAudioDurationSeconds(musicTemp);
-        }
-
-        AudioFileValidator.AudioFormat integrityFormat = switch (fileFormat) {
-            case "flac" -> AudioFileValidator.AudioFormat.FLAC;
-            case "wav" -> AudioFileValidator.AudioFormat.WAV;
-            default -> AudioFileValidator.AudioFormat.MP3;
-        };
-        String integrityError = AudioIntegrityValidator.validateSavedFile(musicTemp, integrityFormat);
-        if (integrityError != null) {
-            throw new IOException(integrityError);
+            duration = media.durationSeconds() > 0 ? media.durationSeconds() : readAudioDurationSeconds(musicTemp);
         }
 
         MusicAdMetadataPatcher.patchQuietly(musicTemp);
@@ -163,9 +144,9 @@ public class AdminMusicIngestService {
             }
             SearchIndexService.notifyMusicChanged(musicId);
 
-            // 曲库落盘后把歌词/封面/基础标签同步进音频文件；封面写入失败则回滚本次入库。
+            // 曲库落盘后把歌词/封面/基础标签同步进音频文件；不支持标签的容器使用独立封面。
             if (!EmbeddedMetadataSyncService.syncOne(musicId, coverTempOrNull)) {
-                throw new IOException("同步音频内嵌元数据失败");
+                logger.warn("同步音频元数据失败，保留曲库记录 musicId={}", musicId);
             }
 
             IngestedMusic row = loadIngestedMusic(musicId);
@@ -559,18 +540,12 @@ public class AdminMusicIngestService {
     }
 
     private static int readAudioDurationSeconds(Path path) {
-        try {
-            AudioFile af = AudioFileIO.read(path.toFile());
-            return af.getAudioHeader().getTrackLength();
-        } catch (Exception e) {
-            logger.warn("读取音频时长失败: {}", path, e);
-            return 0;
-        }
+        return AudioMediaProbe.probeDurationSeconds(path);
     }
 
     private static String extensionFromPath(Path path) {
         String name = path.getFileName().toString();
         int dot = name.lastIndexOf('.');
-        return dot > 0 ? name.substring(dot + 1).toLowerCase() : "mp3";
+        return dot > 0 ? name.substring(dot + 1).toLowerCase() : "";
     }
 }

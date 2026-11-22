@@ -729,7 +729,7 @@ export default {
     parseFailed: '音声の長さを解析できませんでした。手動で入力してください',
     parseError: '解析に失敗しました：{message}',
     parseSuccess: '長さを解析しました：{duration}',
-    invalidAudioFormat: 'MP3・FLAC・WAV 形式のファイルを選択してください',
+    invalidAudioFormat: '対応している音声ファイルを選択してください',
     mp3Parsed: 'MP3 情報を自動解析しました',
     flacNoMetadata: 'この FLAC ファイルにはメタデータタグがありません',
     flacParsed: 'FLAC 情報を自動解析しました',

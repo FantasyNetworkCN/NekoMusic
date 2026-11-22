@@ -43,6 +43,13 @@ public final class CoverArtCache {
         if (musicId <= 0) {
             return Optional.empty();
         }
+        Optional<Path> sidecar = MusicAssetLocator.findCoverSidecar(musicId);
+        if (sidecar.isPresent()) {
+            Optional<Snapshot> image = findImage(sidecar.get());
+            if (image.isPresent()) {
+                return image;
+            }
+        }
         Optional<Path> audio = MusicAssetLocator.findAudioFile(musicId);
         if (audio.isEmpty()) {
             return Optional.empty();
@@ -52,6 +59,16 @@ public final class CoverArtCache {
 
     /** 读取指定音频文件的封面。 */
     public static Optional<Snapshot> find(Path audioFile) {
+        int musicId = musicIdFromAudioPath(audioFile);
+        if (musicId > 0) {
+            Optional<Path> sidecar = MusicAssetLocator.findCoverSidecar(musicId);
+            if (sidecar.isPresent()) {
+                Optional<Snapshot> image = findImage(sidecar.get());
+                if (image.isPresent()) {
+                    return image;
+                }
+            }
+        }
         String version;
         try {
             BasicFileAttributes attrs = Files.readAttributes(audioFile, BasicFileAttributes.class);
@@ -68,10 +85,42 @@ public final class CoverArtCache {
         return Optional.ofNullable(entry).map(Entry::snapshot);
     }
 
+    private static Optional<Snapshot> findImage(Path imageFile) {
+        String version;
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(imageFile, BasicFileAttributes.class);
+            version = attrs.lastModifiedTime().toMillis() + "-" + attrs.size();
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+        Path key = imageFile.toAbsolutePath().normalize();
+        Entry entry = CACHE.get(key, cached -> version.equals(cached.sourceVersion()), () -> {
+            try {
+                byte[] data = Files.readAllBytes(imageFile);
+                if (data.length == 0) {
+                    return null;
+                }
+                String mime = EmbeddedCoverReader.sniffMime(data);
+                if (mime == null) {
+                    mime = "image/jpeg";
+                }
+                return new Entry(new Snapshot(data, mime, sha256(data)), version);
+            } catch (IOException e) {
+                return null;
+            }
+        });
+        return Optional.ofNullable(entry).map(Entry::snapshot);
+    }
+
     /** 曲目更新后（换音频/换封面）主动失效，避免同一 mtime 分辨率内的竞态。 */
     public static void invalidate(Path audioFile) {
         if (audioFile != null) {
             CACHE.invalidate(audioFile.toAbsolutePath().normalize());
+            int musicId = musicIdFromAudioPath(audioFile);
+            if (musicId > 0) {
+                MusicAssetLocator.findCoverSidecar(musicId)
+                        .ifPresent(path -> CACHE.invalidate(path.toAbsolutePath().normalize()));
+            }
         }
     }
 
@@ -91,6 +140,26 @@ public final class CoverArtCache {
         } catch (Exception e) {
             logger.debug("计算封面哈希失败: {}", e.toString());
             return Integer.toHexString(java.util.Arrays.hashCode(data));
+        }
+    }
+
+    private static int musicIdFromAudioPath(Path audioFile) {
+        if (audioFile == null) {
+            return 0;
+        }
+        Path name = audioFile.getFileName();
+        if (name == null) {
+            return 0;
+        }
+        String value = name.toString();
+        int dot = value.indexOf('.');
+        if (dot <= 0) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value.substring(0, dot));
+        } catch (NumberFormatException ignored) {
+            return 0;
         }
     }
 }

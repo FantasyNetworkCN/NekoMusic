@@ -886,7 +886,7 @@ export default {
     parseFailed: '无法解析音频时长，请手动输入',
     parseError: '解析失败: {message}',
     parseSuccess: '时长解析成功: {duration}',
-    invalidAudioFormat: '请选择 MP3、FLAC 或 WAV 格式的音乐文件',
+    invalidAudioFormat: '请选择支持的音频文件',
     mp3Parsed: '已自动解析MP3文件信息',
     flacNoMetadata: '该FLAC文件不包含元数据标签',
     flacParsed: '已自动解析FLAC文件信息',

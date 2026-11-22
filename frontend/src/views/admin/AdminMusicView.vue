@@ -14,9 +14,9 @@
         <div class="col">
           <div class="field">
             <label class="field__label">音乐文件 <span class="req">*</span></label>
-            <input type="file" class="file" accept=".mp3,.flac,.wav" @change="handleMusicFileChange" />
+            <input type="file" class="file" :accept="AUDIO_FILE_ACCEPT" @change="handleMusicFileChange" />
             <p v-if="newMusic.fileName" class="field__file">已选择：{{ newMusic.fileName }}</p>
-            <p class="field__hint">支持 MP3 / FLAC / WAV；上传 MP3 会自动解析封面、名称、艺术家与专辑。</p>
+            <p class="field__hint">支持主流纯音频格式；浏览器可解析时会自动填充封面、名称、艺术家与专辑。</p>
           </div>
 
           <div class="field">
@@ -112,7 +112,7 @@
 
           <div class="field">
             <label class="field__label">音乐文件</label>
-            <input type="file" class="file" accept=".mp3,.flac,.wav" @change="handleEditMusicFileChange" />
+            <input type="file" class="file" :accept="AUDIO_FILE_ACCEPT" @change="handleEditMusicFileChange" />
             <p v-if="editingMusic.fileName" class="field__file">已选择：{{ editingMusic.fileName }}</p>
             <p v-else-if="editingMusic.filePath" class="field__file">
               当前文件：{{ editingMusic.filePath.split('/').pop() }}
@@ -307,21 +307,20 @@ const toast = useToast()
 
 const router = useRouter()
 
+const AUDIO_FILE_ACCEPT = '.mp3,.flac,.wav,.m4a,.m4b,.mp4,.aac,.ogg,.oga,.opus,.ape,.wma,.aiff,.aif,.ac3,.eac3,.ec3,.thd,.truehd,.mlp,.mka,.mkv,.webm,.dts,.wv,.caf'
+const AUDIO_FILE_PATTERN = /\.(mp3|flac|wav|m4a|m4b|mp4|aac|ogg|oga|opus|ape|wma|aiff|aif|ac3|eac3|ec3|thd|truehd|mlp|mka|mkv|webm|dts|wv|caf)$/i
+
 // 切换侧边栏
 
 // 添加文件处理函数
 const handleMusicFileChange = async (event) => {
   const file = event.target.files[0]
   if (file) {
-    // 检查文件类型是否为支持的格式：MP3、FLAC、WAV
     const fileName = file.name.toLowerCase()
     const fileExtension = fileName.split('.').pop()
 
-    // 主要依赖文件扩展名来识别格式
-    const isValidFormat = ['.mp3', '.flac', '.wav'].includes('.' + fileExtension)
-
-    if (!isValidFormat) {
-      toast.error('请选择 MP3、FLAC 或 WAV 格式的音乐文件')
+    if (!AUDIO_FILE_PATTERN.test(file.name)) {
+      toast.error('请选择支持的音频文件')
       event.target.value = '' // 清空选择
       return
     }
@@ -938,15 +937,11 @@ const handleCoverFileChange = (event) => {
 const handleEditMusicFileChange = async (event) => {
   const file = event.target.files[0]
   if (file) {
-    // 检查文件类型是否为支持的格式：MP3、FLAC、WAV
     const fileName = file.name.toLowerCase()
     const fileExtension = fileName.split('.').pop()
 
-    // 主要依赖文件扩展名来识别格式
-    const isValidFormat = ['.mp3', '.flac', '.wav'].includes('.' + fileExtension)
-
-    if (!isValidFormat) {
-      toast.error('请选择 MP3、FLAC 或 WAV 格式的音乐文件')
+    if (!AUDIO_FILE_PATTERN.test(file.name)) {
+      toast.error('请选择支持的音频文件')
       event.target.value = '' // 清空选择
       return
     }

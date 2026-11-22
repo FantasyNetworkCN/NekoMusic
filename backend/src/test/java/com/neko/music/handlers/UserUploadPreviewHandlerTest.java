@@ -114,6 +114,12 @@ class UserUploadPreviewHandlerTest {
         assertEquals("audio/mpeg", UserUploadPreviewHandler.getContentType("a.mp3"));
         assertEquals("audio/flac", UserUploadPreviewHandler.getContentType("a.FLAC"));
         assertEquals("audio/wav", UserUploadPreviewHandler.getContentType("a.wav"));
+        assertEquals("audio/mp4", UserUploadPreviewHandler.getContentType("a.m4a"));
+        assertEquals("audio/aac", UserUploadPreviewHandler.getContentType("a.aac"));
+        assertEquals("audio/ogg", UserUploadPreviewHandler.getContentType("a.opus"));
+        assertEquals("audio/eac3", UserUploadPreviewHandler.getContentType("a.eac3"));
+        assertEquals("audio/truehd", UserUploadPreviewHandler.getContentType("a.thd"));
+        assertEquals("audio/x-matroska", UserUploadPreviewHandler.getContentType("a.mka"));
         assertEquals("image/jpeg", UserUploadPreviewHandler.getContentType("cover.jpg"));
         assertEquals("application/octet-stream", UserUploadPreviewHandler.getContentType("song.lrc"),
                 "歌词预览必须使用不可压缩 MIME，避免 CDN gzip 后保留未压缩 Content-Length");

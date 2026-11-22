@@ -36,8 +36,8 @@ public final class EmbeddedMetadataSyncService {
     }
 
     /**
-     * 同步曲库元数据，并可选地把调用方提供的临时封面嵌入音频。
-     * {@code coverFile == null} 时保留音频里已有的封面。
+     * 同步曲库元数据，并可选地把调用方提供的临时封面保存为独立封面文件。
+     * 同时尝试写入音频标签；容器不支持标签时不影响独立封面与上传结果。
      */
     public static boolean syncOne(int musicId, Path coverFile) {
         if (musicId <= 0) {
@@ -47,6 +47,8 @@ public final class EmbeddedMetadataSyncService {
         if (audio.isEmpty()) {
             return false;
         }
+        boolean metadataSynced = false;
+        boolean coverSaved = false;
         try {
             MusicRow row = loadRow(musicId);
             if (row == null) {
@@ -56,14 +58,23 @@ public final class EmbeddedMetadataSyncService {
                     row.title(), row.artist(), row.album(),
                     loadLyricsBody(musicId), coverFile);
             MusicAdMetadataPatcher.syncLibraryMetadata(audio.get(), metadata);
-            return true;
+            metadataSynced = true;
         } catch (Exception e) {
-            logger.warn("同步内嵌元数据失败 musicId={}: {}", musicId, e.toString());
-            return false;
+            logger.warn("同步内嵌元数据失败，将保留独立封面 musicId={}: {}", musicId, e.toString());
         } finally {
             // 即使标签写入报错，也可能已触碰文件；下次请求必须重新检查封面版本。
             CoverArtCache.invalidate(audio.get());
         }
+        if (coverFile != null) {
+            try {
+                MusicAssetLocator.replaceCoverSidecar(musicId, coverFile);
+                coverSaved = true;
+            } catch (Exception e) {
+                logger.warn("保存独立封面失败 musicId={}: {}", musicId, e.toString());
+            }
+        }
+        CoverArtCache.invalidate(musicId);
+        return metadataSynced || coverSaved;
     }
 
     private static MusicRow loadRow(int musicId) throws SQLException {

@@ -20,7 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MusicAssetLocatorTest {
 
     private static final List<String> AUDIO_EXT = List.of(
-            "flac", "wav", "eac3", "ec3", "ac3", "thd", "truehd", "mlp", "mp3", "m4a", "aac", "ogg");
+            "flac", "wav", "eac3", "ec3", "ac3", "thd", "truehd", "mlp",
+            "m4a", "mp4", "aac", "ogg", "opus", "mp3", "ape", "wma",
+            "aiff", "aif", "mka", "webm", "dts", "wv", "caf");
 
     @TempDir
     Path dir;
@@ -66,7 +68,7 @@ class MusicAssetLocatorTest {
 
     @Test
     void rejectsUnregisteredExtensionsWithoutDirectoryFallback() throws IOException {
-        touch("9.opus");
+        touch("9.xyz");
         assertTrue(MusicAssetLocator.findIdNamedFile(dir, 9, AUDIO_EXT).isEmpty());
     }
 

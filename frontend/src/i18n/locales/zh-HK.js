@@ -729,7 +729,7 @@ export default {
     parseFailed: '無法解析音訊長度，請手動輸入',
     parseError: '解析失敗：{message}',
     parseSuccess: '長度解析成功：{duration}',
-    invalidAudioFormat: '請選擇 MP3、FLAC 或 WAV 格式的音樂檔案',
+    invalidAudioFormat: '請選擇支援的音訊檔案',
     mp3Parsed: '已自動解析 MP3 檔案資訊',
     flacNoMetadata: '該 FLAC 檔案不包含中繼資料標籤',
     flacParsed: '已自動解析 FLAC 檔案資訊',

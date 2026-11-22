@@ -222,7 +222,9 @@ public final class MusicQualityService {
             case "2.1" -> 3;
             case "4.0", "quad" -> 4;
             case "5.1", "5.1(side)" -> 6;
-            case "7.1" -> 8;
+            case "7.1", "7.1(side)", "5.1.2", "5.1.2(side)" -> 8;
+            case "5.1.4", "7.1.2", "7.1.2(side)" -> 10;
+            case "7.1.4" -> 12;
             default -> 2;
         };
     }

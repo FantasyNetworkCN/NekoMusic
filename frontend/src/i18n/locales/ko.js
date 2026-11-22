@@ -729,7 +729,7 @@ export default {
     parseFailed: '오디오 길이를 분석하지 못했습니다. 직접 입력해 주세요',
     parseError: '분석 실패: {message}',
     parseSuccess: '길이 분석 성공: {duration}',
-    invalidAudioFormat: 'MP3, FLAC 또는 WAV 파일을 선택해 주세요',
+    invalidAudioFormat: '지원되는 오디오 파일을 선택해 주세요',
     mp3Parsed: 'MP3 정보를 자동으로 분석했습니다',
     flacNoMetadata: '이 FLAC 파일에는 메타데이터 태그가 없습니다',
     flacParsed: 'FLAC 정보를 자동으로 분석했습니다',

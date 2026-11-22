@@ -18,7 +18,8 @@ import java.util.Optional;
  * 直接从音频容器头部取出内嵌封面，不经过 JAudioTagger，也不读取整个音频文件。
  *
  * <p>支持 MP3（ID3v2.2/2.3/2.4 的 APIC / PIC）、FLAC（PICTURE 元数据块）与
- * WAV（RIFF 里的 {@code ID3 } / {@code id3 } 块）。这三种是入库白名单格式，其余容器返回 empty。</p>
+ * WAV（RIFF 里的 {@code ID3 } / {@code id3 } 块）。上传入口已支持更多容器，
+ * 其余容器优先使用 {@code Music/.covers/{id}.*} 独立封面，这里返回 empty。</p>
  *
  * <p>只解析文件头附近的元数据区：MP3 读 ID3 标签体，FLAC 逐块定位 PICTURE 块，WAV 只扫块头到 ID3 块。
  * 实测 20MB/100MB 的音频取封面仍在 1ms 量级，因此调用方可以放心按请求解析，缓存只是为了省掉重复 IO。</p>

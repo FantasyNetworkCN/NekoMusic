@@ -820,7 +820,7 @@ export default {
     parseFailed: 'Could not parse the duration, please enter it manually',
     parseError: 'Parsing failed: {message}',
     parseSuccess: 'Duration parsed: {duration}',
-    invalidAudioFormat: 'Please choose an MP3, FLAC or WAV file',
+    invalidAudioFormat: 'Please choose a supported audio file',
     mp3Parsed: 'MP3 info parsed automatically',
     flacNoMetadata: 'This FLAC file has no metadata tags',
     flacParsed: 'FLAC info parsed automatically',
