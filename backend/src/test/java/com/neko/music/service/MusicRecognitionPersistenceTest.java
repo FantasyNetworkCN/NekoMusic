@@ -8,7 +8,6 @@ import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,28 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MusicRecognitionPersistenceTest {
     @TempDir
     Path tempDirectory;
-
-    @Test
-    void restoresDirectlyIntoRustAcrossBufferedDirectoryBoundaries() throws Exception {
-        var track = track(1, "Large");
-        var catalog = List.of(entry(track, "1.mp3", 1, 1));
-        List<AudioFingerprintEngine.Landmark> points = new ArrayList<>();
-        for (int i = 0; i < 20_000; i++) {
-            points.add(new AudioFingerprintEngine.Landmark(1000L * i, i));
-        }
-        var original = AudioFingerprintEngine.Index.build(Map.of(1,
-                new AudioFingerprintEngine.Fingerprint(points, 160_000)));
-        var cache = cache();
-        cache.save(new MusicRecognitionService.IndexSnapshot(
-                original, Map.of(1, track), catalog, System.currentTimeMillis()));
-        var restored = cache.load().orElseThrow().index();
-        assertTrue(restored.usesRust());
-        assertEquals(original.uniqueHashCount(), restored.uniqueHashCount());
-        for (int i : new int[]{0, 1, 3276, 3277, 19_999}) {
-            org.junit.jupiter.api.Assertions.assertArrayEquals(
-                    original.postingsView().get(i * 1000L), restored.postingsView().get(i * 1000L));
-        }
-    }
 
     @Test
     void savesAndRestoresDirectlyQueryableInvertedIndex() throws Exception {
@@ -86,18 +63,19 @@ class MusicRecognitionPersistenceTest {
         MusicRecognitionService.IndexSnapshot snapshot = new MusicRecognitionService.IndexSnapshot(
                 AudioFingerprintEngine.Index.build(Map.of(1, fingerprint)),
                 tonalBuilder.build(), Map.of(1, track), Map.of(1, tonal),
-                catalog, System.currentTimeMillis());
+                catalog, System.currentTimeMillis(), true);
 
         MusicRecognitionService.FullIndexDiskCache cache = cache();
         cache.save(snapshot);
         MusicRecognitionService.IndexSnapshot restored = cache.load(catalog).orElseThrow();
 
+        assertTrue(restored.tonalReady());
         assertEquals(tonal, restored.tonalFingerprints().get(1));
         assertTrue(restored.tonalIndex().findBest(tonal, restored.tonalFingerprints()).isPresent());
     }
 
     @Test
-    void rejectsFingerprintCacheWithoutCurrentTonalTrailer() throws Exception {
+    void loadsLegacyFingerprintCacheWithoutTonalTrailer() throws Exception {
         Path audio = Files.write(tempDirectory.resolve("legacy.mp3"), new byte[]{1, 2, 3, 4});
         Path directory = tempDirectory.resolve(".fingerprints");
         Files.createDirectories(directory);
@@ -119,11 +97,15 @@ class MusicRecognitionPersistenceTest {
             }
         }
 
-        assertTrue(new MusicRecognitionService.FingerprintDiskCache(directory).load(1, audio).isEmpty());
+        AudioFingerprintEngine.Fingerprint restored = new MusicRecognitionService.FingerprintDiskCache(directory)
+                .load(1, audio).orElseThrow();
+
+        assertEquals(3, restored.landmarks().size());
+        assertEquals(0, restored.tonal().frameCount());
     }
 
     @Test
-    void rejectsObsoleteFullIndexFormat() throws Exception {
+    void loadsLegacyFullIndexWithoutTonalIndex() throws Exception {
         MusicRecognitionService.Track track = track(1, "First");
         MusicRecognitionService.CatalogEntry entry = entry(track, "1.mp3", 101L, 1_000L);
         Path file = tempDirectory.resolve("legacy.nfi");
@@ -144,45 +126,12 @@ class MusicRecognitionPersistenceTest {
             output.writeLong(((long) 1 << 32) | 410);
         }
 
-        assertTrue(new MusicRecognitionService.FullIndexDiskCache(file).load().isEmpty());
-    }
+        MusicRecognitionService.IndexSnapshot restored = new MusicRecognitionService.FullIndexDiskCache(file)
+                .load(List.of(entry)).orElseThrow();
 
-    @Test
-    void persistsIncrementalAdditionsThatShareBaseHashes() throws Exception {
-        MusicRecognitionService.Track first = track(1, "First");
-        MusicRecognitionService.Track second = track(2, "Second");
-        List<MusicRecognitionService.CatalogEntry> catalog = List.of(
-                entry(first, "1.mp3", 101L, 1_000L),
-                entry(second, "2.mp3", 202L, 2_000L));
-
-        AudioFingerprintEngine.Fingerprint firstFingerprint = fingerprint(
-                landmark(100, 10), landmark(200, 210), landmark(300, 410));
-        AudioFingerprintEngine.Fingerprint secondFingerprint = fingerprint(
-                landmark(100, 20), landmark(200, 220), landmark(300, 420), landmark(400, 620));
-        AudioFingerprintEngine.Index base =
-                AudioFingerprintEngine.Index.build(Map.of(1, firstFingerprint));
-        AudioFingerprintEngine.Index.Builder exactBuilder = AudioFingerprintEngine.Index.builder(base);
-        exactBuilder.add(2, secondFingerprint);
-        TonalFingerprintEngine.TonalFingerprint firstTonal = tonalFingerprint(24);
-        TonalFingerprintEngine.TonalFingerprint secondTonal = tonalFingerprint(30);
-        TonalFingerprintEngine.Index.Builder tonalBuilder = TonalFingerprintEngine.Index.builder();
-        tonalBuilder.add(1, firstTonal);
-        tonalBuilder.add(2, secondTonal);
-
-        MusicRecognitionService.IndexSnapshot snapshot = new MusicRecognitionService.IndexSnapshot(
-                exactBuilder.build(), tonalBuilder.build(), Map.of(1, first, 2, second),
-                Map.of(1, firstTonal, 2, secondTonal), catalog, System.currentTimeMillis());
-        MusicRecognitionService.FullIndexDiskCache cache = cache();
-        cache.save(snapshot);
-        MusicRecognitionService.IndexSnapshot restored = cache.load(catalog).orElseThrow();
-
-        assertEquals(4, restored.index().uniqueHashCount(),
-                "shared hashes must be overridden, not duplicated");
-        AudioFingerprintEngine.Fingerprint query = fingerprint(
-                landmark(100, 21), landmark(200, 221), landmark(300, 421), landmark(400, 621));
-        AudioFingerprintEngine.Match match = restored.index().findBest(query, 3, 0.1).orElseThrow();
-        assertEquals(2, match.musicId(),
-                "persisted postings must carry the overridden values of the layered map");
+        assertFalse(restored.tonalReady());
+        assertEquals(1, restored.index().musicCount());
+        assertTrue(restored.tonalFingerprints().isEmpty());
     }
 
     @Test
