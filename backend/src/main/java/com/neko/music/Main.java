@@ -31,7 +31,6 @@ import com.neko.music.filter.RequestAuditFilter;
 import com.neko.music.filter.RequestLocaleFilter;
 import com.neko.music.filter.IPRateLimitFilter;
 import com.neko.music.filter.SecurityHeadersFilter;
-import com.neko.music.filter.SourceBanFilter;
 import com.neko.music.filter.StaticPageSeoFilter;
 import com.neko.music.filter.MusicRecognitionWebSocketAdmissionFilter;
 import com.neko.music.util.ClientReleaseStorage;
@@ -82,7 +81,6 @@ public class Main {
     private static UserManagementService userManagementService;
     private static AuthAbuseLimiter authAbuseLimiter;
     private static ExternalFillQuotaService externalFillQuotaService;
-    private static SourceBanService sourceBanService;
     private static UserAuthService userAuthService;
     private static NekoAuthAccountService nekoAuthAccountService;
     private static SharedWebSessionService sharedWebSessionService;
@@ -290,10 +288,6 @@ public class Main {
         // 初始化通知服务
         notificationService = new NotificationService(configManager);
 
-        // 认证失败来源封禁：触发封禁时经 Webhook 告警（复用通知服务），让处置可见
-        sourceBanService = new SourceBanService(new SourceBanService.RedisStore(redisService),
-                notificationService::scheduleAuthSourceBanNotification);
-
         // 网易云登录掉线告警（事件驱动，无定时巡检）：Cookie 失效时由真实请求结果触发一次 hook
         neteaseLoginMonitor = new NeteaseLoginMonitor(configManager, neteaseCloudMusicClient, notificationService);
         // QQ 音乐登录掉线告警（同样事件驱动，由 QQ 补全失败时探测上报）
@@ -356,7 +350,6 @@ public class Main {
         // 注册服务到 ServletContext，供 Filter 使用
         context.setAttribute("configManager", configManager);
         context.setAttribute("ipRateLimitService", ipRateLimitService);
-        context.setAttribute("sourceBanService", sourceBanService);
 
         // 访问日志 + 操作日志：必须注册在最外层，才能看到经过后续门禁（限流/封禁）
         // 之后的真实状态码与总耗时——被挡下的请求同样要留痕
@@ -371,10 +364,6 @@ public class Main {
 
         // IP 限流需在嵌入式 Jetty 中显式注册（@WebFilter 不会生效）
         context.addFilter(IPRateLimitFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
-
-        // 认证失败来源封禁：反复失败的来源在进入路由前被挡掉（429）。
-        // 不依赖前置门禁，门禁被绕过时仍独立生效
-        context.addFilter(SourceBanFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 静态路由（首页 / 下载 / 关于等）对爬虫返回服务端 SEO HTML，浏览器仍走 SPA
         context.addFilter(StaticPageSeoFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
@@ -507,13 +496,8 @@ public class Main {
     public static AuthAbuseLimiter getAuthAbuseLimiter() {
         return authAbuseLimiter;
     }
-
     public static ExternalFillQuotaService getExternalFillQuotaService() {
         return externalFillQuotaService;
-    }
-
-    public static SourceBanService getSourceBanService() {
-        return sourceBanService;
     }
     
     public static UserAuthService getUserAuthService() {
