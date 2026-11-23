@@ -25,8 +25,8 @@ public class AgplSourceManifestHandler extends HttpServlet {
     public static final String PROJECT = "NekoMusic";
     public static final String LICENSE = "AGPL-3.0-only";
     public static final String SOURCE_URL_KEY = "agpl.source_url";
-    /** 修改服务端代码的部署必须改成实际运行版本对应的公开源码仓库。 */
-    public static final String DEFAULT_SOURCE_URL = "https://github.com/FantasyNetworkCN/NekoMusic";
+    /** 默认不代填源码仓库，必须由管理员在后台明确配置。 */
+    public static final String DEFAULT_SOURCE_URL = "";
     public static final String LICENSE_URL = "https://www.gnu.org/licenses/agpl-3.0.html";
 
     @Override
@@ -57,7 +57,7 @@ public class AgplSourceManifestHandler extends HttpServlet {
 
     static String resolveSourceUrl(String configured) {
         String candidate = configured == null ? "" : configured.trim();
-        return isValidGithubRepositoryUrl(candidate) ? candidate : DEFAULT_SOURCE_URL;
+        return isValidGithubRepositoryUrl(candidate) ? candidate : "";
     }
 
     /** 源码地址必须是公开 GitHub 仓库根地址，客户端会主动调用 GitHub API 复核。 */

@@ -59,8 +59,7 @@ class AgplSourceManifestHandlerTest {
         assertTrue(body.toString().contains("\"schema\":\"" + AgplSourceManifestHandler.SCHEMA + "\""));
         assertTrue(body.toString().contains("\"project\":\"" + AgplSourceManifestHandler.PROJECT + "\""));
         assertTrue(body.toString().contains("\"license\":\"" + AgplSourceManifestHandler.LICENSE + "\""));
-        assertTrue(body.toString().contains(
-                "\"sourceUrl\":\"" + AgplSourceManifestHandler.DEFAULT_SOURCE_URL + "\""));
+        assertTrue(body.toString().contains("\"sourceUrl\":\"\""));
     }
 
     @Test
@@ -68,10 +67,10 @@ class AgplSourceManifestHandlerTest {
         assertEquals("https://github.com/example/nekomusic",
                 AgplSourceManifestHandler.resolveSourceUrl(
                         " https://github.com/example/nekomusic "));
-        assertEquals(AgplSourceManifestHandler.DEFAULT_SOURCE_URL,
+        assertEquals("",
                 AgplSourceManifestHandler.resolveSourceUrl(
                         "https://git.example.com/nekomusic/backend"));
-        assertEquals(AgplSourceManifestHandler.DEFAULT_SOURCE_URL,
+        assertEquals("",
                 AgplSourceManifestHandler.resolveSourceUrl("not-a-url"));
         assertTrue(AgplSourceManifestHandler.isValidGithubRepositoryUrl(
                 "https://github.com/FantasyNetworkCN/NekoMusic"));

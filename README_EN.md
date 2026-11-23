@@ -53,8 +53,8 @@ public source URL, and client protocol version. The clients verify the manifest 
 availability before switching, then clear the previous server's login state so its token is
 never sent to the new server. Deployments that modify the server must point `sourceUrl` at
 the public source for the exact running version. It is configured under
-**Admin → System settings → Open-source compliance → AGPL source URL** and must be the
-public GitHub repository root. Clients periodically verify its visibility and AGPL license
+**Admin → System settings → Open-source compliance → AGPL source URL**. It is empty by
+default and must be set to the public GitHub repository root. Clients periodically verify its visibility and AGPL license
 through the GitHub API and fall back to the official source if any check fails.
 
 ```json

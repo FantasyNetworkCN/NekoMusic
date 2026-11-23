@@ -200,8 +200,8 @@ public final class SystemSettingRegistry {
 
             // ---------- 开源合规 ----------
             url("agpl.source_url", Group.COMPLIANCE, "AGPL 源码地址",
-                    "https://github.com/FantasyNetworkCN/NekoMusic",
-                    "必须是实际运行版本的公开 GitHub 仓库根地址；客户端会持续调用 GitHub API 核验仓库公开状态与 AGPL 许可证"),
+                    "",
+                    "默认留空；必须由管理员填写实际运行版本的公开 GitHub 仓库根地址，客户端会持续调用 GitHub API 核验仓库公开状态与 AGPL 许可证"),
 
             // ---------- 日志（访问日志 / 操作日志，落在独立库，不共用主库） ----------
             flag("logging.access_enabled", Group.LOGGING, "记录访问日志", true,

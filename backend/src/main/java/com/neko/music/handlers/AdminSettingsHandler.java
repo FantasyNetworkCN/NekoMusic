@@ -272,6 +272,9 @@ public class AdminSettingsHandler extends ApiServlet {
                     return ApiMessages.translate("admin.settings.too_long", definition.label());
                 }
                 if (definition.key().equals(AgplSourceManifestHandler.SOURCE_URL_KEY)) {
+                    if (value.isBlank()) {
+                        return null;
+                    }
                     return AgplSourceManifestHandler.isValidGithubRepositoryUrl(value)
                             ? null
                             : ApiMessages.translate("admin.settings.github_repo_required",

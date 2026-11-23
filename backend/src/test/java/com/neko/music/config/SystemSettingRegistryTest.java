@@ -45,7 +45,7 @@ class SystemSettingRegistryTest {
         SystemSettingDefinition definition = SystemSettingRegistry.find("agpl.source_url").orElseThrow();
         assertEquals(SystemSettingDefinition.Group.COMPLIANCE, definition.group());
         assertEquals(SystemSettingDefinition.Type.URL, definition.type());
-        assertEquals("https://github.com/FantasyNetworkCN/NekoMusic", definition.defaultValue());
+        assertEquals("", definition.defaultValue());
     }
 
     @Test
