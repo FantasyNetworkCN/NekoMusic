@@ -1396,7 +1396,9 @@ const setMusicPlayable = async (music, playable) => {
       throw new Error(data.message || '更新播放状态失败')
     }
     music.playable = data.data?.playable === true
-    toast.success(playable ? '已允许播放' : '已禁止播放，收藏和歌单数据已保留')
+      toast.success(playable
+        ? '已允许播放'
+        : '已禁止播放，收藏和歌单数据已保留；如需立即阻断 CDN 旧缓存，请刷新对应媒体缓存')
   } catch (error) {
     music.playable = previous
     toast.error(error.message || '更新播放状态失败')

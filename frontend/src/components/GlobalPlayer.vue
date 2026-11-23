@@ -382,6 +382,7 @@ const stemInstrumental = ref(Number.isFinite(savedStemSettings.instrumental)
   : 1)
 let stemAbortController = null
 let stemJobSeq = 0
+let playabilityTimer = null
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
@@ -1509,6 +1510,10 @@ const handleForcePlay = async () => {
  */
 const switchToTrack = async (track) => {
   if (!track || track.id == null) return
+  if (track.playable === false) {
+    toast.error(t('player.notPlayable'))
+    return
+  }
 
   const isSame = currentMusic.value && String(currentMusic.value.id) === String(track.id)
 
@@ -1545,6 +1550,47 @@ const switchToTrack = async (track) => {
 
   // handleForcePlay 内部会 await nextTick、设置起始时间、恢复音量并起播
   await handleForcePlay()
+  void revalidateCurrentTrackPlayability()
+}
+
+/**
+ * 当前曲目播放权限复核。
+ *
+ * 歌单/搜索里的 playable 是拉取时快照；管理端禁播后，正在播放的曲目不会收到
+ * 推送。这里只复核当前曲目，禁播时立即停播并标记列表项，但不删除歌单/收藏数据。
+ */
+const revalidateCurrentTrackPlayability = async () => {
+  const track = currentMusic.value
+  if (!track?.id || track.playable === false) return
+  const musicId = String(track.id)
+  try {
+    const token = getToken()
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/info/${track.id}`, {
+      headers: token ? { Authorization: token } : {}
+    })
+    const data = await response.json()
+    if (String(currentMusic.value?.id) !== musicId || !data?.success || !data.data) return
+    if (data.data.playable !== false) return
+
+    pauseAudio()
+    isPlaying.value = false
+    audioSrc.value = ''
+    const blocked = { ...currentMusic.value, playable: false }
+    currentMusic.value = blocked
+    localStorage.setItem('currentPlayingMusic', JSON.stringify(blocked))
+    playlist.value = playlist.value.map((item) =>
+      String(item?.id) === musicId ? { ...item, playable: false } : item
+    )
+    localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
+    window.dispatchEvent(new CustomEvent('playlistUpdated', {
+      detail: { playlist: playlist.value }
+    }))
+    updateGlobalPlayerState()
+    updateMediaSessionPlaybackState()
+    toast.error(t('player.notPlayable'))
+  } catch (error) {
+    console.warn('[player] 复核播放权限失败', error)
+  }
 }
 
 /**
@@ -1763,6 +1809,12 @@ onMounted(() => {
       }, 100); // 稍微延迟确保组件完全加载
     }
   }
+
+  playabilityTimer = window.setInterval(() => {
+    void revalidateCurrentTrackPlayability()
+  }, 10000)
+  if (currentMusic.value)
+    void revalidateCurrentTrackPlayability()
   
   // 加载播放模式
   loadPlaybackMode()
@@ -1951,6 +2003,10 @@ const updateMediaSessionPositionState = () => {
 onUnmounted(() => {
   abortStemJob()
   pauseStemPlayback()
+  if (playabilityTimer) {
+    window.clearInterval(playabilityTimer)
+    playabilityTimer = null
+  }
   window.removeEventListener('storage', handleStorageChange)
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
   window.removeEventListener('forcePlay', handleForcePlay)

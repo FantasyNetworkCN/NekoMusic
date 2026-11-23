@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
+import com.neko.music.util.PermissionHelper;
 import com.neko.music.util.NekoLyrics;
 import com.neko.music.util.LyricsPlaceholderFilter;
 import org.eclipse.jetty.http.HttpStatus;
@@ -62,10 +63,37 @@ public class MusicInfoHandler extends HttpServlet {
             return;
         }
         
+        boolean playable = Main.getMusicPlayabilityService() == null
+                || Main.getMusicPlayabilityService().isPlayable(musicId);
+        if (!playable && PermissionHelper.isAdminAuthorized(request)) {
+            playable = true;
+        }
+        music = withPlayable(music, playable);
+
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         MusicResponse musicResponse = new MusicResponse(true, ApiMessages.translate("music.detail.ok"), music);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
+    }
+
+    private Music withPlayable(Music music, boolean playable) {
+        return new Music(
+                music.id(),
+                music.title(),
+                music.artist(),
+                music.album(),
+                music.duration(),
+                music.language(),
+                music.tags(),
+                music.uploadUserId(),
+                music.createdAt(),
+                music.updatedAt(),
+                music.maxQuality(),
+                music.favoriteCount(),
+                music.lyricsFormat(),
+                music.lyrics(),
+                music.lyricsRich(),
+                playable);
     }
     
     /**
@@ -102,7 +130,8 @@ public class MusicInfoHandler extends HttpServlet {
                             rs.getInt("favorite_count"),
                             lyrics.format(),
                             lyrics.lrc(),
-                            lyrics.rich());
+                            lyrics.rich(),
+                            true);
                 }
             }
         } catch (Exception e) {
@@ -156,7 +185,8 @@ public class MusicInfoHandler extends HttpServlet {
             int favoriteCount,
             String lyricsFormat,
             String lyrics,
-            NekoLyrics.Document lyricsRich) {
+            NekoLyrics.Document lyricsRich,
+            boolean playable) {
     }
 
     private record LyricsView(String format, String lrc, NekoLyrics.Document rich) {
