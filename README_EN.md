@@ -52,7 +52,8 @@ The target server must publish `/.well-known/nekomusic-source.json` with its AGP
 public source URL, and client protocol version. The clients verify the manifest and source
 availability before switching, then clear the previous server's login state so its token is
 never sent to the new server. Deployments that modify the server must point `sourceUrl` at
-the public source for the exact running version.
+the public source for the exact running version. It is configured under
+**Admin → System settings → Open-source compliance → AGPL source URL**.
 
 ```json
 {

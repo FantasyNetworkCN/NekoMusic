@@ -40,6 +40,15 @@ class SystemSettingRegistryTest {
     }
 
     @Test
+    @DisplayName("AGPL 源码地址由后台开源合规分组维护")
+    void agplSourceUrlIsManaged() {
+        SystemSettingDefinition definition = SystemSettingRegistry.find("agpl.source_url").orElseThrow();
+        assertEquals(SystemSettingDefinition.Group.COMPLIANCE, definition.group());
+        assertEquals(SystemSettingDefinition.Type.URL, definition.type());
+        assertEquals("https://github.com/FantasyNetworkCN/NekoMusic", definition.defaultValue());
+    }
+
+    @Test
     @DisplayName("展示信息与出厂值齐备")
     void metadataIsPresent() {
         for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -84,5 +85,16 @@ class AdminSettingsHandlerTest {
     @DisplayName("未登记的键不进明细（防御：正常流程在更早的地方就拒绝了）")
     void ignoresUnknownKeys() {
         assertTrue(AdminSettingsHandler.settingChanges(Map.of(), Map.of("not.registered", "x")).isEmpty());
+    }
+
+    @Test
+    @DisplayName("URL 设置只接受 HTTPS；localhost 可供本地联调")
+    void validatesRuntimeUrls() {
+        assertTrue(AdminSettingsHandler.isValidPublicUrl("https://git.example.com/nekomusic"));
+        assertTrue(AdminSettingsHandler.isValidPublicUrl("http://localhost:8080/source"));
+        assertFalse(AdminSettingsHandler.isValidPublicUrl("http://git.example.com/nekomusic"));
+        assertFalse(AdminSettingsHandler.isValidPublicUrl("git.example.com/nekomusic"));
+        assertFalse(AdminSettingsHandler.isValidPublicUrl("https://user:pass@git.example.com/repo"));
+        assertFalse(AdminSettingsHandler.isValidPublicUrl("https://git.example.com/repo?token=x"));
     }
 }

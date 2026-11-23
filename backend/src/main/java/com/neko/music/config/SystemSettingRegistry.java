@@ -12,6 +12,7 @@ import static com.neko.music.config.SystemSettingDefinition.list;
 import static com.neko.music.config.SystemSettingDefinition.number;
 import static com.neko.music.config.SystemSettingDefinition.secret;
 import static com.neko.music.config.SystemSettingDefinition.text;
+import static com.neko.music.config.SystemSettingDefinition.url;
 import static com.neko.music.config.SystemSettingDefinition.decimal;
 
 /**
@@ -196,6 +197,11 @@ public final class SystemSettingRegistry {
                     "支付平台回调的站点根地址；留空则无法异步通知"),
             text("zpay.frontend_return_url", Group.PAY, "同步跳转地址", "https://music.nekocore.cn/vip",
                     "支付完成后浏览器跳回的地址"),
+
+            // ---------- 开源合规 ----------
+            url("agpl.source_url", Group.COMPLIANCE, "AGPL 源码地址",
+                    "https://github.com/FantasyNetworkCN/NekoMusic",
+                    "客户端读取公开开源清单时会访问该地址；修改过服务端代码的部署必须填写实际运行版本的公开源码仓库"),
 
             // ---------- 日志（访问日志 / 操作日志，落在独立库，不共用主库） ----------
             flag("logging.access_enabled", Group.LOGGING, "记录访问日志", true,

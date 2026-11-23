@@ -41,6 +41,8 @@ public record SystemSettingDefinition(
         LONG,
         DOUBLE,
         BOOL,
+        /** 绝对 HTTP(S) URL。 */
+        URL,
         /** 多值列表，数据库里用换行分隔。 */
         LIST
     }
@@ -62,6 +64,7 @@ public record SystemSettingDefinition(
         RECOGNITION("听歌识曲"),
         SEARCH("本地搜索"),
         PAY("支付"),
+        COMPLIANCE("开源合规"),
         LOGGING("日志");
 
         private final String title;
@@ -116,6 +119,13 @@ public record SystemSettingDefinition(
     public static SystemSettingDefinition list(String key, Group group, String label,
                                                String defaultValue, String description) {
         return new SystemSettingDefinition(key, group, label, Type.LIST,
+                defaultValue, false, false, null, null, description);
+    }
+
+    /** 绝对 HTTP(S) URL。 */
+    public static SystemSettingDefinition url(String key, Group group, String label,
+                                              String defaultValue, String description) {
+        return new SystemSettingDefinition(key, group, label, Type.URL,
                 defaultValue, false, false, null, null, description);
     }
 

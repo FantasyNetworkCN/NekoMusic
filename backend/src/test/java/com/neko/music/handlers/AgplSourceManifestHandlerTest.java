@@ -1,8 +1,16 @@
 package com.neko.music.handlers;
 
 import jakarta.servlet.http.HttpServletResponse;
+import com.neko.music.config.ConfigManager;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
+import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Proxy;
@@ -44,12 +52,78 @@ class AgplSourceManifestHandlerTest {
         new AgplSourceManifestHandler().doGet(null, response);
         writer.flush();
 
-        assertEquals("public, max-age=" + com.neko.music.util.HttpResourceCache.MAX_AGE_HALF_HOUR,
+        assertEquals("public, max-age=" + com.neko.music.util.HttpResourceCache.MAX_AGE_ONE_MINUTE
+                        + ", must-revalidate",
                 headers.get("cache-control"));
         assertTrue(body.toString().contains("\"schema\":\"" + AgplSourceManifestHandler.SCHEMA + "\""));
         assertTrue(body.toString().contains("\"project\":\"" + AgplSourceManifestHandler.PROJECT + "\""));
         assertTrue(body.toString().contains("\"license\":\"" + AgplSourceManifestHandler.LICENSE + "\""));
-        assertTrue(body.toString().contains("\"sourceUrl\":\"" + AgplSourceManifestHandler.SOURCE_URL + "\""));
+        assertTrue(body.toString().contains(
+                "\"sourceUrl\":\"" + AgplSourceManifestHandler.DEFAULT_SOURCE_URL + "\""));
+    }
+
+    @Test
+    void sourceUrlComesFromRuntimeSetting() {
+        assertEquals("https://git.example.com/nekomusic/backend",
+                AgplSourceManifestHandler.resolveSourceUrl(
+                        " https://git.example.com/nekomusic/backend "));
+        assertEquals("http://localhost:8080/source",
+                AgplSourceManifestHandler.resolveSourceUrl("http://localhost:8080/source"));
+        assertEquals(AgplSourceManifestHandler.DEFAULT_SOURCE_URL,
+                AgplSourceManifestHandler.resolveSourceUrl("not-a-url"));
+    }
+
+    @Test
+    void exactManifestRouteWinsOverDefaultServletMapping() throws Exception {
+        Server server = new Server(0);
+        ServletContextHandler context = new ServletContextHandler();
+        context.setContextPath("/");
+        context.addServlet(new ServletHolder(new jakarta.servlet.http.HttpServlet() {
+            @Override
+            protected void doGet(jakarta.servlet.http.HttpServletRequest request,
+                                 jakarta.servlet.http.HttpServletResponse response)
+                    throws java.io.IOException {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND);
+            }
+        }), "/");
+        context.addServlet(new ServletHolder(new AgplSourceManifestHandler()),
+                AgplSourceManifestHandler.PATH);
+        server.setHandler(context);
+        try {
+            server.start();
+            int port = ((org.eclipse.jetty.server.ServerConnector)
+                    server.getConnectors()[0]).getLocalPort();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI.create(
+                            "http://127.0.0.1:" + port + AgplSourceManifestHandler.PATH)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpServletResponse.SC_OK, response.statusCode());
+            assertTrue(response.body().contains(AgplSourceManifestHandler.SCHEMA));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void actualServletRegistrarServesManifest() throws Exception {
+        Server server = new Server(0);
+        ServletContextHandler context = new ServletContextHandler();
+        context.setContextPath("/");
+        ServletRegistrar.register(context, new ConfigManager());
+        server.setHandler(context);
+        try {
+            server.start();
+            int port = ((org.eclipse.jetty.server.ServerConnector)
+                    server.getConnectors()[0]).getLocalPort();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI.create(
+                            "http://127.0.0.1:" + port + AgplSourceManifestHandler.PATH)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpServletResponse.SC_OK, response.statusCode());
+            assertTrue(response.body().contains(AgplSourceManifestHandler.SCHEMA));
+        } finally {
+            server.stop();
+        }
     }
 
     private static Object defaultValue(Class<?> type) {

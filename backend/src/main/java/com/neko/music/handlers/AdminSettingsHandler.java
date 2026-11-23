@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.URI;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -266,6 +267,14 @@ public class AdminSettingsHandler extends ApiServlet {
                     return ApiMessages.translate("admin.settings.too_long", definition.label());
                 }
             }
+            case URL -> {
+                if (value.length() > MAX_STRING_LENGTH) {
+                    return ApiMessages.translate("admin.settings.too_long", definition.label());
+                }
+                if (!isValidPublicUrl(value)) {
+                    return ApiMessages.translate("admin.settings.url_required", definition.label());
+                }
+            }
             case BOOL -> {
                 String normalized = value.trim().toLowerCase(Locale.ROOT);
                 if (!normalized.equals("true") && !normalized.equals("false")) {
@@ -338,6 +347,7 @@ public class AdminSettingsHandler extends ApiServlet {
             case BOOL -> value.trim().toLowerCase(Locale.ROOT);
             case INT, LONG, DOUBLE -> value.trim();
             case STRING -> value;
+            case URL -> value.trim();
             case LIST -> {
                 StringBuilder sb = new StringBuilder();
                 for (String line : value.split("\\r?\\n")) {
@@ -357,5 +367,24 @@ public class AdminSettingsHandler extends ApiServlet {
 
     private static SystemSettingsDatabaseManager settingsDatabase() {
         return Main.getSystemSettingsDatabaseManager();
+    }
+
+    static boolean isValidPublicUrl(String raw) {
+        try {
+            URI uri = URI.create(raw == null ? "" : raw.trim());
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            boolean loopback = host.equals("localhost")
+                    || host.equals("::1")
+                    || host.startsWith("127.");
+            return uri.isAbsolute()
+                    && !host.isBlank()
+                    && uri.getUserInfo() == null
+                    && uri.getRawQuery() == null
+                    && uri.getRawFragment() == null
+                    && ("https".equalsIgnoreCase(uri.getScheme())
+                        || ("http".equalsIgnoreCase(uri.getScheme()) && loopback));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

@@ -19,15 +19,17 @@ public final class HttpResourceCache {
     public static final long MAX_AGE_SIX_MONTHS = 15552000L;
     /** 一天。sitemap、txt 等低频更新的固定文件使用。 */
     public static final long MAX_AGE_ONE_DAY = 86400L;
+    /** 一分钟。可由后台即时修改的公开清单使用。 */
+    public static final long MAX_AGE_ONE_MINUTE = 60L;
     /** 半小时。{@code /api/music/latest}、{@code /api/music/ranking} 使用。 */
     public static final long MAX_AGE_HALF_HOUR = 1800L;
 
     /** 动态 API / 登录 / 头像等敏感响应：禁止任何缓存落盘。 */
     public static final String CACHE_CONTROL_NO_STORE = "private, no-store";
 
-    /** 公开且半小时内不会变化的清单类响应。 */
-    public static final String CACHE_CONTROL_PUBLIC_HALF_HOUR =
-            "public, max-age=" + MAX_AGE_HALF_HOUR;
+    /** 公开且可短期缓存的清单类响应；后台修改后最多一分钟完成全网再校验。 */
+    public static final String CACHE_CONTROL_PUBLIC_ONE_MINUTE =
+            "public, max-age=" + MAX_AGE_ONE_MINUTE + ", must-revalidate";
 
     /**
      * 允许浏览器与共享缓存（CDN）缓存；上传替换同一 id 后 ETag 变化，再校验可拿到新对象。

@@ -652,7 +652,7 @@ public class ConfigManager {
         JsonNodeFactory factory = objectMapper.getNodeFactory();
         try {
             return switch (type) {
-                case STRING -> factory.textNode(value);
+                case STRING, URL -> factory.textNode(value);
                 case BOOL -> factory.booleanNode(Boolean.parseBoolean(trimmed));
                 // 数值型留空表示「未设置」，写成 NullNode，读取端才会跳过
                 case INT -> trimmed.isEmpty() ? factory.nullNode() : factory.numberNode(Integer.parseInt(trimmed));

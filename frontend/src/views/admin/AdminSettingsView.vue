@@ -131,6 +131,15 @@
             />
 
             <NInput
+              v-else-if="item.type === 'url'"
+              :id="`set-${item.key}`"
+              v-model="form[item.key]"
+              type="url"
+              placeholder="https://example.com/source"
+              :disabled="saving"
+            />
+
+            <NInput
               v-else
               :id="`set-${item.key}`"
               v-model="form[item.key]"
