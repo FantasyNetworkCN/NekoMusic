@@ -82,6 +82,7 @@ class MusicSearchHandlerTest {
         columns.put("upload_user_id", 0);
         columns.put("created_at", Timestamp.valueOf("2024-01-01 12:00:00"));
         columns.put("max_quality", "sq");
+        columns.put("playable", false);
 
         Method mapMusicRow = MusicSearchHandler.class.getDeclaredMethod("mapMusicRow", ResultSet.class);
         mapMusicRow.setAccessible(true);
@@ -89,6 +90,7 @@ class MusicSearchHandlerTest {
 
         String json = new ObjectMapper().writeValueAsString(music);
         assertEquals("sq", new ObjectMapper().readTree(json).path("maxQuality").asText(), json);
+        assertFalse(new ObjectMapper().readTree(json).path("playable").asBoolean(), json);
     }
 
     @Test
@@ -123,16 +125,18 @@ class MusicSearchHandlerTest {
         findMusicById.setAccessible(true);
         Object music = findMusicById.invoke(null, stubConnection(columns, true, sql, boundId), 148);
 
-        assertEquals("SELECT id, title, artist, album, duration, upload_user_id, created_at, max_quality"
-                + " FROM music WHERE id = ?"
-                + " AND NOT EXISTS (SELECT 1 FROM music_playability mp_filter"
-                + " WHERE mp_filter.music_id = music.id AND mp_filter.playable = FALSE)", sql.get());
+        assertEquals("SELECT id, title, artist, album, duration, upload_user_id, created_at, max_quality, "
+                + "COALESCE((SELECT mp_state.playable FROM music_playability mp_state "
+                + "WHERE mp_state.music_id = music.id), TRUE) AS playable"
+                + " FROM music WHERE id = ?", sql.get());
         assertEquals(148, boundId.get());
         String json = new ObjectMapper().writeValueAsString(music);
         assertEquals(148, new ObjectMapper().readTree(json).path("id").asInt());
         assertEquals("晴天", new ObjectMapper().readTree(json).path("title").asText());
         // 返回结构必须与模糊搜索同形：客户端直接读 maxQuality 决定音质档位
         assertEquals("sq", new ObjectMapper().readTree(json).path("maxQuality").asText());
+        assertFalse(new ObjectMapper().readTree(json).path("playable").asBoolean(),
+                "禁播曲目仍可被搜索，但必须返回 playable=false");
         // lrc 的语义是「本次由歌词正文命中」：按 ID 命中与歌词无关，必须是 false
         assertFalse(new ObjectMapper().readTree(json).path("lrc").asBoolean(),
                 "ID 命中不是歌词命中，lrc 不能为 true");
@@ -159,6 +163,7 @@ class MusicSearchHandlerTest {
         columns.put("upload_user_id", 0);
         columns.put("created_at", Timestamp.valueOf("2024-01-01 12:00:00"));
         columns.put("max_quality", "sq");
+        columns.put("playable", false);
         return columns;
     }
 
@@ -205,6 +210,7 @@ class MusicSearchHandlerTest {
                         yield value == null ? 0 : ((Number) value).intValue();
                     }
                     case "getTimestamp" -> columns.get((String) args[0]);
+                    case "getBoolean" -> Boolean.TRUE.equals(columns.get((String) args[0]));
                     case "wasNull" -> false;
                     default -> null;
                 });
@@ -222,6 +228,7 @@ class MusicSearchHandlerTest {
                         yield value == null ? 0 : ((Number) value).intValue();
                     }
                     case "getTimestamp" -> columns.get((String) args[0]);
+                    case "getBoolean" -> Boolean.TRUE.equals(columns.get((String) args[0]));
                     case "wasNull" -> false;
                     default -> null;
                 });

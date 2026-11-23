@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.service.MediaAccessTicketService;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
 import jakarta.servlet.http.HttpServlet;
@@ -32,8 +33,11 @@ public final class MediaMusicHandler extends HttpServlet {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }
-        if (Main.getMusicPlayabilityService() != null
-                && !Main.getMusicPlayabilityService().isPlayable(musicId)) {
+        boolean playable = Main.getMusicPlayabilityService() == null
+                || Main.getMusicPlayabilityService().isPlayable(musicId);
+        boolean privilegedAccess = MediaAccessTicketService.verify(
+                musicId, request.getParameter("access"));
+        if (!playable && !privilegedAccess) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }

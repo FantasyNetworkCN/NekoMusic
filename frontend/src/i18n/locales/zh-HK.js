@@ -327,6 +327,7 @@ export default {
     playlistAlreadyEmpty: '播放清單已經是空的',
     playlistCleared: '播放清單已清空',
     playUrlFailed: '取得播放網址失敗，請重試',
+    notPlayable: '該音樂暫時無法播放',
     modeListLoop: '清單循環',
     modeSingleLoop: '單曲循環',
     modeShuffle: '隨機播放',

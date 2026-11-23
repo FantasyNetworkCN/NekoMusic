@@ -8,14 +8,12 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * 曲目可播放状态。
  *
- * <p>状态单独存放在 {@code music_playability}，没有记录时默认允许播放。关闭播放时，
- * 在同一事务内移除所有用户的收藏和歌单条目，并刷新受影响歌单的计数。</p>
+ * <p>状态单独存放在 {@code music_playability}，没有记录时默认允许播放。播放状态只影响
+ * 客户端和媒体入口的可用性，不删除用户收藏、歌单或歌单曲目，避免运营侧开关造成用户数据丢失。</p>
  */
 public class MusicPlayabilityService {
     private static final Logger logger = LoggerFactory.getLogger(MusicPlayabilityService.class);
@@ -26,12 +24,7 @@ public class MusicPlayabilityService {
         this.databaseManager = databaseManager;
     }
 
-    public record ChangeResult(
-            boolean playable,
-            int removedFavorites,
-            int removedPlaylistEntries,
-            int affectedPlaylists
-    ) {
+    public record ChangeResult(boolean playable) {
     }
 
     public boolean isPlayable(int musicId) {
@@ -62,6 +55,17 @@ public class MusicPlayabilityService {
                 + "WHERE mp_filter.music_id = " + alias + ".id AND mp_filter.playable = FALSE)";
     }
 
+    /**
+     * 返回某张曲目当前播放状态的 SQL 表达式。
+     *
+     * <p>用于搜索结果、歌单曲目等需要同时返回“是否存在禁播标记”的场景。{@code alias}
+     * 只能使用代码内写死的表别名，不能拼接请求参数。</p>
+     */
+    public static String playableSelect(String alias) {
+        return "COALESCE((SELECT mp_state.playable FROM music_playability mp_state "
+                + "WHERE mp_state.music_id = " + alias + ".id), TRUE)";
+    }
+
     public ChangeResult setPlayable(int musicId, boolean playable) throws SQLException {
         try (Connection conn = databaseManager.getConnection()) {
             conn.setAutoCommit(false);
@@ -86,31 +90,10 @@ public class MusicPlayabilityService {
                     }
                 }
 
-                int removedFavorites = 0;
-                int removedPlaylistEntries = 0;
-                int affectedPlaylists = 0;
-                if (!playable) {
-                    List<Integer> playlistIds = findAffectedPlaylists(conn, musicId);
-                    affectedPlaylists = playlistIds.size();
-
-                    try (PreparedStatement stmt = conn.prepareStatement(
-                            "DELETE FROM user_favorites WHERE music_id = ?")) {
-                        stmt.setInt(1, musicId);
-                        removedFavorites = stmt.executeUpdate();
-                    }
-                    try (PreparedStatement stmt = conn.prepareStatement(
-                            "DELETE FROM playlist_music WHERE music_id = ?")) {
-                        stmt.setInt(1, musicId);
-                        removedPlaylistEntries = stmt.executeUpdate();
-                    }
-                    updatePlaylistCounts(conn, playlistIds);
-                }
-
                 conn.commit();
-                logger.info("更新曲目播放状态 musicId={} playable={} removedFavorites={} "
-                                + "removedPlaylistEntries={} affectedPlaylists={}",
-                        musicId, playable, removedFavorites, removedPlaylistEntries, affectedPlaylists);
-                return new ChangeResult(playable, removedFavorites, removedPlaylistEntries, affectedPlaylists);
+                logger.info("更新曲目播放状态 musicId={} playable={}（保留收藏和歌单数据）",
+                        musicId, playable);
+                return new ChangeResult(playable);
             } catch (Exception e) {
                 conn.rollback();
                 if (e instanceof SQLException sqlException) {
@@ -133,35 +116,4 @@ public class MusicPlayabilityService {
         }
     }
 
-    private static List<Integer> findAffectedPlaylists(Connection conn, int musicId) throws SQLException {
-        List<Integer> ids = new ArrayList<>();
-        try (PreparedStatement stmt = conn.prepareStatement(
-                "SELECT DISTINCT playlist_id FROM playlist_music WHERE music_id = ?")) {
-            stmt.setInt(1, musicId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    ids.add(rs.getInt(1));
-                }
-            }
-        }
-        return ids;
-    }
-
-    private static void updatePlaylistCounts(Connection conn, List<Integer> playlistIds) throws SQLException {
-        if (playlistIds.isEmpty()) {
-            return;
-        }
-        try (PreparedStatement stmt = conn.prepareStatement("""
-                UPDATE playlists SET music_count =
-                    (SELECT COUNT(*) FROM playlist_music WHERE playlist_id = ?)
-                WHERE id = ?
-                """)) {
-            for (int playlistId : playlistIds) {
-                stmt.setInt(1, playlistId);
-                stmt.setInt(2, playlistId);
-                stmt.addBatch();
-            }
-            stmt.executeBatch();
-        }
-    }
 }

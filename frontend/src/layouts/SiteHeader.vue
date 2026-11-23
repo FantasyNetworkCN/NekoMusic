@@ -117,7 +117,9 @@ function handleAvatarError(event) {
 }
 
 function handleImageError(event) {
-  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`
+  // 失败后切默认封面，并解除 onerror，避免后端离线时同一地址无限重试。
+  event.target.onerror = null
+  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
 }
 
 async function fetchSearchResults(query) {

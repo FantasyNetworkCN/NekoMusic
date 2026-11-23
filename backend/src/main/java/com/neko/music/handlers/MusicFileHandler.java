@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.i18n.ApiMessages;
+import com.neko.music.service.MediaAccessTicketService;
 import com.neko.music.service.MusicQualityService;
 import com.neko.music.service.MusicPlayabilityService;
 import com.neko.music.service.MusicSeparationService;
@@ -11,6 +12,7 @@ import com.neko.music.service.UserAuthService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicLookup;
+import com.neko.music.util.PermissionHelper;
 import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.VipUtil;
 import jakarta.servlet.AsyncContext;
@@ -26,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 
 /**
  * 音乐播放地址签发：{@code GET /api/music/file/{id}?quality=...&separate=1}。
@@ -47,6 +50,7 @@ public class MusicFileHandler extends ApiServlet {
             MusicLookup::musicRowExists,
             id -> Main.getMusicPlayabilityService() != null
                     && Main.getMusicPlayabilityService().isPlayable(id),
+            PermissionHelper::isAdminAuthorized,
             MusicQualityService::resolveAudio,
             MusicSeparationService::separate,
             MusicSeparationService::submit,
@@ -76,7 +80,9 @@ public class MusicFileHandler extends ApiServlet {
             sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "music.file_missing");
             return;
         }
-        if (!dependencies.playableChecker().test(musicId)) {
+        boolean playable = dependencies.playableChecker().test(musicId);
+        boolean privilegedAccess = !playable && dependencies.adminExemptChecker().test(request);
+        if (!playable && !privilegedAccess) {
             sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, "music.not_playable");
             return;
         }
@@ -93,11 +99,11 @@ public class MusicFileHandler extends ApiServlet {
                         "music.separation.invalid_parameter");
                 return;
             }
-            sendSeparatedStream(request, response, musicId);
+            sendSeparatedStream(request, response, musicId, privilegedAccess);
             return;
         }
         if (separate) {
-            sendSeparatedFiles(request, response, musicId);
+            sendSeparatedFiles(request, response, musicId, privilegedAccess);
             return;
         }
 
@@ -111,7 +117,8 @@ public class MusicFileHandler extends ApiServlet {
         }
 
         JsonObject data = new JsonObject();
-        data.addProperty("url", MusicQualityService.publicUrl(musicId, audioPath));
+        data.addProperty("url", withMediaAccess(
+                MusicQualityService.publicUrl(musicId, audioPath), musicId, privilegedAccess));
 
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
@@ -121,7 +128,8 @@ public class MusicFileHandler extends ApiServlet {
         recordPlay(request, musicId);
     }
 
-    private void sendSeparatedStream(HttpServletRequest request, HttpServletResponse response, int musicId)
+    private void sendSeparatedStream(HttpServletRequest request, HttpServletResponse response, int musicId,
+                                     boolean privilegedAccess)
             throws IOException {
         Integer userId = dependencies.authenticator().apply(request);
         if (userId == null) {
@@ -183,16 +191,16 @@ public class MusicFileHandler extends ApiServlet {
         }
         recordPlay(request, musicId);
         Thread.ofVirtual().name("music-separation-sse-", 0).start(
-                () -> streamJob(asyncContext, writer, musicId, job));
+                () -> streamJob(asyncContext, writer, musicId, job, privilegedAccess));
     }
 
     private void streamJob(AsyncContext asyncContext, PrintWriter writer, int musicId,
-                           MusicSeparationService.Job job) {
+                           MusicSeparationService.Job job, boolean privilegedAccess) {
         int eventIndex = 0;
         try {
             MusicSeparationService.Event event;
             while ((event = job.awaitEvent(eventIndex++)) != null) {
-                if (!writeEvent(writer, musicId, event)) {
+                if (!writeEvent(writer, musicId, event, privilegedAccess)) {
                     break;
                 }
                 if ("done".equals(event.name()) || "error".equals(event.name())) {
@@ -211,15 +219,15 @@ public class MusicFileHandler extends ApiServlet {
     }
 
     private boolean writeEvent(PrintWriter writer, int musicId,
-                               MusicSeparationService.Event event) {
+                               MusicSeparationService.Event event, boolean privilegedAccess) {
         Map<String, Object> data = new LinkedHashMap<>(event.data());
         Object vocalsFile = data.remove("vocalsFile");
         Object accompanimentFile = data.remove("accompanimentFile");
         if (vocalsFile != null) {
-            data.put("vocalsUrl", mediaUrl(musicId, vocalsFile.toString()));
+            data.put("vocalsUrl", derivedMediaUrl(musicId, vocalsFile.toString(), privilegedAccess));
         }
         if (accompanimentFile != null) {
-            data.put("accompanimentUrl", mediaUrl(musicId, accompanimentFile.toString()));
+            data.put("accompanimentUrl", derivedMediaUrl(musicId, accompanimentFile.toString(), privilegedAccess));
         }
         Object messageKey = data.remove("messageKey");
         if (messageKey != null) {
@@ -235,12 +243,18 @@ public class MusicFileHandler extends ApiServlet {
         }
     }
 
-    private static String mediaUrl(int musicId, String fileName) {
-        return MusicQualityService.publicUrl(musicId,
+    private static String derivedMediaUrl(int musicId, String fileName, boolean privilegedAccess) {
+        String url = MusicQualityService.publicUrl(musicId,
                 com.neko.music.util.MusicAssetLocator.derivedDir(musicId).resolve(fileName).toString());
+        return withMediaAccess(url, musicId, privilegedAccess);
     }
 
-    private void sendSeparatedFiles(HttpServletRequest request, HttpServletResponse response, int musicId)
+    private static String withMediaAccess(String url, int musicId, boolean privilegedAccess) {
+        return privilegedAccess ? MediaAccessTicketService.withAccess(url, musicId) : url;
+    }
+
+    private void sendSeparatedFiles(HttpServletRequest request, HttpServletResponse response, int musicId,
+                                    boolean privilegedAccess)
             throws IOException {
         Integer userId = dependencies.authenticator().apply(request);
         if (userId == null) {
@@ -280,9 +294,9 @@ public class MusicFileHandler extends ApiServlet {
         response.setCharacterEncoding("UTF-8");
         response.setContentType("text/plain;charset=UTF-8");
         try (var out = response.getWriter()) {
-            out.print(MusicQualityService.publicUrl(musicId, result.vocals().toString()));
+            out.print(derivedMediaUrl(musicId, result.vocals().toString(), privilegedAccess));
             out.print('\n');
-            out.print(MusicQualityService.publicUrl(musicId, result.accompaniment().toString()));
+            out.print(derivedMediaUrl(musicId, result.accompaniment().toString(), privilegedAccess));
             out.print('\n');
             out.flush();
         }
@@ -342,6 +356,7 @@ public class MusicFileHandler extends ApiServlet {
             IntPredicate vipChecker,
             IntPredicate musicExists,
             IntPredicate playableChecker,
+            Predicate<HttpServletRequest> adminExemptChecker,
             AudioResolver audioResolver,
             SeparationProvider separationProvider,
             SeparationJobSubmitter separationJobSubmitter,

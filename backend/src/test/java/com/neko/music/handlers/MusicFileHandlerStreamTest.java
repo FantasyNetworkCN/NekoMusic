@@ -73,6 +73,7 @@ class MusicFileHandlerStreamTest {
                     id -> true,
                     id -> true,
                     id -> true,
+                    ignoredRequest -> false,
                     (id, quality) -> "/tmp/unused.mp3",
                     id -> {
                         throw new AssertionError("同步分离不应被调用");

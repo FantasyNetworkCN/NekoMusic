@@ -11,6 +11,7 @@ import com.neko.music.service.SearchIndexService;
 import com.neko.music.search.SearchSession;
 import com.neko.music.util.ChineseConverter;
 import com.neko.music.util.ClientIpResolver;
+import com.neko.music.util.PermissionHelper;
 import com.neko.music.util.RequestAuthUtil;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -43,7 +44,8 @@ public class MusicSearchHandler extends ApiServlet {
     /** 索引召回的单次取回上限；与旧歌词索引的合并上限保持一致。 */
     private static final int MAX_INDEX_HITS = 80;
     private static final String MUSIC_BASE_COLUMNS =
-            "id, title, artist, album, duration, upload_user_id, created_at, max_quality";
+            "id, title, artist, album, duration, upload_user_id, created_at, max_quality, "
+                    + MusicPlayabilityService.playableSelect("music") + " AS playable";
     private static final String MUSIC_SEARCH_COLUMNS = MUSIC_BASE_COLUMNS + ", " +
             "title_pinyin, title_pinyin_initials, title_word_initials, " +
             "artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin ";
@@ -89,6 +91,7 @@ public class MusicSearchHandler extends ApiServlet {
 
     private void handleQuerySearch(String query, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
+        boolean adminExempt = PermissionHelper.isAdminAuthorized(request);
         List<Music> results = searchMusic(query);
 
         String message = "playlist.search_ok";
@@ -112,6 +115,7 @@ public class MusicSearchHandler extends ApiServlet {
         if (!results.isEmpty()) {
             recordAuthenticatedSearch(request, query);
         }
+        applyEffectivePlayability(results, adminExempt);
         writeSearchResponse(response, !results.isEmpty(), message, responseResults);
     }
 
@@ -136,6 +140,7 @@ public class MusicSearchHandler extends ApiServlet {
 
     private void handleBatchSearch(List<SearchItem> items, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
+        boolean adminExempt = PermissionHelper.isAdminAuthorized(request);
         List<Music> results = new ArrayList<>(items.size());
         List<PendingNeteaseFill> pendingFills = new ArrayList<>();
         int foundCount = 0;
@@ -202,6 +207,7 @@ public class MusicSearchHandler extends ApiServlet {
         }
 
         String message = buildBatchMessage(foundCount, items.size(), fillCount, lastFillFailure);
+        applyEffectivePlayability(results, adminExempt);
         writeSearchResponse(response, foundCount > 0, message, results);
     }
 
@@ -431,7 +437,6 @@ public class MusicSearchHandler extends ApiServlet {
             }
             sql.append("(SELECT ").append(MUSIC_SEARCH_COLUMNS)
                     .append("FROM music WHERE (").append(String.join(" OR ", conditions))
-                    .append(") AND ").append(MusicPlayabilityService.playableCondition("music"))
                     .append(") ORDER BY created_at DESC LIMIT ?)");
         }
         return sql.toString();
@@ -579,8 +584,7 @@ public class MusicSearchHandler extends ApiServlet {
             placeholders.append('?');
         }
 
-        String sql = "SELECT " + MUSIC_SEARCH_COLUMNS + " FROM music WHERE id IN (" + placeholders + ")"
-                + " AND " + MusicPlayabilityService.playableCondition("music");
+        String sql = "SELECT " + MUSIC_SEARCH_COLUMNS + " FROM music WHERE id IN (" + placeholders + ")";
         Map<Integer, Music> byId = new HashMap<>();
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < ids.size(); i++) {
@@ -740,6 +744,7 @@ public class MusicSearchHandler extends ApiServlet {
         music.setUploadUserId(row.uploadUserId());
         music.setCreatedAt(row.createdAt());
         music.setMaxQuality(row.maxQuality());
+        music.setPlayable(true);
         return music;
     }
 
@@ -776,8 +781,7 @@ public class MusicSearchHandler extends ApiServlet {
 
     /** 按 ID 取一首曲目；不存在返回 null。列与模糊搜索一致，保证返回结构（含 maxQuality）同形。 */
     private static Music findMusicById(Connection conn, int musicId) throws SQLException {
-        String sql = "SELECT " + MUSIC_BASE_COLUMNS + " FROM music WHERE id = ?"
-                + " AND " + MusicPlayabilityService.playableCondition("music");
+        String sql = "SELECT " + MUSIC_BASE_COLUMNS + " FROM music WHERE id = ?";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, musicId);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -796,7 +800,20 @@ public class MusicSearchHandler extends ApiServlet {
         music.setUploadUserId(rs.getInt("upload_user_id"));
         music.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "");
         music.setMaxQuality(rs.getString("max_quality"));
+        music.setPlayable(rs.getBoolean("playable"));
         return music;
+    }
+
+    /** 管理员及以上角色不受曲目禁播限制；搜索结果中的 playable 反映当前调用者能否播放。 */
+    private static void applyEffectivePlayability(List<Music> results, boolean adminExempt) {
+        if (!adminExempt || results == null || results.isEmpty()) {
+            return;
+        }
+        for (Music music : results) {
+            if (music != null) {
+                music.setPlayable(true);
+            }
+        }
     }
 
     /** 读取查询侧需要用到的预计算拼音列（不返回给客户端）。 */
@@ -852,6 +869,8 @@ public class MusicSearchHandler extends ApiServlet {
         private String createdAt;
         /** 该曲最高音质（standard/hq/sq/hires/dolby），与 /api/music/info 的 maxQuality 同义；未探测过为 null。 */
         private String maxQuality;
+        /** 当前请求身份下是否可播放；管理员及以上角色对禁播曲目也返回 true。 */
+        private boolean playable = true;
         // 预计算拼音列
         private String titlePinyin;
         private String titlePinyinInitials;
@@ -879,6 +898,8 @@ public class MusicSearchHandler extends ApiServlet {
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
         public String getMaxQuality() { return maxQuality; }
         public void setMaxQuality(String maxQuality) { this.maxQuality = maxQuality; }
+        public boolean getPlayable() { return playable; }
+        public void setPlayable(boolean playable) { this.playable = playable; }
         public boolean getLrc() { return lrc; }
         public void setLrc(boolean lrc) { this.lrc = lrc; }
         @JsonIgnore

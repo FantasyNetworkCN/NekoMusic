@@ -92,6 +92,15 @@ class MusicFileHandlerSeparationTest {
         assertTrue(result.body().contains("禁止播放"));
     }
 
+    @Test
+    void adminCanResolveDisabledTrackWithSignedMediaUrl() throws Exception {
+        Response result = request(Map.of(), "quality", "hq",
+                dependencies(42, true, new AtomicBoolean(), false, true));
+
+        assertEquals(200, result.status());
+        assertTrue(result.body().contains("\"url\":\"/media/music/7/7.mp3?access"));
+    }
+
     private static MusicFileHandler.Dependencies dependencies(Integer userId, boolean vip,
                                                                AtomicBoolean separationCalled) {
         return dependencies(userId, vip, separationCalled, true);
@@ -100,11 +109,19 @@ class MusicFileHandlerSeparationTest {
     private static MusicFileHandler.Dependencies dependencies(Integer userId, boolean vip,
                                                                AtomicBoolean separationCalled,
                                                                boolean playable) {
+        return dependencies(userId, vip, separationCalled, playable, false);
+    }
+
+    private static MusicFileHandler.Dependencies dependencies(Integer userId, boolean vip,
+                                                               AtomicBoolean separationCalled,
+                                                               boolean playable,
+                                                               boolean adminExempt) {
         return new MusicFileHandler.Dependencies(
                 request -> userId,
                 id -> vip,
                 id -> true,
                 id -> playable,
+                request -> adminExempt,
                 (id, quality) -> "/tmp/7.mp3",
                 id -> {
                     separationCalled.set(true);

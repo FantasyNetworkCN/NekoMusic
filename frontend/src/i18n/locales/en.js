@@ -376,6 +376,7 @@ export default {
     playlistAlreadyEmpty: 'The queue is already empty',
     playlistCleared: 'Queue cleared',
     playUrlFailed: 'Failed to get the play URL, please retry',
+    notPlayable: 'This track is temporarily unavailable',
     modeListLoop: 'Repeat all',
     modeSingleLoop: 'Repeat one',
     modeShuffle: 'Shuffle',

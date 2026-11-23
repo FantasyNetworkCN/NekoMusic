@@ -327,6 +327,7 @@ export default {
     playlistAlreadyEmpty: '再生リストはすでに空です',
     playlistCleared: '再生リストをクリアしました',
     playUrlFailed: '再生URLの取得に失敗しました。再試行してください',
+    notPlayable: 'この曲は現在再生できません',
     modeListLoop: 'リストをリピート',
     modeSingleLoop: '1曲リピート',
     modeShuffle: 'シャッフル',

@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,6 +49,11 @@ public class GetPlaylistMusicHandler extends ApiServlet {
 
             // 获取歌单中的音乐列表（允许未登录访问）
             List<JsonObject> musicList = playlistService.getPlaylistMusic(playlistId);
+            if (PermissionHelper.isAdminAuthorized(req)) {
+                for (JsonObject music : musicList) {
+                    music.addProperty("playable", true);
+                }
+            }
 
             // 只有「列表为空」时才需要确认歌单是否存在：非空列表本身就证明歌单存在，
             // 常见路径因此少一次数据库往返（原实现每次请求都先查一遍歌单）

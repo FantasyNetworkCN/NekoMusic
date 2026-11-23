@@ -21,7 +21,7 @@ class MusicPlayabilityServiceTest {
     Path tempDir;
 
     @Test
-    void disablingPlaybackDeletesFavoritesAndPlaylistEntriesAndUpdatesCounts() throws Exception {
+    void disablingPlaybackKeepsFavoritesAndPlaylistEntries() throws Exception {
         String url = "jdbc:sqlite:" + tempDir.resolve("playability.db");
         createSchema(url);
         try (Connection conn = DriverManager.getConnection(url);
@@ -38,20 +38,17 @@ class MusicPlayabilityServiceTest {
         MusicPlayabilityService.ChangeResult result = service.setPlayable(7, false);
 
         assertFalse(service.isPlayable(7));
-        assertEquals(2, result.removedFavorites());
-        assertEquals(2, result.removedPlaylistEntries());
-        assertEquals(2, result.affectedPlaylists());
+        assertFalse(result.playable());
         try (Connection conn = DriverManager.getConnection(url);
              Statement stmt = conn.createStatement()) {
-            assertEquals(0, count(stmt, "SELECT COUNT(*) FROM user_favorites WHERE music_id = 7"));
-            assertEquals(0, count(stmt, "SELECT COUNT(*) FROM playlist_music WHERE music_id = 7"));
-            assertEquals(0, count(stmt, "SELECT SUM(music_count) FROM playlists"));
+            assertEquals(2, count(stmt, "SELECT COUNT(*) FROM user_favorites WHERE music_id = 7"));
+            assertEquals(2, count(stmt, "SELECT COUNT(*) FROM playlist_music WHERE music_id = 7"));
+            assertEquals(2, count(stmt, "SELECT SUM(music_count) FROM playlists"));
         }
 
         MusicPlayabilityService.ChangeResult enabled = service.setPlayable(7, true);
         assertTrue(service.isPlayable(7));
-        assertEquals(0, enabled.removedFavorites());
-        assertEquals(0, enabled.removedPlaylistEntries());
+        assertTrue(enabled.playable());
     }
 
     private static void createSchema(String url) throws SQLException {

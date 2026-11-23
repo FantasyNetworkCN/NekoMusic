@@ -59,7 +59,12 @@
 
       <!-- 曲目列表 -->
       <div v-else-if="musicList.length > 0" class="list">
-        <article v-for="(music, index) in musicList" :key="music.id" class="row">
+        <article
+          v-for="(music, index) in musicList"
+          :key="music.id"
+          class="row"
+          :class="{ 'row--disabled': music.playable === false }"
+        >
           <span class="row__idx">{{ index + 1 }}</span>
           <button type="button" class="row__cover-btn" @click="playMusic(music)">
             <img
@@ -79,6 +84,7 @@
               <span class="row__title-text">{{ music.title }}</span>
               <NowPlayingTag v-if="isCurrentMusic(music.id)" />
               <QualityBadge :quality="music.maxQuality" />
+              <span v-if="music.playable === false" class="row__restricted">{{ $t('player.notPlayable') }}</span>
             </span>
             <span class="row__artist">{{ music.artist }}</span>
           </button>
@@ -125,6 +131,7 @@
           :key="music.id"
           type="button"
           class="results__row"
+          :class="{ 'results__row--disabled': music.playable === false }"
           @click="addMusicToPlaylist(music)"
         >
           <img
@@ -142,6 +149,7 @@
             <span class="results__title">
               <span class="results__title-text">{{ music.title }}</span>
               <QualityBadge :quality="music.maxQuality" />
+              <span v-if="music.playable === false" class="results__restricted">{{ $t('player.notPlayable') }}</span>
             </span>
             <span class="results__artist">{{ music.artist }}</span>
           </span>
@@ -202,9 +210,10 @@ const fetchPlaylistDetail = async () => {
     // 先获取歌单的基本信息
     await fetchPlaylistInfo()
     
-    // 然后获取歌单的音乐列表（不需要token）
+    // 然后获取歌单的音乐列表；携带 token 时高权限账号可获得正确的 playable 状态
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/playlist/music/${playlistId.value}`, {
-      method: 'GET'
+      method: 'GET',
+      headers: getToken() ? { Authorization: getToken() } : {},
     })
     
     const data = await response.json()
@@ -261,21 +270,28 @@ const toTrack = (music) => ({
   artist: music.artist,
   album: music.album || '',
   duration: music.duration || 0,
+  playable: music.playable !== false,
 })
 
 const playMusic = (music) => {
+  if (music?.playable === false) {
+    toast.error(t('player.notPlayable'))
+    return
+  }
   // 以歌单为播放队列，保证「下一首」能接着播放
-  playTrackInList(toTrack(music), musicList.value.map(toTrack))
+  const playableTracks = musicList.value.filter((item) => item.playable !== false)
+  playTrackInList(toTrack(music), playableTracks.map(toTrack))
 }
 
 const playAll = () => {
-  if (musicList.value.length === 0) {
+  const playableTracks = musicList.value.filter((music) => music.playable !== false)
+  if (playableTracks.length === 0) {
     toast.warning(t('playlistDetail.emptyWarning'))
     return
   }
 
-  playTracks(musicList.value.map(toTrack), 0)
-  toast.success(t('playlistDetail.playAllStarted', { count: musicList.value.length }))
+  playTracks(playableTracks.map(toTrack), 0)
+  toast.success(t('playlistDetail.playAllStarted', { count: playableTracks.length }))
 }
 
 const formatDuration = (seconds) => {
@@ -398,7 +414,8 @@ const handleSearch = async () => {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/search`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(getToken() ? { Authorization: getToken() } : {}),
       },
       body: JSON.stringify({
         query: searchQuery.value.trim()
@@ -417,6 +434,10 @@ const handleSearch = async () => {
 }
 
 const addMusicToPlaylist = async (music) => {
+  if (music?.playable === false) {
+    toast.error(t('player.notPlayable'))
+    return
+  }
   try {
     const token = getToken()
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/playlist/music/add`, {
@@ -614,6 +635,14 @@ onMounted(() => {
   }
 }
 
+.row--disabled {
+  opacity: 0.55;
+}
+
+.row--disabled .row__cover-btn img {
+  filter: grayscale(1);
+}
+
 .row__idx {
   flex: none;
   width: 28px;
@@ -691,6 +720,13 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
+.row__restricted {
+  flex: none;
+  color: var(--n-warning);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
+}
+
 .row__artist {
   color: var(--n-text-muted);
   font-size: var(--n-text-sm);
@@ -758,6 +794,14 @@ onMounted(() => {
   transition: background var(--n-duration-fast) var(--n-ease);
 }
 
+.results__row--disabled {
+  opacity: 0.55;
+}
+
+.results__row--disabled .results__cover {
+  filter: grayscale(1);
+}
+
 @media (hover: hover) {
   .results__row:hover {
     background: var(--n-surface-hover);
@@ -796,6 +840,13 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.results__restricted {
+  flex: none;
+  color: var(--n-warning);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
 }
 
 .results__artist {

@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.service.MusicPlayabilityService;
 import com.neko.music.database.DatabaseManager;
+import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -55,7 +56,7 @@ public class SearchArtistsHandler extends ApiServlet {
             }
 
             // 搜索歌手
-            JsonObject artistResult = searchArtists(query);
+            JsonObject artistResult = searchArtists(query, PermissionHelper.isAdminAuthorized(req));
 
             logger.info("搜索歌手结果: query={}", query);
 
@@ -75,7 +76,7 @@ public class SearchArtistsHandler extends ApiServlet {
     /**
      * 搜索歌手（单连接完成聚合查询 + 曲目列表，配合 idx_music_artist 降低第二段查询成本）
      */
-    private JsonObject searchArtists(String query) {
+    private JsonObject searchArtists(String query, boolean adminExempt) {
         logger.debug("searchArtists: query len={}", query != null ? query.length() : 0);
 
         JsonObject result = new JsonObject();
@@ -85,14 +86,10 @@ public class SearchArtistsHandler extends ApiServlet {
         int musicCount = 0;
         List<JsonObject> musicList = new ArrayList<>();
 
-        String musicSql = """
-            SELECT m.id, m.title, m.artist, m.album, m.duration, m.file_format,
-                   m.language, m.max_quality
-            FROM music m
-            WHERE m.artist = ? AND """ + MusicPlayabilityService.playableCondition("m") + """
-
-            ORDER BY m.id
-            """;
+        String musicSql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.file_format, "
+                + "m.language, m.max_quality, "
+                + MusicPlayabilityService.playableSelect("m") + " AS playable "
+                + "FROM music m WHERE m.artist = ? ORDER BY m.id";
 
         try (Connection conn = databaseManager.getConnection()) {
             String queryLower = query.toLowerCase();
@@ -102,8 +99,6 @@ public class SearchArtistsHandler extends ApiServlet {
                     SELECT m.artist, COUNT(*) AS music_count FROM music m
                     WHERE (m.artist LIKE ? OR m.artist_pinyin LIKE ? OR m.artist_pinyin_initials LIKE ?
                            OR m.artist_word_initials LIKE ?)
-                      AND """ + MusicPlayabilityService.playableCondition("m") + """
-
                     GROUP BY m.artist ORDER BY music_count DESC LIMIT 1
                     """;
                 try (PreparedStatement stmt = conn.prepareStatement(aggSql)) {
@@ -130,8 +125,7 @@ public class SearchArtistsHandler extends ApiServlet {
                     conditions.add("artist LIKE ?");
                 }
                 sqlBuilder.append(String.join(" OR ", conditions));
-                sqlBuilder.append(") AND ").append(MusicPlayabilityService.playableCondition("m"))
-                        .append(" GROUP BY m.artist ORDER BY music_count DESC LIMIT 1");
+                sqlBuilder.append(") GROUP BY m.artist ORDER BY music_count DESC LIMIT 1");
 
                 try (PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
                     int paramIndex = 1;
@@ -167,6 +161,7 @@ public class SearchArtistsHandler extends ApiServlet {
                         music.addProperty("fileFormat", rs.getString("file_format"));
                         music.addProperty("language", rs.getString("language"));
                         music.addProperty("maxQuality", rs.getString("max_quality"));
+                        music.addProperty("playable", adminExempt || rs.getBoolean("playable"));
                         musicList.add(music);
                     }
                 }

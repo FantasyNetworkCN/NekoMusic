@@ -121,7 +121,7 @@ async function fetchPlaylistResults(query) {
 async function fetchArtistPayload(query) {
   const response = await fetch(`${API_CONFIG.BASE_URL}/api/artists/search`, {
     method: 'POST',
-    headers: jsonHeaders,
+    headers: { ...jsonHeaders, ...authHeaders() },
     body: JSON.stringify({ query }),
   })
   const data = await response.json()
@@ -172,6 +172,7 @@ function normalizeTrack(m) {
     duration: m.duration ?? 0,
     fileFormat,
     filename: m.filename ?? `${m.title}.${fileFormat}`,
+    playable: m.playable !== false,
   }
 }
 
@@ -200,6 +201,7 @@ const toTrack = (m) => ({
   artist: m.artist,
   album: m.album ?? '',
   duration: m.duration ?? 0,
+  playable: m.playable !== false,
 })
 
 /**
@@ -211,7 +213,11 @@ const toTrack = (m) => ({
  * 之前只把单曲塞进队列并跳播放页，导致页面看着在播、实际没起播，自然「无法下一首」。
  */
 function playFromResult(result, list) {
-  const tracks = Array.isArray(list) ? list : []
+  if (result?.playable === false) {
+    toast.error(t('player.notPlayable'))
+    return
+  }
+  const tracks = (Array.isArray(list) ? list : []).filter((item) => item?.playable !== false)
   if (!tracks.length) {
     playTrack(toTrack(result))
     return
@@ -234,6 +240,10 @@ function mapContentTypeToExtension(contentType) {
 }
 
 async function downloadMusic(result) {
+  if (result?.playable === false) {
+    toast.error(t('player.notPlayable'))
+    return
+  }
   try {
     const mediaUrl = await resolveMediaUrl(result.id)
     const response = await fetch(mediaUrl)
@@ -406,7 +416,13 @@ onMounted(async () => {
       <!-- 单曲 -->
       <div v-if="tab === 'tracks'" class="list">
         <p v-if="!musicResults.length" class="list__empty">{{ $t('search.noTracks') }}</p>
-        <article v-for="result in musicResults" v-else :key="'m-' + result.id" class="row">
+        <article
+          v-for="result in musicResults"
+          v-else
+          :key="'m-' + result.id"
+          class="row"
+          :class="{ 'row--disabled': result.playable === false }"
+        >
           <img
             :src="getCoverUrl(result.id)"
             :alt="result.title"
@@ -425,6 +441,7 @@ onMounted(async () => {
               <span class="row__title-text">{{ result.title }}</span>
               <NowPlayingTag v-if="isCurrentMusic(result.id)" />
               <QualityBadge :quality="result.maxQuality" />
+              <span v-if="result.playable === false" class="row__restricted">{{ $t('player.notPlayable') }}</span>
               <NIcon v-if="result.lrc" name="file-text" :size="13" class="row__lyric" />
             </span>
             <span class="row__meta">{{ result.artist }}</span>
@@ -488,7 +505,13 @@ onMounted(async () => {
 
           <div class="list">
             <p v-if="!artistTracks.length" class="list__empty">{{ $t('search.noArtistTracks') }}</p>
-            <article v-for="result in artistTracks" v-else :key="'a-' + result.id" class="row">
+            <article
+              v-for="result in artistTracks"
+              v-else
+              :key="'a-' + result.id"
+              class="row"
+              :class="{ 'row--disabled': result.playable === false }"
+            >
               <img
                 :src="trackCoverUrl(result)"
                 :alt="result.title"
@@ -506,6 +529,7 @@ onMounted(async () => {
                 <span class="row__title">
                   <span class="row__title-text">{{ result.title }}</span>
                   <QualityBadge :quality="result.maxQuality" />
+                  <span v-if="result.playable === false" class="row__restricted">{{ $t('player.notPlayable') }}</span>
                 </span>
                 <span class="row__meta">{{ result.artist }}</span>
                 <span class="row__sub">{{ result.album || $t('common.unknownAlbum') }}</span>
@@ -745,6 +769,21 @@ onMounted(async () => {
 .row__lyric {
   flex: none;
   color: var(--n-accent);
+}
+
+.row--disabled {
+  opacity: 0.55;
+}
+
+.row--disabled .row__cover {
+  filter: grayscale(1);
+}
+
+.row__restricted {
+  flex: none;
+  color: var(--n-warning);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
 }
 
 .row__meta {

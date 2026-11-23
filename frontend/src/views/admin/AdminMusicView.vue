@@ -1396,7 +1396,7 @@ const setMusicPlayable = async (music, playable) => {
       throw new Error(data.message || '更新播放状态失败')
     }
     music.playable = data.data?.playable === true
-    toast.success(playable ? '已允许播放' : '已禁止播放，并从所有收藏和歌单中移除')
+    toast.success(playable ? '已允许播放' : '已禁止播放，收藏和歌单数据已保留')
   } catch (error) {
     music.playable = previous
     toast.error(error.message || '更新播放状态失败')
@@ -1593,8 +1593,9 @@ const getCoverUrl = (musicId) => {
 
 // 处理封面图片加载错误
 const handleImageError = (event) => {
-  // 如果图片加载失败，使用后端API的默认图标
-  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`;
+  // 如果图片加载失败，使用后端 API 的默认图标；解除 onerror 防止离线时循环请求。
+  event.target.onerror = null
+  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`;
 }
 
 </script>

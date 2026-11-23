@@ -327,6 +327,7 @@ export default {
     playlistAlreadyEmpty: '재생 목록이 이미 비어 있습니다',
     playlistCleared: '재생 목록을 비웠습니다',
     playUrlFailed: '재생 주소를 가져오지 못했습니다. 다시 시도해 주세요',
+    notPlayable: '이 곡은 현재 재생할 수 없습니다',
     modeListLoop: '목록 반복',
     modeSingleLoop: '한 곡 반복',
     modeShuffle: '셔플',

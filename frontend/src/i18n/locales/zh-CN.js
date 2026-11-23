@@ -397,6 +397,7 @@ export default {
     playlistAlreadyEmpty: '播放列表已经是空的',
     playlistCleared: '播放列表已清空',
     playUrlFailed: '获取播放地址失败，请重试',
+    notPlayable: '该音乐暂时无法播放',
     modeListLoop: '列表循环',
     modeSingleLoop: '单曲循环',
     modeShuffle: '随机播放',
