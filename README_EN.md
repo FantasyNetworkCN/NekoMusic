@@ -55,7 +55,9 @@ never sent to the new server. Deployments that modify the server must point `sou
 the public source for the exact running version. It is configured under
 **Admin → System settings → Open-source compliance → AGPL source URL**. It is empty by
 default and must be set to the public GitHub repository root. Clients periodically verify its visibility and AGPL license
-through the GitHub API and fall back to the official source if any check fails.
+through the GitHub API and fall back to the official source if any check fails. They also
+inspect the default-branch source tree, requiring the license plus core backend/frontend
+files and minimum source-file/count thresholds so license-only shell repositories are rejected.
 
 ```json
 {
