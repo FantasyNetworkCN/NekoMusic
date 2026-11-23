@@ -1215,6 +1215,21 @@ const playNext = (fromEnded = false) => {
     nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % playlist.value.length
   }
 
+  let scanned = 0
+  while (nextIndex >= 0 && nextIndex < playlist.value.length
+         && playlist.value[nextIndex]?.playable === false
+         && scanned < playlist.value.length) {
+    nextIndex = playbackMode.value === 'shuffle'
+      ? getRandomIndex(nextIndex)
+      : (nextIndex + 1) % playlist.value.length
+    scanned += 1
+  }
+
+  if (nextIndex >= 0 && playlist.value[nextIndex]?.playable === false) {
+    toast.warning(t('player.notPlayable'))
+    return
+  }
+
   if (nextIndex !== -1 && playlist.value[nextIndex]) {
     switchToTrack(playlist.value[nextIndex])
   }
@@ -1588,6 +1603,7 @@ const revalidateCurrentTrackPlayability = async () => {
     updateGlobalPlayerState()
     updateMediaSessionPlaybackState()
     toast.error(t('player.notPlayable'))
+    playNext()
   } catch (error) {
     console.warn('[player] 复核播放权限失败', error)
   }
