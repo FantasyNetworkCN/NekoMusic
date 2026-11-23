@@ -26,6 +26,19 @@ public final class NeteaseLyricParser {
     private static final Pattern TIMED_LINE =
             Pattern.compile("^\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,5}))?\\](.*)$");
     private static final int TRANSLATION_TOLERANCE_MS = 4_000;
+    /** 网易云用 99:00 起的伪时间轴承载歌曲无关的片尾推广。 */
+    private static final long NETEASE_FOOTER_SENTINEL_MS = 99 * 60_000L;
+    private static final Pattern PRODUCTION_CREDIT = Pattern.compile(
+            "^(?:总策划|制作人|制作统筹|监制|企划|编曲|录音(?:工程师)?|混音(?:工程师)?|"
+                    + "母带(?:工程师)?|艺人统筹|封面设计|视觉设计|出品人|发行|作词|作曲|"
+                    + "词|曲|OP|SP)\\s*[:：]",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern NETEASE_CREDIT =
+            Pattern.compile("网易音乐人.*(?:独家)?出品", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NETEASE_PROMOTION = Pattern.compile(
+            "(?:本歌曲来自.*网易音乐人|10亿现金激励|千亿流量扶持|"
+                    + "合作\\s*[:：].*@vip\\.163\\.com)",
+            Pattern.CASE_INSENSITIVE);
 
     private NeteaseLyricParser() {
     }
@@ -122,7 +135,7 @@ public final class NeteaseLyricParser {
                 }
             }
         }
-        return NekoLyrics.document(lines);
+        return stripNeteaseFooter(NekoLyrics.document(lines));
     }
 
     /**
@@ -139,18 +152,60 @@ public final class NeteaseLyricParser {
                 continue;
             }
             Matcher newYrc = NEW_YRC_LINE.matcher(line);
-            if (newYrc.matches() && !newYrc.group(3).isBlank()) {
+            if (newYrc.matches()
+                    && !isNeteaseFooterSentinel(parseLong(newYrc.group(1)))
+                    && !newYrc.group(3).isBlank()) {
                 return true;
             }
             String normalized = LrcValidator.normalizeNeteaseTimestamps(line);
             for (String timed : normalized.split("\\R", -1)) {
                 Matcher matcher = TIMED_LINE.matcher(timed.trim());
-                if (matcher.matches() && !matcher.group(4).isBlank()) {
+                if (matcher.matches()
+                        && !isNeteaseFooterSentinel(timestampToMs(matcher))
+                        && !matcher.group(4).isBlank()) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    /**
+     * 去掉网易云片尾的无用内容。99:00 起的时间轴属于平台占位段，不属于歌曲；
+     * 制作人员与“网易音乐人”推广只在位于歌词末尾时裁剪，避免误删正文。
+     */
+    private static NekoLyrics.Document stripNeteaseFooter(NekoLyrics.Document document) {
+        if (document == null || document.isEmpty()) {
+            return document;
+        }
+
+        List<NekoLyrics.Line> lines = new ArrayList<>(document.lines());
+        lines.removeIf(line -> isNeteaseFooterSentinel(line.startMs()));
+
+        int tailStart = lines.size();
+        int creditCount = 0;
+        boolean neteaseFooter = false;
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            String text = lines.get(i).text();
+            if (PRODUCTION_CREDIT.matcher(text).find()) {
+                creditCount++;
+            } else if (NETEASE_CREDIT.matcher(text).find()
+                    || NETEASE_PROMOTION.matcher(text).find()) {
+                neteaseFooter = true;
+            } else {
+                break;
+            }
+            tailStart = i;
+        }
+
+        if (creditCount >= 2 || neteaseFooter) {
+            lines = new ArrayList<>(lines.subList(0, tailStart));
+        }
+        return NekoLyrics.document(lines);
+    }
+
+    private static boolean isNeteaseFooterSentinel(long timeMs) {
+        return timeMs >= NETEASE_FOOTER_SENTINEL_MS;
     }
 
     private static NekoLyrics.Line parseJsonMetadata(String line) {

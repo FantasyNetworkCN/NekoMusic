@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -126,6 +129,90 @@ class NeteaseLyricParserTest {
         assertTrue(parsed.rawMain().isEmpty());
     }
 
+    @Test
+    void stripsTrailingCreditsAndNeteasePromotionBlock() {
+        String lrc = """
+                [00:15.50]想和你住在一个房间
+                [03:11.70]你的每句话都太撩
+                [03:15.14]
+                [03:17.38]\s
+                [03:19.20]总策划：唐晶晶
+                [03:20.10]制作人：郑翰文 沈炳
+                [03:20.68]监制：姚政 王磊
+                [03:21.37]企划：牛雪吟
+                [03:22.01]编曲：Friday 06
+                [03:22.66]录音工程师：张明懂
+                [03:23.35]混音工程师：欧姆@FLOWSIXTEEN
+                [03:23.98]母带工程师：全相彦@OKmastering Studio
+                [03:24.60]艺人统筹：许雯婉
+                [03:25.25]封面设计：何晓婷
+                [03:25.92]网易音乐人独家出品
+                [03:26.56]
+                [99:00.01]本歌曲来自〖网易音乐人〗
+                [99:00.02]10亿现金激励，千亿流量扶持！
+                [99:00.03]合作：st399@vip.163.com
+                """;
+
+        NeteaseLyricParser.ParsedLyrics parsed =
+                NeteaseLyricParser.parse(root("", lrc, "", ""));
+
+        assertEquals("""
+                [00:15.500]想和你住在一个房间
+                [03:11.700]你的每句话都太撩""", parsed.lrc());
+        assertEquals(lrc, parsed.rawMain());
+        assertEquals(2, parsed.rich().lines().size());
+        assertTrue(validate(parsed.lrc()).isValid());
+    }
+
+    @Test
+    void keepsCreditLikeTextWhenItIsNotTheLyricFooter() {
+        String lrc = """
+                [00:01.00]制作人：只是一个角色
+                [00:05.00]真正的歌词
+                """;
+
+        NeteaseLyricParser.ParsedLyrics parsed =
+                NeteaseLyricParser.parse(root("", lrc, "", ""));
+
+        assertEquals("""
+                [00:01.000]制作人：只是一个角色
+                [00:05.000]真正的歌词""", parsed.lrc());
+    }
+
+    @Test
+    void stripsStandaloneNeteasePromotionSentinelAfterLyrics() {
+        String lrc = """
+                [03:54.244]想和你一起踩着浪花纹络
+                [03:58.860]有最幸福的轮廓
+                [99:00.01]本歌曲来自〖网易音乐人〗
+                [99:00.02]10亿现金激励，千亿流量扶持！
+                [99:00.03]合作：st399@vip.163.com
+                """;
+
+        NeteaseLyricParser.ParsedLyrics parsed =
+                NeteaseLyricParser.parse(root("", lrc, "", ""));
+
+        assertEquals("""
+                [03:54.244]想和你一起踩着浪花纹络
+                [03:58.860]有最幸福的轮廓""", parsed.lrc());
+        assertTrue(validate(parsed.lrc()).isValid());
+    }
+
+    @Test
+    void ignoresPromotionOnlyTimelineAsLyrics() {
+        String lrc = """
+                {"t":0,"c":[{"tx":"作词: "},{"tx":"测试"}]}
+                [99:00.01]本歌曲来自〖网易音乐人〗
+                [99:00.02]10亿现金激励，千亿流量扶持！
+                """;
+
+        NeteaseLyricParser.ParsedLyrics parsed =
+                NeteaseLyricParser.parse(root("", lrc, "", ""));
+
+        assertTrue(parsed.lrc().isEmpty());
+        assertTrue(parsed.rich().isEmpty());
+    }
+
     private static ObjectNode root(String yrc, String lrc, String ytlrc, String tlyric) {
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
         root.putObject("yrc").put("lyric", yrc);
@@ -133,5 +220,10 @@ class NeteaseLyricParserTest {
         root.putObject("ytlrc").put("lyric", ytlrc);
         root.putObject("tlyric").put("lyric", tlyric);
         return root;
+    }
+
+    private static LrcValidator.ValidationResult validate(String content) {
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        return LrcValidator.validate(new ByteArrayInputStream(bytes), bytes.length);
     }
 }
