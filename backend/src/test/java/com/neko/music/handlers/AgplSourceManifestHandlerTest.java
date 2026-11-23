@@ -1,24 +1,25 @@
 package com.neko.music.handlers;
 
-import jakarta.servlet.http.HttpServletResponse;
 import com.neko.music.config.ConfigManager;
+import jakarta.servlet.http.HttpServletResponse;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.Test;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgplSourceManifestHandlerTest {
@@ -64,13 +65,20 @@ class AgplSourceManifestHandlerTest {
 
     @Test
     void sourceUrlComesFromRuntimeSetting() {
-        assertEquals("https://git.example.com/nekomusic/backend",
+        assertEquals("https://github.com/example/nekomusic",
                 AgplSourceManifestHandler.resolveSourceUrl(
-                        " https://git.example.com/nekomusic/backend "));
-        assertEquals("http://localhost:8080/source",
-                AgplSourceManifestHandler.resolveSourceUrl("http://localhost:8080/source"));
+                        " https://github.com/example/nekomusic "));
+        assertEquals(AgplSourceManifestHandler.DEFAULT_SOURCE_URL,
+                AgplSourceManifestHandler.resolveSourceUrl(
+                        "https://git.example.com/nekomusic/backend"));
         assertEquals(AgplSourceManifestHandler.DEFAULT_SOURCE_URL,
                 AgplSourceManifestHandler.resolveSourceUrl("not-a-url"));
+        assertTrue(AgplSourceManifestHandler.isValidGithubRepositoryUrl(
+                "https://github.com/FantasyNetworkCN/NekoMusic"));
+        assertFalse(AgplSourceManifestHandler.isValidGithubRepositoryUrl(
+                "https://github.com/FantasyNetworkCN/NekoMusic/tree/main"));
+        assertFalse(AgplSourceManifestHandler.isValidGithubRepositoryUrl(
+                "https://gitlab.com/FantasyNetworkCN/NekoMusic"));
     }
 
     @Test

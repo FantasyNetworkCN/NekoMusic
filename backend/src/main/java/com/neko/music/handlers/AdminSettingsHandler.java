@@ -271,6 +271,12 @@ public class AdminSettingsHandler extends ApiServlet {
                 if (value.length() > MAX_STRING_LENGTH) {
                     return ApiMessages.translate("admin.settings.too_long", definition.label());
                 }
+                if (definition.key().equals(AgplSourceManifestHandler.SOURCE_URL_KEY)) {
+                    return AgplSourceManifestHandler.isValidGithubRepositoryUrl(value)
+                            ? null
+                            : ApiMessages.translate("admin.settings.github_repo_required",
+                                    definition.label());
+                }
                 if (!isValidPublicUrl(value)) {
                     return ApiMessages.translate("admin.settings.url_required", definition.label());
                 }

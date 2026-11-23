@@ -57,26 +57,28 @@ public class AgplSourceManifestHandler extends HttpServlet {
 
     static String resolveSourceUrl(String configured) {
         String candidate = configured == null ? "" : configured.trim();
-        if (candidate.isEmpty()) {
-            return DEFAULT_SOURCE_URL;
-        }
+        return isValidGithubRepositoryUrl(candidate) ? candidate : DEFAULT_SOURCE_URL;
+    }
+
+    /** 源码地址必须是公开 GitHub 仓库根地址，客户端会主动调用 GitHub API 复核。 */
+    public static boolean isValidGithubRepositoryUrl(String raw) {
         try {
-            URI uri = URI.create(candidate);
+            URI uri = URI.create(raw == null ? "" : raw.trim());
             String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
-            boolean loopback = host.equals("localhost")
-                    || host.equals("::1")
-                    || host.startsWith("127.");
-            if (uri.isAbsolute() && !host.isBlank()
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            String[] segments = path.replaceFirst("^/+", "").replaceFirst("/+$", "").split("/");
+            return uri.isAbsolute()
+                    && host.equals("github.com")
                     && uri.getUserInfo() == null
                     && uri.getRawQuery() == null
                     && uri.getRawFragment() == null
-                    && ("https".equalsIgnoreCase(uri.getScheme())
-                        || ("http".equalsIgnoreCase(uri.getScheme()) && loopback))) {
-                return candidate;
-            }
-        } catch (IllegalArgumentException ignored) {
-            // 配置损坏时回退到出厂源码地址，保证清单仍可被客户端解析。
+                    && segments.length == 2
+                    && !segments[0].isBlank()
+                    && !segments[1].isBlank()
+                    && !segments[0].equals(".")
+                    && !segments[1].equals(".");
+        } catch (IllegalArgumentException e) {
+            return false;
         }
-        return DEFAULT_SOURCE_URL;
     }
 }
