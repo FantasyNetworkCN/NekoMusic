@@ -42,6 +42,32 @@ stations, and anime-music communities.
 | PC | Desktop app | Qt 6 + C++ | Windows / Linux / macOS; system-browser login |
 | Backend | Shared server | Java 27 + Jetty 12 | MySQL, Redis, FFmpeg, fingerprint index, and all APIs |
 
+## Client-configurable Music Source
+
+Android and PC settings include a **Music source** option. It defaults to the official
+`https://music.nekocore.cn` server and leaves all existing API paths unchanged when a
+self-hosted server is selected.
+
+The target server must publish `/.well-known/nekomusic-source.json` with its AGPL license,
+public source URL, and client protocol version. The clients verify the manifest and source
+availability before switching, then clear the previous server's login state so its token is
+never sent to the new server. Deployments that modify the server must point `sourceUrl` at
+the public source for the exact running version.
+
+```json
+{
+  "success": true,
+  "data": {
+    "schema": "nekomusic-agpl-source/v1",
+    "project": "NekoMusic",
+    "license": "AGPL-3.0-only",
+    "sourceUrl": "https://github.com/FantasyNetworkCN/NekoMusic",
+    "licenseUrl": "https://www.gnu.org/licenses/agpl-3.0.html",
+    "apiProtocol": 1
+  }
+}
+```
+
 ### Screenshots
 
 | Web Home | Immersive Player |

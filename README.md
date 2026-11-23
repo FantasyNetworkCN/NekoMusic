@@ -32,6 +32,30 @@ Android 与 PC，支持站内曲库搜索、播放、收藏、歌单、评论、
 | PC | 桌面客户端 | Qt 6 + C++ | Windows / Linux / macOS，系统浏览器登录 |
 | Backend | 统一服务端 | Java 27 + Jetty 12 + Rust | MySQL、Redis、FFmpeg、声纹索引与全部 API |
 
+## 客户端自定义音乐连接源
+
+Android 与 PC 设置页提供“音乐连接源”，默认保持官方 `https://music.nekocore.cn` 不变。
+切换到自建服务时，客户端仍按原路径调用相同 API，不会改接口协议。
+
+目标服务必须在基础 URL 下公开 `/.well-known/nekomusic-source.json`，声明 AGPL 许可、
+公开源码地址与客户端协议版本。客户端校验清单和源码地址可访问后才允许切换，并会清除旧服务器
+的登录态，避免跨服务器复用 Token。自建部署可直接使用本项目后端的该公开清单端点。
+修改过服务端代码的部署必须把清单中的 `sourceUrl` 指向实际运行版本的公开源码。
+
+```json
+{
+  "success": true,
+  "data": {
+    "schema": "nekomusic-agpl-source/v1",
+    "project": "NekoMusic",
+    "license": "AGPL-3.0-only",
+    "sourceUrl": "https://github.com/FantasyNetworkCN/NekoMusic",
+    "licenseUrl": "https://www.gnu.org/licenses/agpl-3.0.html",
+    "apiProtocol": 1
+  }
+}
+```
+
 ### 界面预览
 
 | Web 首页 | 沉浸式播放页 |

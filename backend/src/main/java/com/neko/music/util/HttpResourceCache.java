@@ -25,6 +25,10 @@ public final class HttpResourceCache {
     /** 动态 API / 登录 / 头像等敏感响应：禁止任何缓存落盘。 */
     public static final String CACHE_CONTROL_NO_STORE = "private, no-store";
 
+    /** 公开且半小时内不会变化的清单类响应。 */
+    public static final String CACHE_CONTROL_PUBLIC_HALF_HOUR =
+            "public, max-age=" + MAX_AGE_HALF_HOUR;
+
     /**
      * 允许浏览器与共享缓存（CDN）缓存；上传替换同一 id 后 ETag 变化，再校验可拿到新对象。
      */

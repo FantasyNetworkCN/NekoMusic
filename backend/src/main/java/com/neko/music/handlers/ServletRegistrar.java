@@ -140,6 +140,10 @@ public final class ServletRegistrar {
         ServletHolder versionHolder = new ServletHolder(new VersionJsonHandler());
         context.addServlet(versionHolder, "/version");
 
+        // 客户端切换自定义音乐连接源前读取的 AGPL 来源清单
+        ServletHolder agplSourceManifestHolder = new ServletHolder(new AgplSourceManifestHandler());
+        context.addServlet(agplSourceManifestHolder, AgplSourceManifestHandler.PATH);
+
         ServletHolder clientReleaseDownloadHolder = new ServletHolder(new ClientReleaseDownloadHandler());
         context.addServlet(clientReleaseDownloadHolder, "/update/*");
 
