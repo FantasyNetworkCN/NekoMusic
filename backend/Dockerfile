@@ -91,7 +91,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=jdk /opt/java /opt/java
-COPY --from=builder /build/target/backend-1.0-SNAPSHOT.jar /app/backend.jar
+COPY --from=builder /build/target/backend-1.0-SNAPSHOT.jar /opt/neko/backend.jar
+COPY backend/docker-entrypoint.sh /usr/local/bin/neko-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/neko-entrypoint.sh
 
 # 人声 / 伴奏分离运行时：CUDA 版 PyTorch 在容器获得 GPU 时优先使用 GPU，
 # 无可用 CUDA 时 Demucs 自动回退 CPU。
@@ -117,22 +119,7 @@ ENV JAVA_HOME=/opt/java \
     LANGUAGE=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# JVM 参数说明（改动前先读）：
-#   MaxGCPauseMillis 是 G1 的**停顿目标**，不是上限。取 100 等于告诉 G1「100ms 可以接受」，
-#   于是它会一路把年轻代养大、直到单次停顿贴近该值——访问日志里那些原本该 <5ms 的接口
-#   （favorites / userinfo / media 等）零散出现 100~106ms，就是卡在这条线上。
-#   降到 25 会让 G1 缩小年轻代、用更频繁但更短的停顿替代。
-#   UseStringDeduplication 在每次年轻代回收里多扫一遍存活字符串，对以文件响应为主、堆里
-#   字符串周转量不大的服务只增加停顿时间，不省内存，故去掉。
-#   若要彻底消除这类停顿，可改用 ZGC（-XX:+UseZGC）并把下面所有 G1 专属参数一并删除。
-ENTRYPOINT ["java", "-server", \
-    "--enable-native-access=ALL-UNNAMED", \
-    "-XX:+UseG1GC", \
-    "-XX:MaxGCPauseMillis=25", \
-    "-XX:InitialRAMPercentage=25.0", \
-    "-XX:MaxRAMPercentage=75.0", \
-    "-XX:+DisableExplicitGC", \
-    "-Dfile.encoding=UTF-8", \
-    "-Dsun.jnu.encoding=UTF-8", \
-    "-Djava.awt.headless=true", \
-    "-jar", "/app/backend.jar"]
+# JVM 参数集中在 docker-entrypoint.sh，入口会优先使用 NEKO_JAR_PATH。
+# 这样把生产目录挂载到 /app 时不会覆盖镜像内置 JAR，也能直接运行目录中的
+# backend-1.0-SNAPSHOT.jar。
+ENTRYPOINT ["/usr/local/bin/neko-entrypoint.sh"]

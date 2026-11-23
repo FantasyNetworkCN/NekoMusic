@@ -48,7 +48,7 @@ Android and PC settings include a **Music source** option. It defaults to the of
 `https://music.nekocore.cn` server and leaves all existing API paths unchanged when a
 self-hosted server is selected.
 
-The target server must publish `/.well-known/nekomusic-source.json` with its AGPL license,
+The target server must publish `/api/music/source` with its AGPL license,
 public source URL, and client protocol version. The clients verify the manifest and source
 availability before switching, then clear the previous server's login state so its token is
 never sent to the new server. Deployments that modify the server must point `sourceUrl` at

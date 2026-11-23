@@ -18,7 +18,9 @@ import java.util.Locale;
  */
 public class AgplSourceManifestHandler extends HttpServlet {
 
-    public static final String PATH = "/.well-known/nekomusic-source.json";
+    public static final String PATH = "/api/music/source";
+    /** 兼容标准 well-known 路径；部分反向代理默认不转发点目录。 */
+    public static final String WELL_KNOWN_PATH = "/.well-known/nekomusic-source.json";
     public static final String SCHEMA = "nekomusic-agpl-source/v1";
     public static final String PROJECT = "NekoMusic";
     public static final String LICENSE = "AGPL-3.0-only";

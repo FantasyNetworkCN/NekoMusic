@@ -37,7 +37,7 @@ Android 与 PC，支持站内曲库搜索、播放、收藏、歌单、评论、
 Android 与 PC 设置页提供“音乐连接源”，默认保持官方 `https://music.nekocore.cn` 不变。
 切换到自建服务时，客户端仍按原路径调用相同 API，不会改接口协议。
 
-目标服务必须在基础 URL 下公开 `/.well-known/nekomusic-source.json`，声明 AGPL 许可、
+目标服务必须在基础 URL 下公开 `/api/music/source`，声明 AGPL 许可、
 公开源码地址与客户端协议版本。客户端校验清单和源码地址可访问后才允许切换，并会清除旧服务器
 的登录态，避免跨服务器复用 Token。自建部署可直接使用本项目后端的该公开清单端点。
 源码地址在后台「系统设置 → 开源合规 → AGPL 源码地址」维护；修改过服务端代码的部署必须把它
@@ -104,6 +104,11 @@ docker compose logs -f neko-music
 ```bash
 curl -fsSI http://127.0.0.1:65535/
 ```
+
+容器入口会优先运行 `NEKO_JAR_PATH` 指定的 JAR；未设置时依次查找
+`/app/backend.jar`、`/app/backend-1.0-SNAPSHOT.jar`，最后回退到镜像内置的
+`/opt/neko/backend.jar`。因此把生产目录挂载到 `/app` 时，可以直接使用目录里的
+`backend-1.0-SNAPSHOT.jar`，不会再被旧入口路径覆盖。
 
 音频文件位于 `backend/Music/{id}.*`，封面嵌入音频；声纹索引位于 `backend/Music/.fingerprints/`，待审核上传与客户端发布包分别位于 `backend/user_upload/` 与 `backend/releases/`。头像统一由 NekoAuth 保存。复用已有部署的数据时，可在 `backend/.env` 设置 `NEKO_DATA_DIR=/原后端运行目录`；配置文件为 `backend/config.yml`（只含 MySQL 引导信息，密码等敏感项请勿提交到 Git）；运行时配置存
 主库 `system_settings` 表，同样不要外泄。升级代码后执行

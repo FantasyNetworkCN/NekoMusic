@@ -8,16 +8,30 @@ services:
       args:
         NEKO_WEB_VERSION: ${NEKO_WEB_VERSION:-dev}
 
-    restart: on-failure:5
+    restart: unless-stopped
     network_mode: host
     gpus: all
+    stop_grace_period: 30s
 
     environment:
       LANG: C.UTF-8
       LANGUAGE: C.UTF-8
       LC_ALL: C.UTF-8
+      # 留空时自动依次查找 /app/backend.jar、/app/backend-1.0-SNAPSHOT.jar、
+      # /opt/neko/backend.jar；生产目录已有 JAR 时无需额外配置。
+      NEKO_JAR_PATH: ${NEKO_JAR_PATH:-}
 
     volumes:
       - type: bind
         source: "${NEKO_DATA_DIR:-.}"
         target: /app
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python3 -c "import socket; s=socket.create_connection(('127.0.0.1', 65535), 3); s.close()"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s

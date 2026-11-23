@@ -115,12 +115,17 @@ class AgplSourceManifestHandlerTest {
             server.start();
             int port = ((org.eclipse.jetty.server.ServerConnector)
                     server.getConnectors()[0]).getLocalPort();
-            HttpResponse<String> response = HttpClient.newHttpClient().send(
-                    HttpRequest.newBuilder(URI.create(
-                            "http://127.0.0.1:" + port + AgplSourceManifestHandler.PATH)).GET().build(),
-                    HttpResponse.BodyHandlers.ofString());
-            assertEquals(HttpServletResponse.SC_OK, response.statusCode());
-            assertTrue(response.body().contains(AgplSourceManifestHandler.SCHEMA));
+            for (String path : new String[] {
+                    AgplSourceManifestHandler.PATH,
+                    AgplSourceManifestHandler.WELL_KNOWN_PATH
+            }) {
+                HttpResponse<String> response = HttpClient.newHttpClient().send(
+                        HttpRequest.newBuilder(URI.create(
+                                "http://127.0.0.1:" + port + path)).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+                assertEquals(HttpServletResponse.SC_OK, response.statusCode());
+                assertTrue(response.body().contains(AgplSourceManifestHandler.SCHEMA));
+            }
         } finally {
             server.stop();
         }
