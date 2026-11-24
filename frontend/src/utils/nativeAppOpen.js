@@ -1,5 +1,6 @@
 import { replaceUrlSafely } from './routerHistory'
 import { isMobileDevice } from './mobile'
+import { detectInAppBrowser } from './inAppBrowser'
 /**
  * 移动端进入详情 / 歌单页时尝试拉起原生 App。
  *
@@ -131,6 +132,8 @@ export function tryOpenPlaylistInApp(playlistId) {
 export function tryOpenTogetherInApp(token, options = {}) {
   const roomToken = String(token || '').trim()
   if (!/^[A-Za-z0-9_-]{8,128}$/.test(roomToken)) return false
+  // 内置浏览器普遍拦截自定义协议；由落地页展示「请使用浏览器打开」。
+  if (detectInAppBrowser()) return false
 
   try {
     const u = new URL(window.location.href)
