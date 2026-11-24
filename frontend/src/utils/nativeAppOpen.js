@@ -11,7 +11,6 @@ import { isMobileDevice } from './mobile'
  *
  * 微信 / QQ 内置浏览器常拦截，需在系统浏览器中打开。
  */
-const APP_LINK_HOST = 'music.nekocore.cn'
 const ANDROID_PKG = 'com.neko.music'
 const SKIP_QUERY = 'nekoweb'
 
@@ -33,9 +32,15 @@ function stripSkipQueryFromUrl() {
   }
 }
 
-function buildAppHttpsUrl(webPath) {
-  const path = webPath.startsWith('/') ? webPath : `/${webPath}`
-  return `https://${APP_LINK_HOST}${path}`
+/** 按 Android Intent URI 规范构造 VIEW 跳转，避免把 data 当作非法 extra。 */
+function buildAndroidViewIntent(schemeUrl, fallbackUrl) {
+  const target = new URL(schemeUrl)
+  const scheme = target.protocol.slice(0, -1)
+  return (
+    `intent://${target.host}${target.pathname}${target.search}` +
+    `#Intent;action=android.intent.action.VIEW;scheme=${scheme};` +
+    `package=${ANDROID_PKG};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`
+  )
 }
 
 /** 单次导航：程序化 `<a>` 点击；失败再 `assign` */
@@ -96,7 +101,6 @@ function tryOpenNative(kind, id, webPath, schemeUrl) {
   const webBase = `${origin}${pathOnly}`
   const sep = webBase.includes('?') ? '&' : '?'
   const fallbackUrl = `${webBase}${sep}${SKIP_QUERY}=1`
-  const appUrl = buildAppHttpsUrl(pathOnly)
   const ua = navigator.userAgent || ''
 
   if (!/Android/i.test(ua)) {
@@ -104,12 +108,7 @@ function tryOpenNative(kind, id, webPath, schemeUrl) {
     return
   }
 
-  const data = encodeURIComponent(appUrl)
-  const fallback = encodeURIComponent(fallbackUrl)
-  const intent =
-    `intent:#Intent;action=android.intent.action.VIEW;data=${data};` +
-    `package=${ANDROID_PKG};` +
-    `S.browser_fallback_url=${fallback};end`
+  const intent = buildAndroidViewIntent(schemeUrl, fallbackUrl)
 
   navigateLikeUserClick(intent)
 }
@@ -154,11 +153,8 @@ export function tryOpenTogetherInApp(token, options = {}) {
     return true
   }
 
-  const fallback = encodeURIComponent(`${window.location.origin}${webPath}?${SKIP_QUERY}=1`)
-  const intent =
-    `intent:#Intent;action=android.intent.action.VIEW;data=${encodeURIComponent(schemeUrl)};` +
-    `package=${ANDROID_PKG};` +
-    `S.browser_fallback_url=${fallback};end`
+  const fallbackUrl = `${window.location.origin}${webPath}?${SKIP_QUERY}=1`
+  const intent = buildAndroidViewIntent(schemeUrl, fallbackUrl)
   navigateLikeUserClick(intent)
   return true
 }
