@@ -127,9 +127,17 @@ public final class CoverArtCache {
     /** 曲目删除时清理缓存。 */
     public static void invalidate(int musicId) {
         String prefix = musicId + ".";
+        Path coverDir = MusicAssetLocator.coverDir(musicId).toAbsolutePath().normalize();
         CACHE.invalidateIf(key -> {
             Path name = key.getFileName();
-            return name != null && name.toString().startsWith(prefix);
+            if (name == null) {
+                return false;
+            }
+            if (name.toString().startsWith(prefix)) {
+                return true;
+            }
+            Path parent = key.getParent();
+            return parent != null && parent.equals(coverDir);
         });
     }
 

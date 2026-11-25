@@ -14,13 +14,13 @@ import java.util.stream.Stream;
 
 /**
  * 在运行目录下按 {@code Music/{id}.*} 定位音频，不依赖数据库路径列。
- * 封面优先使用 {@code Music/.covers/{id}.*} 独立文件，同时兼容旧的内嵌封面。
+ * 封面优先使用 {@code Music/derived/{id}/cover.*} 独立文件，同时兼容旧的内嵌封面。
  */
 public final class MusicAssetLocator {
     private static final Logger log = LoggerFactory.getLogger(MusicAssetLocator.class);
 
     public static final String AUDIO_REL_DIR = "Music";
-    private static final String COVER_REL_DIR = ".covers";
+    private static final String COVER_FILE_STEM = "cover";
 
     private static final List<String> AUDIO_EXT_PRIORITY = List.of(
             "flac", "wav", "eac3", "ec3", "ac3", "thd", "truehd", "mlp",
@@ -47,8 +47,8 @@ public final class MusicAssetLocator {
         return baseDir().resolve(AUDIO_REL_DIR);
     }
 
-    public static Path coverDir() {
-        return audioDir().resolve(COVER_REL_DIR);
+    static Path coverDir(int musicId) {
+        return derivedDir(musicId);
     }
 
     public static Path derivedDir(int musicId) {
@@ -73,7 +73,7 @@ public final class MusicAssetLocator {
             return Optional.empty();
         }
         try {
-            return findIdNamedFile(coverDir(), musicId, COVER_EXT_PRIORITY);
+            return findNamedFile(coverDir(musicId), COVER_FILE_STEM, COVER_EXT_PRIORITY);
         } catch (IOException e) {
             log.warn("定位封面文件失败 musicId={}: {}", musicId, e.toString());
             return Optional.empty();
@@ -91,9 +91,9 @@ public final class MusicAssetLocator {
         if (!COVER_EXT_PRIORITY.contains(extension)) {
             extension = "jpg";
         }
-        Path dir = coverDir();
+        Path dir = coverDir(musicId);
         Files.createDirectories(dir);
-        Path target = dir.resolve(musicId + "." + extension).toAbsolutePath().normalize();
+        Path target = dir.resolve(COVER_FILE_STEM + "." + extension).toAbsolutePath().normalize();
         Path temp = Files.createTempFile(dir, musicId + "-cover-", ".tmp");
         try {
             Files.copy(source, temp, StandardCopyOption.REPLACE_EXISTING);
@@ -110,11 +110,11 @@ public final class MusicAssetLocator {
     }
 
     public static void deleteCoverSidecar(int musicId) {
-        Path dir = coverDir();
+        Path dir = coverDir(musicId);
         if (!Files.isDirectory(dir)) {
             return;
         }
-        String prefix = musicId + ".";
+        String prefix = COVER_FILE_STEM + ".";
         try (Stream<Path> stream = Files.list(dir)) {
             stream.filter(Files::isRegularFile)
                     .filter(path -> isSingleSegmentExtension(path.getFileName().toString(), prefix))
@@ -186,7 +186,6 @@ public final class MusicAssetLocator {
     public static void deleteAudioVariants(int musicId) {
         deleteIdNamedFiles(audioDir(), musicId, "audio");
         deleteDerivedVariants(musicId);
-        deleteCoverSidecar(musicId);
     }
 
     /**
@@ -197,7 +196,6 @@ public final class MusicAssetLocator {
     public static void deleteAudioVariantsExcept(int musicId, Path keep) {
         deleteIdNamedFilesExcept(audioDir(), musicId, keep, "audio");
         deleteDerivedVariants(musicId);
-        deleteCoverSidecar(musicId);
     }
 
     public static void deleteDerivedVariants(int musicId) {
@@ -244,12 +242,17 @@ public final class MusicAssetLocator {
      */
     static Optional<Path> findIdNamedFile(Path dir, int musicId, List<String> extPriority)
             throws IOException {
+        return findNamedFile(dir, Integer.toString(musicId), extPriority);
+    }
+
+    static Optional<Path> findNamedFile(Path dir, String stem, List<String> extPriority)
+            throws IOException {
         if (!Files.isDirectory(dir)) {
             return Optional.empty();
         }
-        String idPrefix = musicId + ".";
+        String prefix = stem + ".";
         for (String ext : extPriority) {
-            Path candidate = dir.resolve(idPrefix + ext);
+            Path candidate = dir.resolve(prefix + ext);
             if (Files.isRegularFile(candidate)) {
                 return Optional.of(candidate);
             }
@@ -323,12 +326,12 @@ public final class MusicAssetLocator {
     }
 
     private static void deleteCoverVariantsExcept(int musicId, Path keep) {
-        Path dir = coverDir();
+        Path dir = coverDir(musicId);
         if (!Files.isDirectory(dir)) {
             return;
         }
         Path keepNormalized = keep.toAbsolutePath().normalize();
-        String prefix = musicId + ".";
+        String prefix = COVER_FILE_STEM + ".";
         try (Stream<Path> stream = Files.list(dir)) {
             stream.filter(Files::isRegularFile)
                     .filter(path -> isSingleSegmentExtension(path.getFileName().toString(), prefix))

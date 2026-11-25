@@ -118,7 +118,8 @@ Check that the service is running:
 curl -fsS http://127.0.0.1:65535/version
 ```
 
-Audio files are stored at `backend/Music/{id}.*`, with cover art embedded in the audio.
+Audio files are stored at `backend/Music/{id}.*`. Cover sidecars are stored at
+`backend/Music/derived/{id}/cover.*` and are also embedded in the audio when supported.
 Fingerprint indexes live in `backend/Music/.fingerprints/`. Pending review uploads and
 client release packages are stored in `backend/user_upload/` and `backend/releases/`
 respectively. Avatars are managed exclusively by NekoAuth.

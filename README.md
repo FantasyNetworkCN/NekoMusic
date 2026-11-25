@@ -112,7 +112,7 @@ curl -fsSI http://127.0.0.1:65535/
 `/opt/neko/backend.jar`。因此把生产目录挂载到 `/app` 时，可以直接使用目录里的
 `backend-1.0-SNAPSHOT.jar`，不会再被旧入口路径覆盖。
 
-音频文件位于 `backend/Music/{id}.*`，封面嵌入音频；声纹索引位于 `backend/Music/.fingerprints/`，待审核上传与客户端发布包分别位于 `backend/user_upload/` 与 `backend/releases/`。头像统一由 NekoAuth 保存。复用已有部署的数据时，可在 `backend/.env` 设置 `NEKO_DATA_DIR=/原后端运行目录`；配置文件为 `backend/config.yml`（只含 MySQL 引导信息，密码等敏感项请勿提交到 Git）；运行时配置存
+音频文件位于 `backend/Music/{id}.*`，封面优先保存为 `backend/Music/derived/{id}/cover.*`，并尽量嵌入音频；声纹索引位于 `backend/Music/.fingerprints/`，待审核上传与客户端发布包分别位于 `backend/user_upload/` 与 `backend/releases/`。头像统一由 NekoAuth 保存。复用已有部署的数据时，可在 `backend/.env` 设置 `NEKO_DATA_DIR=/原后端运行目录`；配置文件为 `backend/config.yml`（只含 MySQL 引导信息，密码等敏感项请勿提交到 Git）；运行时配置存
 主库 `system_settings` 表，同样不要外泄。升级代码后执行
 `NEKO_WEB_VERSION="$(git describe --tags --always)" docker compose build --pull && docker compose up -d`。
 

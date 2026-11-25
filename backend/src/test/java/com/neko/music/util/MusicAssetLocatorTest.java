@@ -29,6 +29,7 @@ class MusicAssetLocatorTest {
 
     private Path touch(String name) throws IOException {
         Path p = dir.resolve(name);
+        Files.createDirectories(p.getParent());
         Files.writeString(p, "x");
         return p;
     }
@@ -77,5 +78,21 @@ class MusicAssetLocatorTest {
         assertTrue(MusicAssetLocator.findIdNamedFile(dir.resolve("nope"), 7, AUDIO_EXT).isEmpty());
         touch("7.mp3");
         assertTrue(MusicAssetLocator.findIdNamedFile(dir, 8, AUDIO_EXT).isEmpty());
+    }
+
+    @Test
+    void coverCacheIsStoredInsidePerMusicDerivedDirectory() {
+        assertEquals(
+                MusicAssetLocator.audioDir().resolve("derived").resolve("7"),
+                MusicAssetLocator.coverDir(7));
+    }
+
+    @Test
+    void findsCoverSidecarByFileNameInsteadOfMusicId() throws IOException {
+        Path cover = touch("derived/7/cover.webp");
+        assertEquals(
+                cover,
+                MusicAssetLocator.findNamedFile(cover.getParent(), "cover", List.of("jpg", "webp"))
+                        .orElseThrow());
     }
 }
