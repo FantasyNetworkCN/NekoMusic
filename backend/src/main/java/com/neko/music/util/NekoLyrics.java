@@ -212,6 +212,39 @@ public final class NekoLyrics {
         return deserialize(content).map(NekoLyrics::toLrc).orElse("");
     }
 
+    /**
+     * 转成增强 LRC：保留每行正文的逐字/逐词时间戳，供内嵌歌词使用。
+     *
+     * <p>只有当至少一行存在与正文完全对应的字级时间轴时才返回结果；否则返回空字符串，
+     * 调用方可回退到普通 {@link #toLrc(Document)}。</p>
+     */
+    public static String toEnhancedLrc(Document document) {
+        if (document == null || document.lines().isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        boolean hasEnhancedLine = false;
+        for (Line line : document.lines()) {
+            if (line.text().isBlank()
+                    || LyricsPlaceholderFilter.isPlaceholder(line.text())) {
+                continue;
+            }
+            String enhancedBody = enhancedLineBody(line);
+            if (enhancedBody != null) {
+                hasEnhancedLine = true;
+            }
+            out.append(formatTimestamp(line.startMs()))
+                    .append(enhancedBody != null ? enhancedBody : line.text())
+                    .append('\n');
+            if (line.translation() != null
+                    && !line.translation().isBlank()
+                    && !LyricsPlaceholderFilter.isPlaceholder(line.translation())) {
+                out.append("{\"").append(escapeTranslation(line.translation())).append("\"}\n");
+            }
+        }
+        return hasEnhancedLine ? out.toString().trim() : "";
+    }
+
     public static String toLrc(Document document) {
         if (document == null || document.lines().isEmpty()) {
             return "";
@@ -230,6 +263,34 @@ public final class NekoLyrics {
             }
         }
         return out.toString().trim();
+    }
+
+    /**
+     * 生成带 {@code <mm:ss.xxx>} 字级时间戳的正文。字级片段拼接后必须与整行正文一致，
+     * 时间轴也必须有效且有序，避免把残缺的 words 数据写入内嵌歌词。
+     */
+    private static String enhancedLineBody(Line line) {
+        if (line.words().isEmpty()) {
+            return null;
+        }
+        StringBuilder joined = new StringBuilder();
+        StringBuilder body = new StringBuilder();
+        long previousStart = Long.MIN_VALUE;
+        for (Word word : line.words()) {
+            if (word == null || word.text().isEmpty()) {
+                continue;
+            }
+            if (word.startMs() < 0 || word.startMs() < previousStart) {
+                return null;
+            }
+            previousStart = word.startMs();
+            joined.append(word.text());
+            body.append(formatWordTimestamp(word.startMs())).append(word.text());
+        }
+        if (body.isEmpty() || !joined.toString().trim().equals(line.text().trim())) {
+            return null;
+        }
+        return body.toString();
     }
 
     public static String plainText(Document document) {
@@ -270,11 +331,19 @@ public final class NekoLyrics {
     }
 
     private static String formatTimestamp(long timeMs) {
+        return "[" + formatTimestampValue(timeMs) + "]";
+    }
+
+    private static String formatWordTimestamp(long timeMs) {
+        return "<" + formatTimestampValue(timeMs) + ">";
+    }
+
+    private static String formatTimestampValue(long timeMs) {
         long safe = Math.max(0, timeMs);
         long minutes = safe / 60_000;
         long seconds = (safe % 60_000) / 1_000;
         long millis = safe % 1_000;
-        return String.format(Locale.ROOT, "[%02d:%02d.%03d]", minutes, seconds, millis);
+        return String.format(Locale.ROOT, "%02d:%02d.%03d", minutes, seconds, millis);
     }
 
     private static String escapeTranslation(String translation) {

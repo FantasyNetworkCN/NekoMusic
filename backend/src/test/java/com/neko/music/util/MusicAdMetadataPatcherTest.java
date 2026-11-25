@@ -35,6 +35,7 @@ class MusicAdMetadataPatcherTest {
         String merged = MusicAdMetadataPatcher.mergeLyricsWithBanner("[00:12.00]原歌词");
         assertTrue(merged.startsWith(MusicAdMetadataPatcher.LYRICS_BANNER_FIRST));
         assertTrue(merged.contains("[00:12.00]原歌词"));
+        assertTrue(merged.contains(MusicAdMetadataPatcher.LYRICS_BANNER_SECOND + "\n[00:12.00]原歌词"));
         assertFalse(merged.contains(MusicAdMetadataPatcher.LYRICS_BANNER + MusicAdMetadataPatcher.LYRICS_BANNER));
     }
 
@@ -107,6 +108,22 @@ class MusicAdMetadataPatcherTest {
         String lyrics = tag.getFirst(FieldKey.LYRICS);
         assertTrue(MusicAdMetadataPatcher.hasBannerFirstLine(lyrics));
         assertTrue(lyrics.contains("[00:30.00]FLAC歌词"));
+    }
+
+    @Test
+    void syncLibraryMetadata_writesEnhancedLrcWithWordTimestamps(@TempDir Path dir) throws Exception {
+        assumeTrue(hasFfmpeg(), "需要 ffmpeg 生成测试 MP3");
+
+        Path mp3 = dir.resolve("enhanced.mp3");
+        runFfmpeg(mp3, "mp3");
+
+        MusicAdMetadataPatcher.syncLibraryMetadata(mp3, new MusicAdMetadataPatcher.LibraryMetadata(
+                "标题", "歌手", "专辑", "[00:20.000]<00:20.000>你<00:20.500>好", null));
+
+        String lyrics = ((AbstractID3v2Tag) AudioFileIO.read(mp3.toFile()).getTag())
+                .getFirst(ID3v24Frames.FRAME_ID_UNSYNC_LYRICS);
+        assertTrue(lyrics.contains(MusicAdMetadataPatcher.LYRICS_BANNER_SECOND
+                + "\n[00:20.000]<00:20.000>你<00:20.500>好"));
     }
 
     @Test

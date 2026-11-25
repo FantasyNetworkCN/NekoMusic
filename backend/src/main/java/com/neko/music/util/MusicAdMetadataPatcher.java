@@ -545,7 +545,7 @@ public final class MusicAdMetadataPatcher {
         if (existingBody == null || existingBody.isBlank()) {
             return LYRICS_BANNER.trim();
         }
-        return (LYRICS_BANNER + existingBody).trim();
+        return (LYRICS_BANNER + "\n" + existingBody).trim();
     }
 
     /**

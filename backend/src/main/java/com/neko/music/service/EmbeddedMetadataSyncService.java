@@ -5,6 +5,7 @@ import com.neko.music.database.LyricsDatabaseManager;
 import com.neko.music.util.MusicAdMetadataPatcher;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.CoverArtCache;
+import com.neko.music.util.NekoLyrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,8 +101,22 @@ public final class EmbeddedMetadataSyncService {
         }
         return lyricsDatabaseManager.findByMusicId(musicId)
                 .filter(stored -> !stored.placeholder())
-                .map(LyricsDatabaseManager.StoredLyrics::lrcContent)
+                .map(EmbeddedMetadataSyncService::embeddedLyricsBody)
                 .orElse("");
+    }
+
+    /**
+     * 有可用的字级时间轴时写入增强 LRC，完整保留逐字/逐词进度；否则回退普通 LRC。
+     */
+    static String embeddedLyricsBody(LyricsDatabaseManager.StoredLyrics stored) {
+        if (stored == null) {
+            return "";
+        }
+        String enhanced = stored.richLyrics()
+                .map(NekoLyrics::toEnhancedLrc)
+                .filter(body -> !body.isBlank())
+                .orElse("");
+        return enhanced.isBlank() ? stored.lrcContent() : enhanced;
     }
 
     private record MusicRow(int id, String title, String artist, String album) {

@@ -58,6 +58,28 @@ class QqLyricParserTest {
     }
 
     @Test
+    void convertsNekoWordsIntoEnhancedLrc() {
+        NekoLyrics.Document document = NekoLyrics.document(java.util.List.of(
+                new NekoLyrics.Line(1_000, 2_000, "Hello", "你好", "ni hao", false,
+                        java.util.List.of(new NekoLyrics.Word(1_000, 1_500, "Hel"),
+                                new NekoLyrics.Word(1_500, 2_000, "lo")))));
+
+        assertEquals("[00:01.000]<00:01.000>Hel<00:01.500>lo\n{\"你好\"}",
+                NekoLyrics.toEnhancedLrc(document));
+    }
+
+    @Test
+    void enhancedLrcRequiresMatchingWords() {
+        NekoLyrics.Document document = NekoLyrics.document(java.util.List.of(
+                new NekoLyrics.Line(1_000, 2_000, "Hello", null, null, false,
+                        java.util.List.of(new NekoLyrics.Word(1_000, 1_500, "He"),
+                                new NekoLyrics.Word(1_500, 2_000, "llo!")))));
+
+        assertEquals("", NekoLyrics.toEnhancedLrc(document));
+        assertEquals("[00:01.000]Hello", NekoLyrics.toLrc(document));
+    }
+
+    @Test
     void inflatesQrcZlibPayload() throws Exception {
         String expected = "[1000,1000]字(1000,1000)";
         byte[] compressed = deflate(expected.getBytes(StandardCharsets.UTF_8));
